@@ -43,7 +43,7 @@ static bool needsReadbackStaging(const bgfx::Caps* caps) {
 		#else
 			// Prefer a read-back staging texture when the active GLES backend advertises
 			// blit support. Backends without blit can still use bgfx's direct FBO readback.
-			return (caps->supported & BGFX_CAPS_TEXTURE_BLIT) != 0;
+			return caps->limits.maxBlits > 0;
 		#endif
 		default:
 			return false;
@@ -301,17 +301,7 @@ bool RenderTarget::readPixelsAsync(const std::function<void(uint16_t, uint16_t, 
 		return false;
 	}
 	const auto* caps = bgfx::getCaps();
-	if ((caps->supported & BGFX_CAPS_TEXTURE_READ_BACK) == 0) {
-		Warn("RenderTarget async readback is unsupported by renderer {}.",
-			bgfx::getRendererName(caps->rendererType));
-		return false;
-	}
 	const uint64_t extraFlags = needsReadbackStaging(caps) ? BGFX_TEXTURE_BLIT_DST : 0;
-	if (extraFlags && (caps->supported & BGFX_CAPS_TEXTURE_BLIT) == 0) {
-		Warn("RenderTarget async readback requires texture blit support on renderer {}.",
-			bgfx::getRendererName(caps->rendererType));
-		return false;
-	}
 	bgfx::TextureHandle textureHandle;
 	if (extraFlags) {
 		const uint64_t textureFlags = BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP | BGFX_TEXTURE_READ_BACK;
@@ -322,7 +312,10 @@ bool RenderTarget::readPixelsAsync(const std::function<void(uint16_t, uint16_t, 
 			return false;
 		}
 		SharedView.pushBack("SaveTarget"_slice, [&]() {
-			bgfx::blit(SharedView.getId(), textureHandle, 0, 0, _texture->getHandle());
+			bgfx::TextureRegion dst, src;
+			dst.init(textureHandle);
+			src.init(_texture->getHandle());
+			bgfx::blit(SharedView.getId(), dst, src);
 		});
 	} else {
 		textureHandle = _texture->getHandle();
@@ -332,7 +325,9 @@ bool RenderTarget::readPixelsAsync(const std::function<void(uint16_t, uint16_t, 
 		return false;
 	}
 	auto data = std::make_shared<std::vector<uint8_t>>(_texture->getInfo().storageSize);
-	uint32_t frame = bgfx::readTexture(textureHandle, data->data());
+	bgfx::TextureRegion asyncRegion;
+	asyncRegion.init(textureHandle);
+	uint32_t frame = bgfx::read(asyncRegion, data->data());
 	uint16_t width = _textureWidth;
 	uint16_t height = _textureHeight;
 	SharedDirector.getSystemScheduler()->schedule([frame, textureHandle, extraFlags, data, width, height, callback](double deltaTime) mutable {
@@ -367,8 +362,6 @@ RenderTarget::ReadPixelsResult RenderTarget::readPixelsSync(std::vector<uint8_t>
 	if ((_textureFlags & BGFX_TEXTURE_RT_WRITE_ONLY) != 0)
 		return ReadPixelsResult::WriteOnly;
 	const auto* caps = bgfx::getCaps();
-	if ((caps->supported & BGFX_CAPS_TEXTURE_READ_BACK) == 0)
-		return ReadPixelsResult::Unsupported;
 	if (SharedView.hasActiveView())
 		return ReadPixelsResult::ActiveView;
 
@@ -391,24 +384,27 @@ RenderTarget::ReadPixelsResult RenderTarget::readPixelsSync(std::vector<uint8_t>
 	if (!bgfx::isValid(textureHandle))
 		return ReadPixelsResult::InvalidTexture;
 	if (needsStaging) {
-		if ((caps->supported & BGFX_CAPS_TEXTURE_BLIT) == 0)
-			return ReadPixelsResult::Unsupported;
 		const uint64_t flags = BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP
 			| BGFX_TEXTURE_READ_BACK | BGFX_TEXTURE_BLIT_DST;
 		textureHandle = bgfx::createTexture2D(width, height, false, 1, _format, flags);
 		if (!bgfx::isValid(textureHandle))
 			return ReadPixelsResult::StagingTextureFailed;
 		SharedView.pushBack("ReadTarget"_slice, [&]() {
-			bgfx::blit(SharedView.getId(), textureHandle, 0, 0, 0, 0,
-				_texture->getHandle(), mip, 0, 0, layer, width, height, 1);
+			bgfx::TextureRegion dst, src;
+			dst.init(textureHandle);
+			src.init(_texture->getHandle(), 0, 0, width, height);
+			src.mip = mip;
+			src.z = layer;
+			bgfx::blit(SharedView.getId(), dst, src);
 		});
 	}
 
 	bgfx::TextureInfo readInfo;
 	bgfx::calcTextureSize(readInfo, width, height, 1, false, false, 1, _format);
 	pixels.resize(readInfo.storageSize);
-	const uint32_t readyFrame = bgfx::readTexture(textureHandle, pixels.data(),
-		needsStaging ? 0 : mip);
+	bgfx::TextureRegion readRegion;
+	readRegion.init(textureHandle);
+	const uint32_t readyFrame = bgfx::read(readRegion, pixels.data());
 	auto [order, count] = SharedView.getOrders();
 	if (count > 0)
 		bgfx::setViewOrder(0, count, order);

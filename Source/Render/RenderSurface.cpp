@@ -19,7 +19,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #endif
 
 #include <bgfx/bgfx.h>
-#include <bgfx/platform.h>
+
 
 #if BX_PLATFORM_IOS
 /* Implemented in RenderSurface.mm. */
@@ -133,19 +133,19 @@ bool RenderSurface::initDevice() {
 	   index) are too small for otherwise valid Love workloads once the host UI
 	   has consumed part of the frame-local pool. Keep an explicit fixed budget;
 	   transient buffers are recycled by bgfx and do not grow across frames. */
-	init.limits.transientVbSize = 16 << 20;
-	init.limits.transientIbSize = 4 << 20;
+	init.limits.maxTransientVbSize = 16 << 20;
+	init.limits.maxTransientIbSize = 4 << 20;
 #if BX_PLATFORM_LINUX
 	if (_contextHandle) {
 		init.type = bgfx::RendererType::OpenGLES;
 	}
 #endif // BX_PLATFORM_LINUX
-	init.platformData.ndt = _displayHandle;
-	init.platformData.nwh = _windowHandle;
 	init.platformData.context = _contextHandle;
 	if (_wayland) {
 		init.platformData.type = bgfx::NativeWindowHandleType::Wayland;
 	}
+	init.swapChain.nwh = _windowHandle;
+	init.swapChain.ndt = _displayHandle;
 	_deviceInitialized = bgfx::init(init);
 	return _deviceInitialized;
 }
@@ -184,7 +184,12 @@ void RenderSurface::detach() {
 }
 
 void RenderSurface::reset(uint32_t width, uint32_t height, uint64_t flags) {
-	bgfx::reset(width, height, flags);
+	bgfx::SwapChain sc{};
+	sc.nwh = _windowHandle;
+	sc.ndt = _displayHandle;
+	sc.width = width;
+	sc.height = height;
+	bgfx::reset(flags, &sc);
 }
 
 void RenderSurface::onNativeWindowChanged() {
@@ -192,9 +197,9 @@ void RenderSurface::onNativeWindowChanged() {
 	SDL_SysWMinfo wmi;
 	SDL_VERSION(&wmi.version);
 	if (SDL_GetWindowWMInfo(_window, &wmi) == SDL_TRUE && wmi.info.android.window) {
-		bgfx::PlatformData pd{};
-		pd.nwh = wmi.info.android.window;
-		bgfx::setPlatformData(pd);
+		bgfx::SwapChain sc{};
+		sc.nwh = wmi.info.android.window;
+		bgfx::reset(0, &sc);
 	}
 #else
 	DORA_UNUSED_PARAM(_window);
