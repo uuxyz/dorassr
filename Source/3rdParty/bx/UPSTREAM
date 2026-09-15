@@ -6,3 +6,4 @@ tree       = 8fdcf5aa6f3fc0ff17f2a5eae467b091f2636054
 commit     = unknown
 # commit 含义: 上游快照对应的精确 commit。tree 对应导入快照（bx API 129），
 # 早于本文件引入，无法回溯到精确 commit；下一次同步起将记录精确值。
+keep       = include src LICENSE
