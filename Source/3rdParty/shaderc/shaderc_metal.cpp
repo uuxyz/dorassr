@@ -46,7 +46,7 @@ namespace bgfx
 #include <tinystl/vector.h>
 namespace stl = tinystl;
 
-#include "../../src/shader.h"
+#include "bgfx/src/shader.h"
 
 namespace bgfx { namespace metal
 {
