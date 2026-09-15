@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2025 Branimir Karadzic. All rights reserved.
+ * Copyright 2010-2026 Branimir Karadzic. All rights reserved.
  * License: https://github.com/bkaradzic/bx/blob/master/LICENSE
  */
 
@@ -85,7 +85,8 @@
 // http://sourceforge.net/apps/mediawiki/predef/index.php?title=Architectures
 #if defined(__arm__)     \
  || defined(__aarch64__) \
- || defined(_M_ARM)
+ || defined(_M_ARM)      \
+ || defined(_M_ARM64)
 #	undef  BX_CPU_ARM
 #	define BX_CPU_ARM 1
 #	define BX_CACHE_LINE_SIZE 64
@@ -123,6 +124,8 @@
 #if defined(__x86_64__)    \
  || defined(_M_X64)        \
  || defined(__aarch64__)   \
+ || defined(_M_ARM64)      \
+ || defined(_M_ARM64EC)    \
  || defined(__64BIT__)     \
  || defined(__mips64)      \
  || defined(__powerpc64__) \
@@ -164,7 +167,17 @@
 #	endif // defined(_MSC_VER) && (_MSC_VER >= 1700) && (!_USING_V110_SDK71_)
 #	if !defined(WINAPI_FAMILY) || (WINAPI_FAMILY == WINAPI_FAMILY_DESKTOP_APP)
 #		undef  BX_PLATFORM_WINDOWS
-#     include <sdkddkver.h>
+#		if !defined(WINVER) && !defined(_WIN32_WINNT)
+#			if BX_ARCH_64BIT
+//				When building 64-bit target Win7 and above.
+#				define WINVER 0x0601
+#				define _WIN32_WINNT 0x0601
+#			else
+//				When building 32-bit target Win7 and above.
+#				define WINVER 0x0601
+#				define _WIN32_WINNT 0x0601
+#			endif // BX_ARCH_64BIT
+#		endif // !defined(WINVER) && !defined(_WIN32_WINNT)
 #		define BX_PLATFORM_WINDOWS _WIN32_WINNT
 #	else
 #		undef  BX_PLATFORM_WINRT
@@ -192,10 +205,10 @@
 #elif defined(__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__)
 #	undef  BX_PLATFORM_OSX
 #	define BX_PLATFORM_OSX __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__
-#elif defined(__EMSCRIPTEN__)
+#elif defined(__wasm__)
 #	include <emscripten/version.h>
 #	undef  BX_PLATFORM_EMSCRIPTEN
-#	define BX_PLATFORM_EMSCRIPTEN (__EMSCRIPTEN_major__ * 10000 + __EMSCRIPTEN_minor__ * 100 + __EMSCRIPTEN_tiny__)
+#	define BX_PLATFORM_EMSCRIPTEN (__EMSCRIPTEN_MAJOR__ * 10000 + __EMSCRIPTEN_MINOR__ * 100 + __EMSCRIPTEN_TINY__)
 #elif defined(__ORBIS__)
 #	undef  BX_PLATFORM_PS4
 #	define BX_PLATFORM_PS4 1
@@ -344,9 +357,9 @@
 #	define BX_PLATFORM_NAME "BSD"
 #elif BX_PLATFORM_EMSCRIPTEN
 #	define BX_PLATFORM_NAME "Emscripten "      \
-		BX_STRINGIZE(__EMSCRIPTEN_major__) "." \
-		BX_STRINGIZE(__EMSCRIPTEN_minor__) "." \
-		BX_STRINGIZE(__EMSCRIPTEN_tiny__)
+		BX_STRINGIZE(__EMSCRIPTEN_MAJOR__) "." \
+		BX_STRINGIZE(__EMSCRIPTEN_MINOR__) "." \
+		BX_STRINGIZE(__EMSCRIPTEN_TINY__)
 #elif BX_PLATFORM_HAIKU
 #	define BX_PLATFORM_NAME "Haiku"
 #elif BX_PLATFORM_HURD
@@ -442,9 +455,9 @@
 
 #if defined(__cplusplus)
 
-static_assert(__cplusplus >= BX_LANGUAGE_CPP17, "\n\n"
+static_assert(__cplusplus >= BX_LANGUAGE_CPP20, "\n\n"
 	"\t** IMPORTANT! **\n\n"
-	"\tC++17 standard support is required to build.\n"
+	"\tC++20 standard support is required to build.\n"
 	"\t\n");
 
 // https://releases.llvm.org/

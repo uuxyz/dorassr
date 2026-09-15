@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2025 Branimir Karadzic. All rights reserved.
+ * Copyright 2010-2026 Branimir Karadzic. All rights reserved.
  * License: https://github.com/bkaradzic/bx/blob/master/LICENSE
  */
 
@@ -137,6 +137,18 @@ namespace bx
 	/// Removes file or directory recursively.
 	///
 	bool removeAll(const FilePath& _filePath, Error* _err = ErrorIgnore{});
+
+	/// Copies file contents.
+	///
+	bool copy(const FilePath& _from, const FilePath& _to, Error* _err = ErrorIgnore{});
+
+	/// Moves file or directory.
+	///
+	bool move(const FilePath& _from, const FilePath& _to, Error* _err = ErrorIgnore{});
+
+	/// Moves file or directory into OS trash (Recycle Bin).
+	///
+	bool moveToTrash(const FilePath& _filePath, Error* _err = ErrorIgnore{});
 
 } // namespace bx
 

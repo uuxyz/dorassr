@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2025 Branimir Karadzic. All rights reserved.
+ * Copyright 2010-2026 Branimir Karadzic. All rights reserved.
  * License: https://github.com/bkaradzic/bx/blob/master/LICENSE
  */
 
@@ -8,7 +8,6 @@
 
 #include "bx.h"
 #include "math.h"
-#include "uint32_t.h"
 
 namespace bx
 {

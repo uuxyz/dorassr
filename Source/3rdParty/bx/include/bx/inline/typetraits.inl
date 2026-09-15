@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2025 Branimir Karadzic. All rights reserved.
+ * Copyright 2010-2026 Branimir Karadzic. All rights reserved.
  * License: https://github.com/bkaradzic/bx/blob/master/LICENSE
  */
 
@@ -364,6 +364,15 @@ namespace bx
 	inline constexpr bool isTriviallyCopyable()
 	{
 		return IsTriviallyCopyableT<Ty>::value;
+	}
+
+	//---
+	template<typename Ty> struct HasUniqueObjectRepresentationT : public BoolConstantT<__has_unique_object_representations(Ty)> {};
+
+	template<typename Ty>
+	inline constexpr bool hasUniqueObjectRepresentation()
+	{
+		return HasUniqueObjectRepresentationT<Ty>::value;
 	}
 
 	//---

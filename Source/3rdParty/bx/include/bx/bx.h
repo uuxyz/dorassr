@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2025 Branimir Karadzic. All rights reserved.
+ * Copyright 2010-2026 Branimir Karadzic. All rights reserved.
  * License: https://github.com/bkaradzic/bx/blob/master/LICENSE
  */
 
@@ -174,6 +174,38 @@ namespace bx
 	template<typename Ty>
 	const Ty* addressOf(const void* _ptr, ptrdiff_t _offsetInBytes = 0);
 
+	/// Loads a value of type Ty from an naturally aligned memory location.
+	///
+	/// @param[in] _ptr Pointer to the memory location.
+	/// @returns The loaded value of type Ty.
+	///
+	template<typename Ty>
+	inline Ty loadAligned(const void* _ptr);
+
+	/// Loads a value of type Ty from a potentially unaligned memory location.
+	///
+	/// @param[in] _ptr Pointer to the memory location.
+	/// @returns The loaded value of type Ty.
+	///
+	template<typename Ty>
+	inline Ty loadUnaligned(const void* _ptr);
+
+	/// Stores a value of type Ty to an naturally aligned memory location.
+	///
+	/// @param[out] _ptr Pointer to the destination memory.
+	/// @param[in] _value The value to store.
+	///
+	template<typename Ty>
+	inline void storeAligned(void* _outPtr, const Ty& _value);
+
+	/// Stores a value of type Ty to a potentially unaligned memory location.
+	///
+	/// @param[out] _ptr Pointer to the destination memory.
+	/// @param[in] _value The value to store.
+	///
+	template<typename Ty>
+	inline void storeUnaligned(void* _outPtr, const Ty& _value);
+
 	/// Swap two values.
 	template<typename Ty>
 	void swap(Ty& _a, Ty& _b);
@@ -223,6 +255,16 @@ namespace bx
 	/// Returns a value of type `Ty` by reinterpreting the object representation of `FromT`.
 	template <typename Ty, typename FromT>
 	constexpr Ty bitCast(const FromT& _from);
+
+	/// Performs `static_cast` of value `_from`, and if value doesn't fit result type `Ty` it clamps
+	/// the value to `Ty` min/max.
+	template<typename Ty, typename FromT>
+	constexpr Ty saturateCast(FromT _from);
+
+	/// Performs `static_cast` of value `_from`, and returns true if the value `_from` is
+	/// representable as `Ty`.
+	template<typename Ty, typename FromT>
+	constexpr bool narrowCastTest(Ty* _out, const FromT& _from);
 
 	/// Performs `static_cast` of value `_from`, and in debug build runtime verifies/asserts
 	/// that the value didn't change.
@@ -356,6 +398,53 @@ namespace bx
 		, uint32_t _stride
 		, uint32_t _numStrides
 		);
+
+	/// Greatest common divisor.
+	///
+	BX_CONSTEXPR_FUNC uint32_t gcd(uint32_t _a, uint32_t _b);
+
+	/// Least common multiple.
+	///
+	BX_CONSTEXPR_FUNC uint32_t lcm(uint32_t _a, uint32_t _b);
+
+	/// Align to arbitrary stride.
+	///
+	BX_CONSTEXPR_FUNC uint32_t strideAlign(uint32_t _offset, uint32_t _stride);
+
+	/// Align to arbitrary stride and Min bytes.
+	///
+	template<uint32_t Min>
+	BX_CONSTEXPR_FUNC uint32_t strideAlign(uint32_t _offset, uint32_t _stride);
+
+	/// Returns true if value is aligned to _align boundary.
+	///
+	template<typename Ty>
+	BX_CONSTEXPR_FUNC bool isAligned(Ty _a, size_t _align);
+
+	template<>
+	BX_CONSTEXPR_FUNC bool isAligned(const void* _ptr, size_t _align);
+
+	/// Aligns _a down to nearest multiple of _align.
+	///
+	template<typename Ty>
+	BX_CONSTEXPR_FUNC Ty alignDown(Ty _a, size_t _align);
+
+	template<typename Ty>
+	BX_CONSTEXPR_FUNC Ty* alignDown(Ty* _ptr, size_t _align);
+
+	template<typename Ty>
+	BX_CONSTEXPR_FUNC const Ty* alignDown(const Ty* _ptr, size_t _align);
+
+	/// Aligns _a up to nearest multiple of _align.
+	///
+	template<typename Ty>
+	BX_CONSTEXPR_FUNC Ty alignUp(Ty _a, size_t _align);
+
+	template<typename Ty>
+	BX_CONSTEXPR_FUNC Ty* alignUp(Ty* _ptr, size_t _align);
+
+	template<typename Ty>
+	BX_CONSTEXPR_FUNC const Ty* alignUp(const Ty* _ptr, size_t _align);
 
 } // namespace bx
 
