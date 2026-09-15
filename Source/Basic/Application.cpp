@@ -21,6 +21,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include "Http/XrtNetwork.h"
 #include "Input/Controller.h"
 #include "Lua/BuiltinModules.h"
+#include "Render/RenderSurface.h"
 #include "Lua/ToLua/tolua++.h"
 
 #include "Other/utf8.h"
@@ -656,29 +657,6 @@ int runCliApplication(int, char*[]) {
 
 } // namespace
 
-bool BGFXDora::init(const bgfx::PlatformData& data) {
-	bgfx::Init init{};
-	// Dora can render the host scene, Web IDE/ImGui, and embedded Love render
-	// targets in the same bgfx frame. The bgfx defaults (6 MiB vertex / 2 MiB
-	// index) are too small for otherwise valid Love workloads once the host UI
-	// has consumed part of the frame-local pool. Keep an explicit fixed budget;
-	// transient buffers are recycled by bgfx and do not grow across frames.
-	init.limits.transientVbSize = 16 << 20;
-	init.limits.transientIbSize = 4 << 20;
-#if BX_PLATFORM_LINUX
-	if (data.context) {
-		init.type = bgfx::RendererType::OpenGLES;
-	}
-#endif // BX_PLATFORM_LINUX
-	bx::memCopy(&init.platformData, &data, sizeof(bgfx::PlatformData));
-	_initialized = bgfx::init(init);
-	return _initialized;
-}
-
-BGFXDora::~BGFXDora() {
-	if (_initialized) bgfx::shutdown();
-}
-
 Application::Application()
 	: _seed(0)
 	, _idled(false)
@@ -705,10 +683,8 @@ Application::Application()
 	, _totalTime(0)
 	, _frequency(double(bx::getHPFrequency()))
 	, _sdlWindow(nullptr)
-	, _sdlGLContext(nullptr)
 	, _themeColor(0xfffac03d)
-	, _winPosition{-1.0f, -1.0f}
-	, _platformData{} {
+	, _winPosition{-1.0f, -1.0f} {
 	_lastTime = bx::getHPCounter() / _frequency;
 #if !BX_PLATFORM_LINUX
 	auto locale = SDL_GetPreferredLocales();
@@ -947,31 +923,7 @@ int Application::run(MainFunc mainFunc) {
 	uint32_t windowFlags = SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_INPUT_FOCUS | SDL_WINDOW_RESIZABLE;
 #if BX_PLATFORM_WINDOWS || BX_PLATFORM_OSX || BX_PLATFORM_LINUX
 	windowFlags |= SDL_WINDOW_HIDDEN;
-#if BX_PLATFORM_LINUX
-	// SDL_CreateWindow initializes video lazily, but KMSDRM GL attributes
-	// must be set before that window (and its EGL surface) is created.
-	if (SDL_InitSubSystem(SDL_INIT_VIDEO) != 0) {
-		Error("SDL failed to initialize video! {}", SDL_GetError());
-		return 1;
-	}
-	const char* videoDriver = SDL_GetCurrentVideoDriver();
-	const bool useKmsdrmGL = videoDriver && std::strcmp(videoDriver, "KMSDRM") == 0;
-	if (useKmsdrmGL) {
-		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
-		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
-		SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
-		SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
-		SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
-		SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
-		SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
-		// ClipNode needs stencil storage in the SDL-owned default framebuffer.
-		SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
-		SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-		windowFlags |= SDL_WINDOW_OPENGL | SDL_WINDOW_FULLSCREEN | SDL_WINDOW_BORDERLESS;
-		_fullScreen = true;
-	}
-#endif // BX_PLATFORM_LINUX
+	windowFlags = SharedRenderSurface.prepareWindowCreation(windowFlags, _fullScreen);
 	if (_alwaysOnTop) {
 		windowFlags |= SDL_WINDOW_ALWAYS_ON_TOP;
 	}
@@ -998,11 +950,20 @@ int Application::run(MainFunc mainFunc) {
 	}
 #endif // BX_PLATFORM
 
-	Application::setupSdlWindow();
+	if (!SharedRenderSurface.attach(_sdlWindow)) {
+		SDL_DestroyWindow(_sdlWindow);
+		_sdlWindow = nullptr;
+		SDL_Quit();
+		return 1;
+	}
+	/* The iOS attach adds the Metal layer; on every platform the window
+	   sizes must be known before the render device and ImGui initialize
+	   (replicates the original setupSdlWindow tail). */
+	updateWindowSize();
 
 #if BX_PLATFORM_EMSCRIPTEN
 	_logicThreadID = std::this_thread::get_id();
-	if (!SharedBGFX.init(_platformData)) {
+	if (!SharedRenderSurface.initDevice()) {
 		Error("bgfx failed to initialize!");
 		SDL_DestroyWindow(_sdlWindow);
 		_sdlWindow = nullptr;
@@ -1015,13 +976,13 @@ int Application::run(MainFunc mainFunc) {
 		SharedPoolManager.pop();
 		setWebRuntimeState("faulted", "Failed to initialize the Web runtime");
 		Error("Failed to initialize the Web runtime");
-		Life::destroy("BGFXDora"_slice);
+		Life::destroy("RenderSurface"_slice);
 		SDL_DestroyWindow(_sdlWindow);
 		_sdlWindow = nullptr;
 		SDL_Quit();
 		return 1;
 	}
-	_frame = bgfx::frame();
+	_frame = SharedRenderSurface.nextFrame();
 	setWebRuntimeState("running");
 	makeTimeNow();
 	_startTime = _lastTime;
@@ -1031,7 +992,7 @@ int Application::run(MainFunc mainFunc) {
 #else
 
 	// call this function here to disable default render threads creation of bgfx
-	bgfx::renderFrame();
+	SharedRenderSurface.pump();
 
 	// start running logic thread
 	_logicThread.init(Application::mainLogic, this);
@@ -1039,10 +1000,7 @@ int Application::run(MainFunc mainFunc) {
 	SDL_Event event;
 	while (_renderRunning) {
 		// do render staff and swap buffers
-		bgfx::renderFrame();
-		if (_sdlGLContext) {
-			SDL_GL_SwapWindow(_sdlWindow);
-		}
+		SharedRenderSurface.pump();
 
 		// handle SDL event in this main thread only
 		while (SDL_PollEvent(&event)) {
@@ -1064,17 +1022,9 @@ int Application::run(MainFunc mainFunc) {
 #endif
 					break;
 #if BX_PLATFORM_ANDROID
-				case SDL_APP_DIDENTERFOREGROUND: {
-					SDL_SysWMinfo wmi;
-					SDL_VERSION(&wmi.version);
-					bgfx::PlatformData pd{};
-					if (SDL_GetWindowWMInfo(_sdlWindow, &wmi) == SDL_TRUE
-						&& wmi.info.android.window) {
-						pd.nwh = wmi.info.android.window;
-						bgfx::setPlatformData(pd);
-					}
+				case SDL_APP_DIDENTERFOREGROUND:
+					SharedRenderSurface.onNativeWindowChanged();
 					break;
-				}
 #endif // BX_PLATFORM_ANDROID
 				case SDL_WINDOWEVENT: {
 					switch (event.window.event) {
@@ -1153,13 +1103,10 @@ int Application::run(MainFunc mainFunc) {
 	}
 
 	// wait for render process to stop
-	while (bgfx::RenderFrame::NoContext != bgfx::renderFrame());
+	SharedRenderSurface.drain();
 	_logicThread.shutdown();
 
-	if (_sdlGLContext) {
-		SDL_GL_DeleteContext(_sdlGLContext);
-		_sdlGLContext = nullptr;
-	}
+	SharedRenderSurface.detach();
 	SDL_DestroyWindow(_sdlWindow);
 	SDL_Quit();
 
@@ -1248,11 +1195,7 @@ double Application::getCPUTime() const noexcept {
 }
 
 double Application::getGPUTime() const noexcept {
-	const bgfx::Stats* stats = bgfx::getStats();
-	if (stats->gpuTimeEnd < stats->gpuTimeBegin) {
-		return 0;
-	}
-	return s_cast<double>(stats->gpuTimeEnd - stats->gpuTimeBegin) / s_cast<double>(stats->gpuTimerFreq);
+	return SharedRenderSurface.getGPUTime();
 }
 
 double Application::getLogicTime() const noexcept {
@@ -1424,12 +1367,12 @@ void Application::runEmscriptenFrame() {
 		SharedDirector.doRender();
 		_cpuTime = getElapsedTime() - started;
 		_renderTime = _cpuTime - _logicTime;
-		_frame = bgfx::frame();
+		_frame = SharedRenderSurface.nextFrame();
 		updateDeltaTime();
 		makeTimeNow();
 	}
 	if (!_logicRunning || !_renderRunning) {
-		if (Singleton<BGFXDora>::isInitialized()) Life::destroy("BGFXDora"_slice);
+		if (SharedRenderSurface.isDeviceInitialized()) Life::destroy("RenderSurface"_slice);
 		if (_sdlWindow) {
 			SDL_DestroyWindow(_sdlWindow);
 			_sdlWindow = nullptr;
@@ -1444,7 +1387,7 @@ void Application::runEmscriptenFrame() {
 int Application::mainLogic(Application* app) {
 	app->_logicThreadID = std::this_thread::get_id();
 
-	if (!SharedBGFX.init(app->_platformData)) {
+	if (!SharedRenderSurface.initDevice()) {
 		Error("bgfx failed to initialize!");
 		return 1;
 	}
@@ -1473,13 +1416,13 @@ int Application::mainLogic(Application* app) {
 
 #if BX_PLATFORM_OSX || BX_PLATFORM_WINDOWS || BX_PLATFORM_LINUX
 	for (int i = 0; i < 3; i++) {
-		app->_frame = bgfx::frame();
+		app->_frame = SharedRenderSurface.nextFrame();
 	}
 	app->invokeInRender([app]() {
 		SDL_ShowWindow(app->_sdlWindow);
 	});
 #else
-	app->_frame = bgfx::frame();
+	app->_frame = SharedRenderSurface.nextFrame();
 #endif
 
 	app->makeTimeNow();
@@ -1537,7 +1480,7 @@ int Application::mainLogic(Application* app) {
 
 		// advance to next frame. rendering thread will be kicked to
 		// process submitted rendering primitives.
-		app->_frame = bgfx::frame();
+		app->_frame = SharedRenderSurface.nextFrame();
 
 		double targetDeltaTime = 1.0 / app->_targetFPS;
 		if (app->_idled) {
@@ -1558,9 +1501,9 @@ int Application::mainLogic(Application* app) {
 	}
 
 #ifdef DORA_AS_LIB
-	bgfx::shutdown();
+	SharedRenderSurface.destroyDevice();
 #else // DORA_AS_LIB
-	Life::destroy("BGFXDora"_slice);
+	Life::destroy("RenderSurface"_slice);
 #endif // DORA_AS_LIB
 	return 0;
 }
@@ -1617,72 +1560,6 @@ std::thread::id Application::getLogicThread() const noexcept {
 }
 
 #if BX_PLATFORM_OSX || BX_PLATFORM_WINDOWS || BX_PLATFORM_ANDROID || BX_PLATFORM_LINUX || BX_PLATFORM_EMSCRIPTEN
-void Application::setupSdlWindow() {
-#if BX_PLATFORM_EMSCRIPTEN
-	_platformData.nwh = const_cast<char*>("#canvas");
-	updateWindowSize();
-#else
-	SDL_SysWMinfo wmi;
-	SDL_VERSION(&wmi.version);
-	SDL_GetWindowWMInfo(_sdlWindow, &wmi);
-#if BX_PLATFORM_OSX
-	_platformData.nwh = wmi.info.cocoa.window;
-#elif BX_PLATFORM_WINDOWS
-	_platformData.nwh = wmi.info.win.window;
-#elif BX_PLATFORM_ANDROID
-	_platformData.nwh = wmi.info.android.window;
-#elif BX_PLATFORM_LINUX
-	if (wmi.subsystem == SDL_SYSWM_WAYLAND) {
-		_platformData.ndt = wmi.info.wl.display;
-		_platformData.nwh = r_cast<void*>(wmi.info.wl.surface);
-		_platformData.type = bgfx::NativeWindowHandleType::Wayland;
-	} else if (wmi.subsystem == SDL_SYSWM_KMSDRM) {
-		_sdlGLContext = SDL_GL_CreateContext(_sdlWindow);
-		if (!_sdlGLContext) {
-			Error("SDL failed to create KMSDRM GL context! {}", SDL_GetError());
-			return;
-		}
-		if (SDL_GL_MakeCurrent(_sdlWindow, _sdlGLContext) != 0) {
-			Error("SDL failed to make KMSDRM GL context current! {}", SDL_GetError());
-			return;
-		}
-		_platformData.context = _sdlGLContext;
-		int stencilBits = 0;
-		if (SDL_GL_GetAttribute(SDL_GL_STENCIL_SIZE, &stencilBits) != 0) {
-			Warn("SDL failed to query KMSDRM stencil buffer! {}", SDL_GetError());
-		} else {
-			Println("KMSDRM stencil buffer: {} bits", stencilBits);
-			if (stencilBits < 8) {
-				Warn("KMSDRM framebuffer has fewer than 8 stencil bits; ClipNode clipping may fail.");
-			}
-		}
-		_platformData.type = bgfx::NativeWindowHandleType::Default;
-	} else {
-		_platformData.ndt = wmi.info.x11.display;
-		_platformData.nwh = r_cast<void*>(wmi.info.x11.window);
-		_platformData.type = bgfx::NativeWindowHandleType::Default;
-	}
-#endif // BX_PLATFORM
-#if BX_PLATFORM_WINDOWS
-	int displayIndex = SDL_GetWindowDisplayIndex(_sdlWindow);
-	float hdpi = DEFAULT_WIN_DPI, vdpi = DEFAULT_WIN_DPI;
-	SDL_GetDisplayDPI(displayIndex, nullptr, &hdpi, &vdpi);
-	SDL_DisplayMode displayMode{SDL_PIXELFORMAT_UNKNOWN, 0, 0, 0, 0};
-	SDL_GetCurrentDisplayMode(displayIndex, &displayMode);
-	int screenWidth = MulDiv(displayMode.w, DEFAULT_WIN_DPI, s_cast<int>(hdpi));
-	int screenHeight = MulDiv(displayMode.h, DEFAULT_WIN_DPI, s_cast<int>(vdpi));
-	_visualWidth = Math::clamp(_visualWidth, 0, screenWidth);
-	_visualHeight = Math::clamp(_visualHeight, 0, screenHeight);
-	if (hdpi != DEFAULT_WIN_DPI || vdpi != DEFAULT_WIN_DPI) {
-		_winWidth = MulDiv(_visualWidth, s_cast<int>(hdpi), DEFAULT_WIN_DPI);
-		_winHeight = MulDiv(_visualHeight, s_cast<int>(vdpi), DEFAULT_WIN_DPI);
-		SDL_SetWindowSize(_sdlWindow, _winWidth, _winHeight);
-		SDL_SetWindowPosition(_sdlWindow, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
-	}
-#endif // BX_PLATFORM_WINDOWS
-	updateWindowSize();
-#endif
-}
 #endif // BX_PLATFORM_OSX || BX_PLATFORM_WINDOWS || BX_PLATFORM_ANDROID || BX_PLATFORM_LINUX || BX_PLATFORM_EMSCRIPTEN
 
 void Application::openURL(String url) {
@@ -2083,7 +1960,7 @@ std::string Application::saveScreenshot(String filename) {
 		Error("failed to create screenshot folder for '{}': {}", path, error.message());
 		return {};
 	}
-	bgfx::requestScreenShot(BGFX_INVALID_HANDLE, path.c_str());
+	SharedRenderSurface.requestScreenShot(path.c_str());
 	return path + ".tga";
 }
 

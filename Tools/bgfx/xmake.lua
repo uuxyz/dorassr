@@ -573,7 +573,7 @@ local shaderc_src = {
     "shaderc_metal.cpp",
     "shaderc_spirv.cpp",
     "shaderc_glsl.cpp",
-	 "shaderc_pssl.cpp",
+    "shaderc_pssl.cpp",
 }
 
 -- 平台相关链接库
