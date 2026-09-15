@@ -25,7 +25,7 @@ public:
 		Texture2D* texture = nullptr;
 		uint16_t layer = 0;
 		uint16_t mip = 0;
-		uint8_t resolve = BGFX_RESOLVE_AUTO_GEN_MIPS;
+		uint8_t resolve = BGFX_ATTACHMENT_AUTO_GEN_MIPS;
 	};
 	enum class ReadPixelsResult {
 		Success,

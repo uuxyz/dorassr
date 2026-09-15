@@ -1337,7 +1337,7 @@ public:
 
 		const bgfx_memory_t *mem = BGFX(copy)(initialData.data(), (uint32_t)initialData.size());
 		bgfx_texture_handle_t handle = BGFX(create_texture_2d)(param.Size[0], param.Size[1], false, 1, BGFX_TEXTURE_FORMAT_RGBA8,
-			BGFX_TEXTURE_NONE | BGFX_SAMPLER_NONE, mem);
+			BGFX_TEXTURE_NONE | BGFX_SAMPLER_NONE, mem, 0);
 
 		return Effekseer::MakeRefPtr<Texture>(this, handle);
 	}

@@ -32,7 +32,11 @@ BX_PRAGMA_DIAGNOSTIC_POP()
 namespace bgfx
 {
 	static bx::DefaultAllocator s_allocator;
+#ifndef SHADERC_EMBEDDED
+	// Dora: when linked with libbgfx, the allocator and TinyStlAllocator come
+	// from bgfx.cpp; guard the duplicates.
 	bx::AllocatorI* g_allocator = &s_allocator;
+#endif // SHADERC_EMBEDDED
 
 	struct TinyStlAllocator
 	{
@@ -40,6 +44,7 @@ namespace bgfx
 		static void static_deallocate(void* _ptr, size_t /*_bytes*/);
 	};
 
+#ifndef SHADERC_EMBEDDED
 	void* TinyStlAllocator::static_allocate(size_t _bytes)
 	{
 		return bx::alloc(g_allocator, _bytes);
@@ -52,6 +57,7 @@ namespace bgfx
 			bx::free(g_allocator, _ptr);
 		}
 	}
+#endif // SHADERC_EMBEDDED
 } // namespace bgfx
 
 #define TINYSTL_ALLOCATOR bgfx::TinyStlAllocator

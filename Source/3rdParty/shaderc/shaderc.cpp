@@ -241,6 +241,9 @@ namespace bgfx
 		NULL
 	};
 
+#ifndef SHADERC_EMBEDDED
+ // Dora: when shaderc is linked into the engine together with libbgfx, these
+ // symbols are already provided by bgfx.cpp; guard the duplicates here.
 	void fatal(const char* _filePath, uint16_t _line, Fatal::Enum _code, const char* _format, ...)
 	{
 		BX_UNUSED(_filePath, _line, _code);
@@ -266,6 +269,7 @@ namespace bgfx
 
 		va_end(argList);
 	}
+#endif // SHADERC_EMBEDDED
 
 	Options::Options()
 		: shaderType(' ')
@@ -361,6 +365,7 @@ namespace bgfx
 		return _glsl; // centroid, noperspective
 	}
 
+#ifndef SHADERC_EMBEDDED
 	const char* s_uniformTypeName[] =
 	{
 		"int",  "int",
@@ -395,6 +400,7 @@ namespace bgfx
 
 		return UniformType::Count;
 	}
+#endif // SHADERC_EMBEDDED
 
 	uint8_t spirvDimToTextureDimensionId(uint32_t _dim, bool _arrayed)
 	{
@@ -2750,7 +2756,10 @@ namespace bgfx
 
 } // namespace bgfx
 
+// Dora: allow linking shaderc as a static library without dragging in main.
+#ifndef SHADERC_CONFIG_NO_MAIN
 int main(int _argc, const char* _argv[])
 {
 	return bgfx::compileShader(_argc, _argv);
 }
+#endif // SHADERC_CONFIG_NO_MAIN
