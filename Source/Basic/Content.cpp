@@ -53,14 +53,6 @@ namespace fs = std::filesystem;
 
 #define DORA_BINARY_CHECK_SIZE 8000
 
-static void releaseFileData(void* _ptr, void* _userData) {
-	DORA_UNUSED_PARAM(_userData);
-	if (_ptr) {
-		uint8_t* data = r_cast<uint8_t*>(_ptr);
-		delete[] data;
-	}
-}
-
 NS_DORA_BEGIN
 
 #if BX_PLATFORM_ANDROID
@@ -159,12 +151,6 @@ std::pair<OwnArray<uint8_t>, size_t> Content::load(String filename) {
 
 std::string Content::loadStr(String filename) {
 	return loadInMainUnsafe(filename);
-}
-
-const bgfx::Memory* Content::loadBX(String filename) {
-	int64_t size = 0;
-	uint8_t* data = loadInMainUnsafe(filename, size);
-	return bgfx::makeRef(data, (uint32_t)size, releaseFileData);
 }
 
 bool Content::copy(String src, String dst) {
@@ -1226,12 +1212,6 @@ void Content::loadAsync(String filename, const std::function<void(String)>& call
 void Content::loadAsyncData(String filename, const std::function<void(OwnArray<uint8_t>&&, size_t)>& callback) {
 	Content::loadAsyncUnsafe(filename, [callback](uint8_t* buffer, int64_t size) {
 		callback(MakeOwnArray(buffer), s_cast<size_t>(size));
-	});
-}
-
-void Content::loadAsyncBX(String filename, const std::function<void(const bgfx::Memory*)>& callback) {
-	Content::loadAsyncUnsafe(filename, [callback](uint8_t* buffer, int64_t size) {
-		callback(bgfx::makeRef(buffer, s_cast<uint32_t>(size), releaseFileData));
 	});
 }
 

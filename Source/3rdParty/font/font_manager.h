@@ -8,6 +8,8 @@
 
 #include "bx/handlealloc.h"
 
+#include "bgfx/bgfx.h"
+
 namespace bgfx {
 
 class Atlas;

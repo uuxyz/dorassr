@@ -238,24 +238,6 @@ void Application::updateWindowSize() {
 	_visualHeight = _winHeight;
 }
 
-void Application::setupSdlWindow() {
-	SDL_SysWMinfo wmi;
-	SDL_VERSION(&wmi.version);
-	SDL_GetWindowWMInfo(_sdlWindow, &wmi);
-	CALayer* layer = wmi.info.uikit.window.rootViewController.view.layer;
-	CAMetalLayer* displayLayer = [[CAMetalLayer alloc] init];
-	displayLayer.contentsScale = [UIScreen mainScreen].scale;
-	displayLayer.frame = layer.frame;
-	[layer addSublayer:displayLayer];
-	[layer layoutSublayers];
-
-	_platformData.ndt = NULL;
-	_platformData.nwh = (__bridge void*)displayLayer;
-	_platformData.context = NULL;
-	_platformData.backBuffer = NULL;
-	_platformData.backBufferDS = NULL;
-	updateWindowSize();
-}
 NS_DORA_END
 
 #endif // BX_PLATFORM_IOS

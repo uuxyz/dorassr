@@ -115,7 +115,6 @@ protected:
 	void updateDeltaTime();
 	void updateWindowSize();
 	void makeTimeNow();
-	void setupSdlWindow();
 #if BX_PLATFORM_EMSCRIPTEN
 	static void emscriptenMainLoop(void* userData);
 	void runEmscriptenFrame();
@@ -161,9 +160,7 @@ private:
 	EventQueue _renderEvent;
 	std::thread::id _logicThreadID;
 	SDL_Window* _sdlWindow;
-	void* _sdlGLContext;
 	std::mt19937 _randomEngine;
-	bgfx::PlatformData _platformData;
 	MainFunc _mainFunc;
 #if BX_PLATFORM_ANDROID
 	Ref<Listener> _appWebViewListener;
@@ -173,18 +170,5 @@ private:
 
 #define SharedApplication \
 	Dora::Singleton<Dora::Application>::shared()
-
-class BGFXDora : public NonCopyable {
-public:
-	bool init(const bgfx::PlatformData& data);
-	virtual ~BGFXDora();
-	SINGLETON_REF(BGFXDora, Application);
-
-private:
-	bool _initialized = false;
-};
-
-#define SharedBGFX \
-	Dora::Singleton<Dora::BGFXDora>::shared()
 
 NS_DORA_END
