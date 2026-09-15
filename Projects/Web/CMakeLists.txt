@@ -364,6 +364,7 @@ if(DORA_WEB_LINK_PLAYER)
 	add_library(dora-web-link-deps OBJECT ${DORA_WEB_LINK_SOURCES})
 	target_compile_definitions(dora-web-link-deps PRIVATE
 		BX_CONFIG_DEBUG=0
+		TINYEXR_USE_MINIZ=0
 		BGFX_GL_CONFIG_TEXTURE_READ_BACK_EMULATION=1
 		DORA_EMSCRIPTEN
 		BGFX_CONFIG_RENDERER_OPENGLES=30
@@ -403,10 +404,11 @@ if(DORA_WEB_LINK_PLAYER)
 		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glsl-optimizer/src"
 		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glsl-optimizer/src/mesa"
 		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glsl-optimizer/src/glsl"
-		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/tools/shaderc"
+		"${DORA_SOURCE_ROOT}/3rdParty/shaderc"
 		"${DORA_SOURCE_ROOT}/3rdParty/theora/include"
 		"${DORA_SOURCE_ROOT}/3rdParty/theora/Source"
 		"${DORA_SOURCE_ROOT}/3rdParty/Zip"
+		"${DORA_SOURCE_ROOT}/3rdParty/Zip/zlib"
 	)
 
 	add_executable(dora-web-player

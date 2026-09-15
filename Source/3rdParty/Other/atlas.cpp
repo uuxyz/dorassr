@@ -4,6 +4,8 @@
 */
 
 #include "Const/Header.h"
+
+#include <bgfx/bgfx.h>
 #include "Cache/TextureCache.h"
 using namespace Dora;
 
