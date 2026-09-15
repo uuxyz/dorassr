@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2025 Branimir Karadzic. All rights reserved.
+ * Copyright 2010-2026 Branimir Karadzic. All rights reserved.
  * License: https://github.com/bkaradzic/bx/blob/master/LICENSE
  */
 
@@ -42,7 +42,7 @@ namespace bx
 		total += write(&smb, "\n\n", &err);
 
 		uintptr_t stack[32];
-		const uint32_t num = getCallStack(2 /* skip self */ + _skip, BX_COUNTOF(stack), stack);
+		const uint32_t num = getCallStackExact(2 /* skip self */ + _skip, BX_COUNTOF(stack), stack);
 		total += writeCallstack(&smb, stack, num, &err);
 
 		total += write(&smb, &err,
@@ -85,7 +85,7 @@ namespace bx
 	{
 		va_list argList;
 		va_start(argList, _format);
-		const bool result = s_assertHandler(_location, _skip, _format, argList);
+		const bool result = s_assertHandler(_location, _skip + 1 /* skip self */, _format, argList);
 		va_end(argList);
 
 		return result;

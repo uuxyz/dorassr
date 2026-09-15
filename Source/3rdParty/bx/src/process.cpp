@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2025 Branimir Karadzic. All rights reserved.
+ * Copyright 2010-2026 Branimir Karadzic. All rights reserved.
  * License: https://github.com/bkaradzic/bx/blob/master/LICENSE
  */
 
@@ -12,6 +12,7 @@
 			|| BX_CRT_NONE            \
 			|| BX_PLATFORM_EMSCRIPTEN \
 			|| BX_PLATFORM_PS4        \
+			|| BX_PLATFORM_PS5        \
 			|| BX_PLATFORM_WINRT      \
 			|| BX_PLATFORM_XBOXONE    \
 			)

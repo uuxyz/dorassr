@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2025 Branimir Karadzic. All rights reserved.
+ * Copyright 2010-2026 Branimir Karadzic. All rights reserved.
  * License: https://github.com/bkaradzic/bx/blob/master/LICENSE
  */
 
@@ -128,6 +128,11 @@ namespace bx
 	/// Returns true if type `Ty` is trivially copyable / POD type, otherwise returns false.
 	template<typename Ty>
 	constexpr bool isTriviallyCopyable();
+
+	/// Returns true if any two objects of type `Ty` that hold the same value also have the
+	/// same object representation, otherwise returns false. False for a type with padding.
+	template<typename Ty>
+	constexpr bool hasUniqueObjectRepresentation();
 
 	/// Returns true if type `Ty` has trivial destructor, otherwise returns false.
 	template<typename Ty>
