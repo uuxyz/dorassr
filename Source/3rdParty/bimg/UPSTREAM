@@ -2,7 +2,7 @@
 # 同步工具: Tools/bgfx/update-upstream.sh   说明: Tools/bgfx/README.md
 repository = https://github.com/bkaradzic/bimg
 branch     = master
-tree       = 4742ef913fc479b2299bffcf4c44390887063f2a
+tree       = e25e73c6ff1442149d65f1246388d27c0556a7f5
 commit     = FETCH_HEAD
 # 注意: 3rdparty/tinyexr/deps/miniz/ 相对上游 bimg 保持删除
 # （与 IppClub 上游一致；EXR 解压走 zlib，构建定义 TINYEXR_USE_MINIZ=0）
