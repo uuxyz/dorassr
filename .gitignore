@@ -103,7 +103,7 @@ Source/Love/build*/
 Projects/*/build-love*/
 Projects/Linux/build-theora-check/
 Docs/design/evidence/
-Source/3rdParty/bgfx/dora/generated
+Source/Shader/DoraShaderc/generated
 Source/3rdParty/SDL2/Lib/
 Source/3rdParty/Wa/Lib/
 Source/3rdParty/Wa/Source/.build/

@@ -34,7 +34,6 @@ public:
 	std::list<std::string> getFullPathsToTry(String filename);
 	std::pair<OwnArray<uint8_t>, size_t> load(String filename);
 	std::string loadStr(String filename);
-	const bgfx::Memory* loadBX(String filename);
 	bool copy(String src, String dst);
 	bool move(String src, String dst);
 	bool remove(String filename);
@@ -58,7 +57,6 @@ public:
 	void addSearchPath(String path);
 	void removeSearchPath(String path);
 	void loadAsync(String filename, const std::function<void(String)>& callback);
-	void loadAsyncBX(String filename, const std::function<void(const bgfx::Memory*)>& callback);
 	void loadAsyncData(String filename, const std::function<void(OwnArray<uint8_t>&&, size_t)>& callback);
 	void copyAsync(String src, String dst, const std::function<void(bool)>& callback);
 	void saveAsync(String filename, String content, const std::function<void(bool)>& callback);

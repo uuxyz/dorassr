@@ -8,6 +8,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 #include "Const/Header.h"
 
+#include <bgfx/bgfx.h>
+
 #include "Cache/FontCache.h"
 
 #include "Basic/Content.h"
