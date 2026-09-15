@@ -298,6 +298,11 @@ public:
                     case PpAtomConstFloat:
                     case PpAtomConstDouble:
                     case PpAtomConstFloat16:
+                    case PpAtomConstFloatE2M1:
+                    case PpAtomConstFloatE3M2:
+                    case PpAtomConstFloatE2M3:
+                    case PpAtomConstFloatUE8M0:
+                    case PpAtomConstFloatMXINT8:
                     case PpAtomConstString:
                     case PpAtomIdentifier:
                         return true;
@@ -311,7 +316,6 @@ public:
         int getToken(TParseContextBase&, TPpToken*);
         bool atEnd() { return currentPos >= stream.size(); }
         bool peekTokenizedPasting(bool lastTokenPastes);
-        bool peekUntokenizedPasting();
         void reset() { currentPos = 0; }
 
     protected:
@@ -373,22 +377,6 @@ protected:
         }
         if (!inputStack.empty() && inputStack.back()->isStringInput() && !inElseSkip) {
             if (token == '\n') {
-                bool seenNumSign = false;
-                for (int i = 0; i < (int)lastLineTokens.size() - 1;) {
-                    int curPos = i;
-                    int curToken = lastLineTokens[i++];
-                    if (curToken == '#' && lastLineTokens[i] == '#') {
-                        curToken = PpAtomPaste;
-                        i++;
-                    }
-                    if (curToken == '#') {
-                        if (seenNumSign) {
-                            parseContext.ppError(lastLineTokenLocs[curPos], "(#) can be preceded in its line only by spaces or horizontal tabs", "#", "");
-                        } else {
-                            seenNumSign = true;
-                        }
-                    }
-                }
                 lastLineTokens.clear();
                 lastLineTokenLocs.clear();
             } else {
@@ -410,9 +398,9 @@ protected:
 
     static const int maxIfNesting = 65;
 
-    int ifdepth;                  // current #if-#else-#endif nesting in the cpp.c file (pre-processor)
-    bool elseSeen[maxIfNesting];  // Keep a track of whether an else has been seen at a particular depth
-    int elsetracker;              // #if-#else and #endif constructs...Counter.
+    int ifdepth;                      // current #if-#else-#endif nesting in the cpp.c file (pre-processor)
+    bool elseSeen[maxIfNesting + 1];  // Keep a track of whether an else has been seen at a particular depth
+    int elsetracker;                  // #if-#else and #endif constructs...Counter.
 
     class tMacroInput : public tInput {
     public:
@@ -458,6 +446,15 @@ protected:
         static const int marker = -3;
     };
 
+    struct tStringifyLevelInput {
+      // PUSH is a token atom indicating a new stringizing (#) level
+      // during macro body expansion.
+      static constexpr int PUSH = -4;
+      // PUSH is a token atom indicating the end of a stringizing level
+      // during macro body expansion.
+      static constexpr int POP = -5;
+    };
+
     class tZeroInput : public tInput {
     public:
         tZeroInput(TPpContext* pp) : tInput(pp) { }
@@ -469,6 +466,10 @@ protected:
     std::vector<tInput*> inputStack;
     bool errorOnVersion;
     bool versionSeen;
+    // Current nesting depth of MacroExpand() calls; bounded to prevent
+    // stack overflow via unbounded MacroExpand <-> PrescanMacroArg recursion.
+    int macroExpandDepth = 0;
+    static const int maxMacroExpandDepth = 200;
 
     //
     // from Pp.cpp

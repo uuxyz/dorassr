@@ -171,6 +171,9 @@ bool TParseContextBase::lValueErrorCheck(const TSourceLoc& loc, const char* op, 
         case EbtHitObjectNV:
             message = "can't modify hitObjectNV";
             break;
+        case EbtHitObjectEXT:
+            message = "can't modify hitObjectEXT";
+            break;
         default:
             break;
         }
@@ -279,7 +282,7 @@ void TParseContextBase::trackLinkage(TSymbol& symbol)
 
 // Ensure index is in bounds, correct if necessary.
 // Give an error if not.
-void TParseContextBase::checkIndex(const TSourceLoc& loc, const TType& type, int& index)
+void TParseContextBase::checkIndex(const TSourceLoc& loc, const TType& type, int64_t& index)
 {
     const auto sizeIsSpecializationExpression = [&type]() {
         return type.containsSpecializationSize() &&
@@ -308,6 +311,11 @@ void TParseContextBase::checkIndex(const TSourceLoc& loc, const TType& type, int
     } else if (type.isCoopVecNV()) {
         if (index >= type.computeNumComponents()) {
             error(loc, "", "[", "cooperative vector index out of range '%d'", index);
+            index = type.computeNumComponents() - 1;
+        }
+    } else if (type.isLongVector()) {
+        if (!type.hasSpecConstantVectorComponents() && index >= type.computeNumComponents()) {
+            error(loc, "", "[", "vector index out of range '%d'", index);
             index = type.computeNumComponents() - 1;
         }
     }
@@ -484,6 +492,16 @@ const TFunction* TParseContextBase::selectFunction(
         return true;
     };
 
+    const auto enabled = [this](const TFunction& candidate) -> bool {
+        bool enabled = candidate.getNumExtensions() == 0;
+        for (int i = 0; i < candidate.getNumExtensions(); ++i) {
+            TExtensionBehavior behavior = getExtensionBehavior(candidate.getExtensions()[i]);
+            if (behavior == EBhEnable || behavior == EBhRequire)
+                enabled = true;
+        }
+        return enabled;
+    };
+
     const TFunction* incumbent = viableCandidates.front();
     for (auto it = viableCandidates.begin() + 1; it != viableCandidates.end(); ++it) {
         const TFunction& candidate = *(*it);
@@ -499,7 +517,7 @@ const TFunction* TParseContextBase::selectFunction(
 
         // In the case of default parameters, it may have an identical initial set, which is
         // also ambiguous
-        if (betterParam(*incumbent, candidate) || equivalentParams(*incumbent, candidate))
+        if ((betterParam(*incumbent, candidate) || equivalentParams(*incumbent, candidate)) && enabled(candidate))
             tie = true;
     }
 
@@ -524,6 +542,7 @@ void TParseContextBase::parseSwizzleSelector(const TSourceLoc& loc, const TStrin
         exyzw,
         ergba,
         estpq,
+        ebadswizzle,
     } fieldSet[MaxSwizzleSelectors];
 
     // Decode the swizzle string.
@@ -583,13 +602,19 @@ void TParseContextBase::parseSwizzleSelector(const TSourceLoc& loc, const TStrin
             break;
 
         default:
-            error(loc, "unknown swizzle selection", compString.c_str(), "");
+            fieldSet[i] = ebadswizzle;
             break;
         }
     }
 
     // Additional error checking.
     for (int i = 0; i < selector.size(); ++i) {
+        if (fieldSet[i] == ebadswizzle) {
+            error(loc, "unknown swizzle selection", compString.c_str(), "");
+            selector.resize(i);
+            break;
+        }
+
         if (selector[i] >= vecSize) {
             error(loc, "vector swizzle selection out of range",  compString.c_str(), "");
             selector.resize(i);
@@ -681,7 +706,7 @@ void TParseContextBase::growAtomicCounterBlock(int binding, const TSourceLoc& lo
         blockQualifier.storage = EvqBuffer;
         
         char charBuffer[512];
-        if (binding != TQualifier::layoutBindingEnd) {
+        if (binding != TQualifier::layoutNotSet) {
             snprintf(charBuffer, 512, "%s_%d", getAtomicCounterBlockName(), binding);
         } else {
             snprintf(charBuffer, 512, "%s_0", getAtomicCounterBlockName());

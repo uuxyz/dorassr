@@ -32,7 +32,7 @@ constexpr uint32_t kPointerTypeStorageClassIndex = 0;
 constexpr uint32_t kVariableStorageClassIndex = 0;
 constexpr uint32_t kTypeImageSampledIndex = 5;
 
-// Constants for OpenCL.DebugInfo.100 / NonSemantic.Shader.DebugInfo.100
+// Constants for OpenCL.DebugInfo.100 / NonSemantic.Shader.DebugInfo
 // extension instructions.
 constexpr uint32_t kExtInstSetIdInIdx = 0;
 constexpr uint32_t kExtInstInstructionInIdx = 1;
@@ -168,7 +168,13 @@ Instruction* Instruction::Clone(IRContext* c) const {
   clone->dbg_line_insts_ = dbg_line_insts_;
   for (auto& i : clone->dbg_line_insts_) {
     i.unique_id_ = c->TakeNextUniqueId();
-    if (i.IsDebugLineInst()) i.SetResultId(c->TakeNextId());
+    if (i.IsDebugLineInst()) {
+      uint32_t new_id = c->TakeNextId();
+      if (new_id == 0) {
+        return nullptr;
+      }
+      i.SetResultId(new_id);
+    }
   }
   clone->dbg_scope_ = dbg_scope_;
   return clone;
@@ -199,6 +205,13 @@ bool Instruction::HasBranchWeights() const {
 void Instruction::ToBinaryWithoutAttachedDebugInsts(
     std::vector<uint32_t>* binary) const {
   const uint32_t num_words = 1 + NumOperandWords();
+  assert(num_words <= 65535 && "too many words in instruction");
+  if (num_words > 65535) {
+    // Generate an invalid instruction encoding, indicating 0 words in the,
+    // which is always invalid.
+    binary->push_back(static_cast<uint16_t>(opcode_));
+    return;
+  }
   binary->push_back((num_words << 16) | static_cast<uint16_t>(opcode_));
   for (const auto& operand : operands_) {
     binary->insert(binary->end(), operand.words.begin(), operand.words.end());
@@ -246,6 +259,7 @@ Instruction* Instruction::GetBaseAddress() const {
     switch (base_inst->opcode()) {
       case spv::Op::OpAccessChain:
       case spv::Op::OpInBoundsAccessChain:
+      case spv::Op::OpUntypedAccessChainKHR:
       case spv::Op::OpPtrAccessChain:
       case spv::Op::OpInBoundsPtrAccessChain:
       case spv::Op::OpImageTexelPointer:
@@ -546,47 +560,57 @@ void Instruction::ClearDbgLineInsts() {
   clear_dbg_line_insts();
 }
 
-void Instruction::UpdateDebugInfoFrom(const Instruction* from,
+bool Instruction::UpdateDebugInfoFrom(const Instruction* from,
                                       const Instruction* line) {
-  if (from == nullptr) return;
+  if (from == nullptr) return true;
   ClearDbgLineInsts();
   const Instruction* fromLine = line != nullptr ? line : from;
-  if (!fromLine->dbg_line_insts().empty())
-    AddDebugLine(&fromLine->dbg_line_insts().back());
+  if (!fromLine->dbg_line_insts().empty()) {
+    if (!AddDebugLine(&fromLine->dbg_line_insts().back())) {
+      return false;
+    }
+  }
   SetDebugScope(from->GetDebugScope());
   if (!IsLineInst() &&
       context()->AreAnalysesValid(IRContext::kAnalysisDebugInfo)) {
     context()->get_debug_info_mgr()->AnalyzeDebugInst(this);
   }
+  return true;
 }
 
-void Instruction::AddDebugLine(const Instruction* inst) {
+bool Instruction::AddDebugLine(const Instruction* inst) {
   dbg_line_insts_.push_back(*inst);
   dbg_line_insts_.back().unique_id_ = context()->TakeNextUniqueId();
-  if (inst->IsDebugLineInst())
-    dbg_line_insts_.back().SetResultId(context_->TakeNextId());
+  if (inst->IsDebugLineInst()) {
+    uint32_t new_id = context()->TakeNextId();
+    if (new_id == 0) {
+      return false;
+    }
+    dbg_line_insts_.back().SetResultId(new_id);
+  }
   if (context()->AreAnalysesValid(IRContext::kAnalysisDefUse))
     context()->get_def_use_mgr()->AnalyzeInstDefUse(&dbg_line_insts_.back());
+  return true;
 }
 
 bool Instruction::IsDebugLineInst() const {
-  NonSemanticShaderDebugInfo100Instructions ext_opt = GetShader100DebugOpcode();
-  return ((ext_opt == NonSemanticShaderDebugInfo100DebugLine) ||
-          (ext_opt == NonSemanticShaderDebugInfo100DebugNoLine));
+  NonSemanticShaderDebugInfoInstructions ext_opt = GetShaderDebugOpcode();
+  return ((ext_opt == NonSemanticShaderDebugInfoDebugLine) ||
+          (ext_opt == NonSemanticShaderDebugInfoDebugNoLine));
 }
 
 bool Instruction::IsLineInst() const { return IsLine() || IsNoLine(); }
 
 bool Instruction::IsLine() const {
   if (opcode() == spv::Op::OpLine) return true;
-  NonSemanticShaderDebugInfo100Instructions ext_opt = GetShader100DebugOpcode();
-  return ext_opt == NonSemanticShaderDebugInfo100DebugLine;
+  NonSemanticShaderDebugInfoInstructions ext_opt = GetShaderDebugOpcode();
+  return ext_opt == NonSemanticShaderDebugInfoDebugLine;
 }
 
 bool Instruction::IsNoLine() const {
   if (opcode() == spv::Op::OpNoLine) return true;
-  NonSemanticShaderDebugInfo100Instructions ext_opt = GetShader100DebugOpcode();
-  return ext_opt == NonSemanticShaderDebugInfo100DebugNoLine;
+  NonSemanticShaderDebugInfoInstructions ext_opt = GetShaderDebugOpcode();
+  return ext_opt == NonSemanticShaderDebugInfoDebugNoLine;
 }
 
 Instruction* Instruction::InsertBefore(std::unique_ptr<Instruction>&& inst) {
@@ -657,7 +681,8 @@ bool Instruction::IsValidBasePointer() const {
 }
 
 OpenCLDebugInfo100Instructions Instruction::GetOpenCL100DebugOpcode() const {
-  if (opcode() != spv::Op::OpExtInst) {
+  if (opcode() != spv::Op::OpExtInst &&
+      opcode() != spv::Op::OpExtInstWithForwardRefsKHR) {
     return OpenCLDebugInfo100InstructionsMax;
   }
 
@@ -674,38 +699,40 @@ OpenCLDebugInfo100Instructions Instruction::GetOpenCL100DebugOpcode() const {
       GetSingleWordInOperand(kExtInstInstructionInIdx));
 }
 
-NonSemanticShaderDebugInfo100Instructions Instruction::GetShader100DebugOpcode()
+NonSemanticShaderDebugInfoInstructions Instruction::GetShaderDebugOpcode()
     const {
-  if (opcode() != spv::Op::OpExtInst) {
-    return NonSemanticShaderDebugInfo100InstructionsMax;
+  if (opcode() != spv::Op::OpExtInst &&
+      opcode() != spv::Op::OpExtInstWithForwardRefsKHR) {
+    return NonSemanticShaderDebugInfoInstructionsMax;
   }
 
-  if (!context()->get_feature_mgr()->GetExtInstImportId_Shader100DebugInfo()) {
-    return NonSemanticShaderDebugInfo100InstructionsMax;
+  if (!context()->get_feature_mgr()->GetExtInstImportId_ShaderDebugInfo()) {
+    return NonSemanticShaderDebugInfoInstructionsMax;
   }
 
   if (GetSingleWordInOperand(kExtInstSetIdInIdx) !=
-      context()->get_feature_mgr()->GetExtInstImportId_Shader100DebugInfo()) {
-    return NonSemanticShaderDebugInfo100InstructionsMax;
+      context()->get_feature_mgr()->GetExtInstImportId_ShaderDebugInfo()) {
+    return NonSemanticShaderDebugInfoInstructionsMax;
   }
 
   uint32_t opcode = GetSingleWordInOperand(kExtInstInstructionInIdx);
-  if (opcode >= NonSemanticShaderDebugInfo100InstructionsMax) {
-    return NonSemanticShaderDebugInfo100InstructionsMax;
+  if (opcode >= NonSemanticShaderDebugInfoInstructionsMax) {
+    return NonSemanticShaderDebugInfoInstructionsMax;
   }
 
-  return NonSemanticShaderDebugInfo100Instructions(opcode);
+  return NonSemanticShaderDebugInfoInstructions(opcode);
 }
 
 CommonDebugInfoInstructions Instruction::GetCommonDebugOpcode() const {
-  if (opcode() != spv::Op::OpExtInst) {
+  if (opcode() != spv::Op::OpExtInst &&
+      opcode() != spv::Op::OpExtInstWithForwardRefsKHR) {
     return CommonDebugInfoInstructionsMax;
   }
 
   const uint32_t opencl_set_id =
       context()->get_feature_mgr()->GetExtInstImportId_OpenCL100DebugInfo();
   const uint32_t shader_set_id =
-      context()->get_feature_mgr()->GetExtInstImportId_Shader100DebugInfo();
+      context()->get_feature_mgr()->GetExtInstImportId_ShaderDebugInfo();
 
   if (!opencl_set_id && !shader_set_id) {
     return CommonDebugInfoInstructionsMax;
@@ -770,7 +797,7 @@ bool Instruction::IsFoldableByFoldScalar() const {
   // Even if the type of the instruction is foldable, its operands may not be
   // foldable (e.g., comparisons of 64bit types).  Check that all operand types
   // are foldable before accepting the instruction.
-  return WhileEachInOperand([&folder, this](const uint32_t* op_id) {
+  return WhileEachInId([&folder, this](const uint32_t* op_id) {
     Instruction* def_inst = context()->get_def_use_mgr()->GetDef(*op_id);
     Instruction* def_inst_type =
         context()->get_def_use_mgr()->GetDef(def_inst->type_id());
@@ -792,7 +819,7 @@ bool Instruction::IsFoldableByFoldVector() const {
   // Even if the type of the instruction is foldable, its operands may not be
   // foldable (e.g., comparisons of 64bit types).  Check that all operand types
   // are foldable before accepting the instruction.
-  return WhileEachInOperand([&folder, this](const uint32_t* op_id) {
+  return WhileEachInId([&folder, this](const uint32_t* op_id) {
     Instruction* def_inst = context()->get_def_use_mgr()->GetDef(*op_id);
     Instruction* def_inst_type =
         context()->get_def_use_mgr()->GetDef(def_inst->type_id());
@@ -1036,8 +1063,8 @@ bool Instruction::IsOpcodeSafeToDelete() const {
   }
 
   if (IsNonSemanticInstruction() &&
-      (GetShader100DebugOpcode() == NonSemanticShaderDebugInfo100DebugDeclare ||
-       GetShader100DebugOpcode() == NonSemanticShaderDebugInfo100DebugValue)) {
+      (GetShaderDebugOpcode() == NonSemanticShaderDebugInfoDebugDeclare ||
+       GetShaderDebugOpcode() == NonSemanticShaderDebugInfoDebugValue)) {
     return true;
   }
 

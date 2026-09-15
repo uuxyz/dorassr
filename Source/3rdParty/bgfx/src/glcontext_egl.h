@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2025 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2026 Branimir Karadzic. All rights reserved.
  * License: https://github.com/bkaradzic/bgfx/blob/master/LICENSE
  */
 
@@ -7,6 +7,10 @@
 #define BGFX_GLCONTEXT_EGL_H_HEADER_GUARD
 
 #if BGFX_USE_EGL
+
+#if BGFX_USE_GL_DYNAMIC_LIB
+#	define EGL_EGL_PROTOTYPES 0
+#endif // BGFX_USE_GL_DYNAMIC_LIB
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
@@ -34,24 +38,31 @@ namespace bgfx { namespace gl
 	{
 		GlContext()
 			: m_eglDll(NULL)
+			, m_nwh(NULL)
 			, m_current(NULL)
+			, m_config(NULL)
 			, m_context(NULL)
 			, m_display(NULL)
 			, m_surface(NULL)
-#if BX_PLATFORM_LINUX
+			, m_readSurface(NULL)
+#if BX_PLATFORM_WINDOWS
+			, m_hdc(NULL)
+#elif BX_PLATFORM_LINUX
 			, m_waylandEglDll(NULL)
 			, m_eglWindow(NULL)
-#endif
+#endif // BX_PLATFORM_*
+			, m_ownsContext(false)
 			, m_msaaContext(false)
+			, m_swapInterval(0)
 		{
 		}
 
-		void create(uint32_t _width, uint32_t _height, uint32_t _flags);
+		void create(const SwapChain& _swapChain, uint32_t _reset);
 		void destroy();
-		void resize(uint32_t _width, uint32_t _height, uint32_t _flags);
+		void resize(const SwapChain& _swapChain, uint32_t _reset);
 
 		uint64_t getCaps() const;
-		SwapChainGL* createSwapChain(void* _nwh, int _w, int _h);
+		SwapChainGL* createSwapChain(void* _nwh, int32_t _width, int32_t _height);
 		void destroySwapChain(SwapChainGL*  _swapChain);
 		void swap(SwapChainGL* _swapChain = NULL);
 		void makeCurrent(SwapChainGL* _swapChain = NULL);
@@ -64,19 +75,24 @@ namespace bgfx { namespace gl
 		}
 
 		void* m_eglDll;
+		void* m_nwh;
 		SwapChainGL* m_current;
 		EGLConfig  m_config;
 		EGLContext m_context;
 		EGLDisplay m_display;
 		EGLSurface m_surface;
+		EGLSurface m_readSurface;
 
-#if BX_PLATFORM_LINUX
+#if BX_PLATFORM_WINDOWS
+		HDC m_hdc;
+#elif BX_PLATFORM_LINUX
 		void*  m_waylandEglDll;
 		struct wl_egl_window *m_eglWindow;
-#endif
+#endif // BX_PLATFORM_*
 
-		// true when MSAA is handled by the context instead of using MSAA FBO
+		bool m_ownsContext;
 		bool m_msaaContext;
+		int  m_swapInterval;
 	};
 } /* namespace gl */ } // namespace bgfx
 
