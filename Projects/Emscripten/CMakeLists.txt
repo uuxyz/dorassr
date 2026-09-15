@@ -52,6 +52,11 @@ foreach(DORA_LINUX_SOURCE_LINE IN LISTS DORA_LINUX_SOURCE_LINES)
 	list(APPEND DORA_ENGINE_SOURCES "${DORA_ROOT}/${DORA_ENGINE_SOURCE}")
 endforeach()
 
+# Linux now obtains its portable source list from the shared manifest. Load
+# that list here as well; the legacy parsing above is retained temporarily
+# only to keep this change minimal and is overwritten by the shared list.
+include("${DORA_ROOT}/Projects/CMake/DoraEngineSources.cmake")
+
 list(FILTER DORA_ENGINE_SOURCES EXCLUDE REGEX ".*/Source/Http/HttpServer\\.cpp$")
 list(FILTER DORA_ENGINE_SOURCES EXCLUDE REGEX ".*/Source/Http/XrtNetwork\\.c$")
 list(FILTER DORA_ENGINE_SOURCES EXCLUDE REGEX ".*/Source/3rdParty/nfd/nfd_portal\\.cpp$")
@@ -63,6 +68,9 @@ list(APPEND DORA_ENGINE_SOURCES
 	"${DORA_SOURCE_ROOT}/3rdParty/soloud/backend/sdl2_static/soloud_sdl2_static.cpp")
 list(APPEND DORA_ENGINE_SOURCES
 	"${DORA_SOURCE_ROOT}/Wasm/WasmRuntimeEmscripten.cpp")
+list(APPEND DORA_ENGINE_SOURCES
+	"${DORA_SOURCE_ROOT}/Web/WebTaskQueue.cpp"
+	"${DORA_SOURCE_ROOT}/Web/WebAssetLoader.cpp")
 
 # Linux links these portable LOVE pieces from liblove. Web builds them in the
 # engine target because the native archive is platform-specific. Keep this
@@ -145,6 +153,8 @@ set_source_files_properties(
 	PROPERTIES COMPILE_DEFINITIONS MPT_COMPILER_QUIRK_NO_WCHAR)
 
 file(GLOB DORA_BX_WASM_SOURCES CONFIGURE_DEPENDS "${DORA_SOURCE_ROOT}/3rdParty/bx/src/*.cpp")
+list(REMOVE_ITEM DORA_BX_WASM_SOURCES
+	"${DORA_SOURCE_ROOT}/3rdParty/bx/src/amalgamated.cpp")
 file(GLOB DORA_BIMG_WASM_SOURCES CONFIGURE_DEPENDS "${DORA_SOURCE_ROOT}/3rdParty/bimg/src/*.cpp")
 file(GLOB DORA_ASTC_WASM_SOURCES CONFIGURE_DEPENDS
 	"${DORA_SOURCE_ROOT}/3rdParty/bimg/3rdparty/astc-encoder/source/*.cpp")
@@ -180,13 +190,13 @@ set(DORA_BGFX_WASM_SOURCES
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/shader_spirv.cpp"
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/topology.cpp"
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/vertexlayout.cpp"
-	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/dora/DoraShaderc.cpp"
-	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/tools/shaderc/shaderc.cpp"
-	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/tools/shaderc/shaderc_glsl.cpp"
-	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/tools/shaderc/shaderc_hlsl.cpp"
-	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/tools/shaderc/shaderc_metal.cpp"
-	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/tools/shaderc/shaderc_pssl.cpp"
-	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/tools/shaderc/shaderc_spirv.cpp")
+	"${DORA_SOURCE_ROOT}/Shader/DoraShaderc/DoraShaderc.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/shaderc/shaderc.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/shaderc/shaderc_glsl.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/shaderc/shaderc_hlsl.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/shaderc/shaderc_metal.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/shaderc/shaderc_pssl.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/shaderc/shaderc_spirv.cpp")
 list(APPEND DORA_ENGINE_SOURCES ${DORA_BGFX_WASM_SOURCES})
 
 if(NOT DORA_ENGINE_SOURCES)
@@ -235,7 +245,7 @@ target_include_directories(dora-ssr PRIVATE
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glsl-optimizer/src"
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glsl-optimizer/src/mesa"
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glsl-optimizer/src/glsl"
-	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/tools/shaderc"
+	"${DORA_SOURCE_ROOT}/3rdParty/shaderc"
 	"${DORA_SOURCE_ROOT}/3rdParty/theora/include"
 	"${DORA_OPENMPT_ROOT}"
 	"${DORA_OPENMPT_ROOT}/common"
@@ -311,7 +321,7 @@ target_include_directories(dora-engine PRIVATE
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glsl-optimizer/src"
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glsl-optimizer/src/mesa"
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glsl-optimizer/src/glsl"
-	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/tools/shaderc"
+	"${DORA_SOURCE_ROOT}/3rdParty/shaderc"
 	"${DORA_SOURCE_ROOT}/3rdParty/theora/include"
 	"${DORA_OPENMPT_ROOT}"
 	"${DORA_OPENMPT_ROOT}/common"
@@ -341,6 +351,7 @@ target_link_options(dora-ssr PRIVATE
 	"-sASSERTIONS=1"
 	"-sEXIT_RUNTIME=0"
 	"-sFILESYSTEM=1"
+	"-lidbfs.js"
 	"-sFETCH=1"
 	"-sASYNCIFY=1"
 	"-sUSE_PTHREADS=0"
@@ -350,6 +361,7 @@ target_link_options(dora-ssr PRIVATE
 	"SHELL:--preload-file \"${DORA_ASSETS_ROOT}@/Assets\"")
 
 target_link_libraries(dora-ssr PRIVATE "${DORA_RUST_RUNTIME}")
+target_link_options(dora-ssr PRIVATE "-sUSE_ZLIB=1")
 
 set_target_properties(dora-ssr PROPERTIES
 	OUTPUT_NAME "dora-ssr"

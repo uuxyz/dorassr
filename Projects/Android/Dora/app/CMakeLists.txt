@@ -180,6 +180,7 @@ add_library(main SHARED
 	src/main/cpp/Render/Camera3D.cpp
 	src/main/cpp/Render/RenderTarget.cpp
 	src/main/cpp/Render/Renderer.cpp
+	src/main/cpp/Render/RenderSurface.cpp
 	src/main/cpp/Render/VGRender.cpp
 	src/main/cpp/Render/View.cpp
 	src/main/cpp/Shader/Builtin.cpp

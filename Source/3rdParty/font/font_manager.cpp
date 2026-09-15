@@ -4,6 +4,8 @@
  */
 
 #include "Const/Header.h"
+
+#include <bgfx/bgfx.h>
 using namespace Dora;
 
 #include "font/font_manager.h"

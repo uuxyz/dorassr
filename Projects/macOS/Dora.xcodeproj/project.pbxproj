@@ -151,6 +151,7 @@
 		3C592AE02CA4EFE200CAF224 /* Bullet.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3C592AC32CA4EFE200CAF224 /* Bullet.cpp */; };
 		3C592AE12CA4EFE200CAF224 /* UnitAction.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3C592AD32CA4EFE200CAF224 /* UnitAction.cpp */; };
 		3C592AEC2CA4EFF100CAF224 /* RenderTarget.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3C592AE72CA4EFF100CAF224 /* RenderTarget.cpp */; };
+		4B2DAB285F0FC85C7F177C11 /* RenderSurface.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E8FFE2C39DA40D0D0500563D /* RenderSurface.cpp */; };
 		3C592AED2CA4EFF100CAF224 /* VGRender.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3C592AE92CA4EFF100CAF224 /* VGRender.cpp */; };
 		3C592AEE2CA4EFF100CAF224 /* Camera.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3C592AE32CA4EFF100CAF224 /* Camera.cpp */; };
 		3C592AEF2CA4EFF100CAF224 /* View.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3C592AEB2CA4EFF100CAF224 /* View.cpp */; };
@@ -944,6 +945,8 @@
 		3C592AE62CA4EFF100CAF224 /* RenderTarget.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RenderTarget.h; sourceTree = "<group>"; };
 		3C592AE72CA4EFF100CAF224 /* RenderTarget.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = RenderTarget.cpp; sourceTree = "<group>"; };
 		3C592AE82CA4EFF100CAF224 /* VGRender.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = VGRender.h; sourceTree = "<group>"; };
+		8B84BD89080940AF3CA68EC4 /* RenderSurface.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RenderSurface.h; sourceTree = "<group>"; };
+		E8FFE2C39DA40D0D0500563D /* RenderSurface.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = RenderSurface.cpp; sourceTree = "<group>"; };
 		3C592AE92CA4EFF100CAF224 /* VGRender.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = VGRender.cpp; sourceTree = "<group>"; };
 		3C592AEA2CA4EFF100CAF224 /* View.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = View.h; sourceTree = "<group>"; };
 		3C592AEB2CA4EFF100CAF224 /* View.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = View.cpp; sourceTree = "<group>"; };
@@ -3696,6 +3699,8 @@
 				3C592AE52CA4EFF100CAF224 /* Renderer.cpp */,
 				3C592AE62CA4EFF100CAF224 /* RenderTarget.h */,
 				3C592AE72CA4EFF100CAF224 /* RenderTarget.cpp */,
+				8B84BD89080940AF3CA68EC4 /* RenderSurface.h */,
+				E8FFE2C39DA40D0D0500563D /* RenderSurface.cpp */,
 				3C592AE82CA4EFF100CAF224 /* VGRender.h */,
 				3C592AE92CA4EFF100CAF224 /* VGRender.cpp */,
 				3C592AEA2CA4EFF100CAF224 /* View.h */,
@@ -4726,6 +4731,7 @@
 				3C5399EB2998BAF000E9125C /* ljson.c in Sources */,
 				3CA77EEB2AE665C100B7BADA /* Sweep.cpp in Sources */,
 				3C592AEC2CA4EFF100CAF224 /* RenderTarget.cpp in Sources */,
+				4B2DAB285F0FC85C7F177C11 /* RenderSurface.cpp in Sources */,
 				3C592AED2CA4EFF100CAF224 /* VGRender.cpp in Sources */,
 				3C592AEE2CA4EFF100CAF224 /* Camera.cpp in Sources */,
 				3C592AEF2CA4EFF100CAF224 /* View.cpp in Sources */,
@@ -5254,7 +5260,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 11.3;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
-				OTHER_LDFLAGS = "";
+				OTHER_LDFLAGS = "-lz";
 				SDKROOT = macosx;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				VALID_ARCHS = "x86_64 arm64";
@@ -5308,7 +5314,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 11.3;
 				MTL_ENABLE_DEBUG_INFO = NO;
-				OTHER_LDFLAGS = "";
+				OTHER_LDFLAGS = "-lz";
 				SDKROOT = macosx;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				VALID_ARCHS = "x86_64 arm64";
@@ -5369,7 +5375,7 @@
 					"-Wno-conditional-uninitialized",
 				);
 				OTHER_CPLUSPLUSFLAGS = "-Wno-missing-template-arg-list-after-template-kw";
-				OTHER_LDFLAGS = "";
+				OTHER_LDFLAGS = "-lz";
 				OTHER_LIBTOOLFLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = IppClub.DoraSSR;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -5447,7 +5453,7 @@
 					"-Wno-conditional-uninitialized",
 				);
 				OTHER_CPLUSPLUSFLAGS = "-Wno-missing-template-arg-list-after-template-kw";
-				OTHER_LDFLAGS = "";
+				OTHER_LDFLAGS = "-lz";
 				OTHER_LIBTOOLFLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = IppClub.DoraSSR;
 				PRODUCT_NAME = "$(TARGET_NAME)";

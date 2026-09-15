@@ -8,15 +8,17 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 #include "Const/Header.h"
 
+#include <bgfx/bgfx.h>
+
 #include "Shader/ShaderCompiler.h"
 #include "Basic/Application.h"
 #include "Basic/Content.h"
 #include "Common/Async.h"
 #include "Common/Debug.h"
 
-#include "bgfx/dora/DoraShaderc.h"
+#include "Shader/DoraShaderc/DoraShaderc.h"
 
-#include "3rdParty/bgfx/dora/BgfxEmbeddedShaders.hpp"
+#include "Shader/DoraShaderc/BgfxEmbeddedShaders.hpp"
 
 NS_DORA_BEGIN
 
