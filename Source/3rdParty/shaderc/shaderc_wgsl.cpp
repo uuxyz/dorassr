@@ -5,7 +5,7 @@
 
 #include "shaderc.h"
 
-#if SHADERC_CONFIG_HAS_GLSLANG
+#if SHADERC_CONFIG_HAS_TINT && SHADERC_CONFIG_HAS_GLSLANG
 
 #include <iostream> // std::cout
 
@@ -22,36 +22,25 @@ BX_PRAGMA_DIAGNOSTIC_IGNORED_CLANG_GCC("-Wshadow") // warning: declaration of 'u
 #include <spirv_reflect.hpp>
 
 #define ENABLE_OPT 1
+#include <BaseTypes.h>
+#include <Types.h>
 #include <ShaderLang.h>
 #include <ResourceLimits.h>
 #include <SPIRV/GlslangToSpv.h>
 #include <SPIRV/SpvTools.h>
 #include <spirv-tools/optimizer.hpp>
+
+#include <tint/api/tint.h>
 BX_PRAGMA_DIAGNOSTIC_POP()
 
 namespace bgfx
 {
-	static bx::DefaultAllocator s_allocator;
-	bx::AllocatorI* g_allocator = &s_allocator;
-
 	struct TinyStlAllocator
 	{
 		static void* static_allocate(size_t _bytes);
 		static void static_deallocate(void* _ptr, size_t /*_bytes*/);
 	};
 
-	void* TinyStlAllocator::static_allocate(size_t _bytes)
-	{
-		return bx::alloc(g_allocator, _bytes);
-	}
-
-	void TinyStlAllocator::static_deallocate(void* _ptr, size_t /*_bytes*/)
-	{
-		if (NULL != _ptr)
-		{
-			bx::free(g_allocator, _ptr);
-		}
-	}
 } // namespace bgfx
 
 #define TINYSTL_ALLOCATOR bgfx::TinyStlAllocator
@@ -63,7 +52,7 @@ namespace stl = tinystl;
 
 #include "../../src/shader.h"
 
-namespace bgfx { namespace spirv
+namespace bgfx { namespace wgsl
 {
 	const TBuiltInResource resourceLimits =
 	{
@@ -183,46 +172,46 @@ namespace bgfx { namespace spirv
 		},
 	};
 
-	bgfx::TextureComponentType::Enum SpirvCrossBaseTypeToFormatType(spirv_cross::SPIRType::BaseType spirvBaseType, bool depth)
+	bgfx::TextureComponentType::Enum spirvCrossBaseTypeToFormatType(spirv_cross::SPIRType::BaseType _spirvBaseType, bool _depth)
 	{
-		if (depth)
-			return bgfx::TextureComponentType::Depth;
-
-		switch (spirvBaseType)
+		if (_depth)
 		{
-		case spirv_cross::SPIRType::Float:
-			return bgfx::TextureComponentType::Float;
-		case spirv_cross::SPIRType::Int:
-			return bgfx::TextureComponentType::Int;
-		case spirv_cross::SPIRType::UInt:
-			return bgfx::TextureComponentType::Uint;
-		default:
-		    return bgfx::TextureComponentType::Float;
+			return bgfx::TextureComponentType::Depth;
 		}
+
+		switch (_spirvBaseType)
+		{
+		case spirv_cross::SPIRType::Float: return bgfx::TextureComponentType::Float;
+		case spirv_cross::SPIRType::Int:   return bgfx::TextureComponentType::Int;
+		case spirv_cross::SPIRType::UInt:  return bgfx::TextureComponentType::Uint;
+		default: break;
+		}
+
+		return bgfx::TextureComponentType::Float;
 	}
 
-	bgfx::TextureDimension::Enum SpirvDimToTextureViewDimension(spv::Dim _dim, bool _arrayed)
+	bgfx::TextureDimension::Enum spirvDimToTextureViewDimension(spv::Dim _dim, bool _textureArray)
 	{
 		switch (_dim)
 		{
-		case spv::Dim::Dim1D:
-			return bgfx::TextureDimension::Dimension1D;
-		case spv::Dim::Dim2D:
-			return _arrayed
-				? bgfx::TextureDimension::Dimension2DArray
-				: bgfx::TextureDimension::Dimension2D
-				;
-		case spv::Dim::Dim3D:
-			return bgfx::TextureDimension::Dimension3D;
-		case spv::Dim::DimCube:
-			return _arrayed
-				? bgfx::TextureDimension::DimensionCubeArray
-				: bgfx::TextureDimension::DimensionCube
-				;
+		case spv::Dim::Dim1D: return bgfx::TextureDimension::Dimension1D;
+		case spv::Dim::Dim2D: return _textureArray
+			? bgfx::TextureDimension::Dimension2DArray
+			: bgfx::TextureDimension::Dimension2D
+			;
+		case spv::Dim::Dim3D: return bgfx::TextureDimension::Dimension3D;
+
+		case spv::Dim::DimCube: return _textureArray
+			? bgfx::TextureDimension::DimensionCubeArray
+			: bgfx::TextureDimension::DimensionCube
+			;
+
 		default:
 			BX_ASSERT(false, "Unknown texture dimension %d", _dim);
-			return bgfx::TextureDimension::Dimension2D;
+			break;
 		}
+
+		return bgfx::TextureDimension::Dimension2D;
 	}
 
 	static bgfx::TextureFormat::Enum s_textureFormats[] =
@@ -270,6 +259,7 @@ namespace bgfx { namespace spirv
 		bgfx::TextureFormat::Unknown,   // spv::ImageFormatR64ui = 40
 		bgfx::TextureFormat::Unknown,   // spv::ImageFormatR64i = 41
 	};
+	static_assert(BX_COUNTOF(s_textureFormats) == spv::ImageFormatR64i+1, "");
 
 	static EShLanguage getLang(char _p)
 	{
@@ -351,7 +341,7 @@ namespace bgfx { namespace spirv
 
 		RawBindings().write(_shaderWriter, &err);
 
-		uint16_t count = uint16_t(uniforms.size());
+		uint16_t count = uint16_t(uniforms.size() );
 		bx::write(_shaderWriter, count, &err);
 
 		uint32_t fragmentBit = isFragmentShader ? kUniformFragmentBit : 0;
@@ -384,6 +374,7 @@ namespace bgfx { namespace spirv
 				, un.regCount
 				);
 		}
+
 		return size;
 	}
 
@@ -509,6 +500,7 @@ namespace bgfx { namespace spirv
 			);
 		bool linked = false;
 		bool validated = true;
+		bool translated = false;
 
 		if (!compiled)
 		{
@@ -666,7 +658,21 @@ namespace bgfx { namespace spirv
 					return compile(_options, _version, output.c_str(), _shaderWriter, _messageWriter, false);
 				}
 
+				uint32_t blockIndex = 0;
+				for (uint32_t ii = 0, num = program->getNumUniformVariables(); ii < num; ++ii)
+				{
+					const glslang::TType* type = program->getUniformBlockTType(ii);
+					if (NULL != type
+					&&  glslang::EbtBlock   == type->getBasicType()
+					&&  glslang::EvqUniform == type->getQualifier().storage)
+					{
+						blockIndex = ii;
+						break;
+					}
+				}
+
 				UniformArray uniforms;
+				const uint16_t blockSize = bx::narrowCast<uint16_t>(bx::max<int32_t>(0, program->getUniformBlockSize(blockIndex) ) );
 
 				{
 					uint16_t count = (uint16_t)program->getNumLiveUniformVariables();
@@ -761,136 +767,169 @@ namespace bgfx { namespace spirv
 				}
 				else
 				{
-					if (g_verbose)
+					tint::Result<std::string> result = tint::SpirvToWgsl(
+						  spirv
+						, {
+							.allow_non_uniform_derivatives = true,
+							.allow_non_uniform_subgroup_operations = true,
+							.allowed_features = {
+								.extensions =
+								{
+								},
+								.features =
+								{
+									tint::wgsl::LanguageFeature::kReadonlyAndReadwriteStorageTextures,
+								}
+							},
+						  }
+						);
+					translated = result == tint::Success;
+
+					if (translated)
 					{
-						glslang::SpirvToolsDisassemble(std::cout, spirv, getSpirvTargetVersion(_version, _messageWriter));
-					}
-
-					spirv_cross::CompilerReflection refl(spirv);
-					spirv_cross::ShaderResources resourcesrefl = refl.get_shader_resources();
-
-					// Loop through the separate_images, and extract the uniform names:
-					for (auto &resource : resourcesrefl.separate_images)
-					{
-						std::string name = refl.get_name(resource.id);
-
-						if (name.size() > 7
-						&&  0 == bx::strCmp(name.c_str() + name.length() - 7, "Texture") )
+						if (g_verbose)
 						{
-							name = name.substr(0, name.length() - 7);
+							bx::printf("%s", result.Get().c_str() );
 						}
 
-						uint32_t binding_index = refl.get_decoration(resource.id, spv::Decoration::DecorationBinding);
+						spirv_cross::CompilerReflection refl(spirv);
+						spirv_cross::ShaderResources shaderRes = refl.get_shader_resources();
 
-						auto imageType = refl.get_type(resource.base_type_id).image;
-						auto componentType = refl.get_type(imageType.type).basetype;
-
-						bool isCompareSampler = false;
-						for (auto& sampler : resourcesrefl.separate_samplers)
+						// Loop through the separate_images, and extract the uniform names:
+						for (auto& resource : shaderRes.separate_images)
 						{
-							if (binding_index + 16 == refl.get_decoration(sampler.id, spv::Decoration::DecorationBinding) )
+							std::string name = refl.get_name(resource.id);
+
+							if (name.size() > 7
+							&&  0 == bx::strCmp(name.c_str() + name.length() - 7, "Texture") )
 							{
-								std::string samplerName = refl.get_name(sampler.id);
-								isCompareSampler = refl.variable_is_depth_or_compare(sampler.id) || samplerName.find("Comparison") != std::string::npos;
-								break;
+								name = name.substr(0, name.length() - 7);
+							}
+
+							uint32_t binding_index = refl.get_decoration(resource.id, spv::Decoration::DecorationBinding);
+
+							spirv_cross::SPIRType::ImageType imageType     = refl.get_type(resource.base_type_id).image;
+							spirv_cross::SPIRType::BaseType  componentType = refl.get_type(imageType.type).basetype;
+
+							bool isCompareSampler = false;
+							for (auto& sampler : shaderRes.separate_samplers)
+							{
+								if (binding_index + 16 == refl.get_decoration(sampler.id, spv::Decoration::DecorationBinding) )
+								{
+									std::string samplerName = refl.get_name(sampler.id);
+									isCompareSampler = refl.variable_is_depth_or_compare(sampler.id) || samplerName.find("Comparison") != std::string::npos;
+									break;
+								}
+							}
+
+							Uniform un;
+							un.name = name;
+							un.type = UniformType::Enum(UniformType::Sampler
+									| kUniformSamplerBit
+									| (isCompareSampler ? kUniformCompareBit : 0)
+									);
+
+							un.texComponent = textureComponentTypeToId(spirvCrossBaseTypeToFormatType(componentType, imageType.depth) );
+							un.texDimension = textureDimensionToId(spirvDimToTextureViewDimension(imageType.dim, imageType.arrayed) );
+							un.texFormat    = uint16_t(s_textureFormats[imageType.format]);
+
+							un.regIndex = uint16_t(binding_index);
+							un.regCount = 0; // unused
+
+							uniforms.push_back(un);
+						}
+
+						// Loop through the storage_images, and extract the uniform names:
+						for (auto& resource : shaderRes.storage_images)
+						{
+							const std::string& name = refl.get_name(resource.id);
+
+							uint32_t binding_index = refl.get_decoration(resource.id, spv::Decoration::DecorationBinding);
+
+							spirv_cross::SPIRType::ImageType imageType     = refl.get_type(resource.base_type_id).image;
+							spirv_cross::SPIRType::BaseType  componentType = refl.get_type(imageType.type).basetype;
+
+							spirv_cross::Bitset flags = refl.get_decoration_bitset(resource.id);
+							UniformType::Enum type = flags.get(spv::DecorationNonWritable)
+								? UniformType::Enum(kUniformReadOnlyBit | UniformType::End)
+								: UniformType::End
+								;
+
+							Uniform un;
+							un.name = name;
+							un.type = type;
+
+							un.texComponent = textureComponentTypeToId(spirvCrossBaseTypeToFormatType(componentType, imageType.depth) );
+							un.texDimension = textureDimensionToId(spirvDimToTextureViewDimension(imageType.dim, imageType.arrayed) );
+							un.texFormat = uint16_t(s_textureFormats[imageType.format]);
+							un.texFormat |= 0
+								| (spv::AccessQualifierReadOnly  == imageType.access ? kAccessRead  : 0)
+								| (spv::AccessQualifierWriteOnly == imageType.access ? kAccessWrite : 0)
+								| (spv::AccessQualifierReadOnly  == imageType.access ? kAccessMask  : 0)
+								;
+
+							un.regIndex = uint16_t(binding_index);
+							un.regCount = descriptorTypeToId(DescriptorType::StorageImage);
+
+							uniforms.push_back(un);
+						}
+
+						bx::Error err;
+
+						// Loop through the storage buffer, and extract the uniform names:
+						for (auto& resource : shaderRes.storage_buffers)
+						{
+							const std::string& name = refl.get_name(resource.id);
+
+							uint32_t binding_index = refl.get_decoration(resource.id, spv::Decoration::DecorationBinding);
+
+							spirv_cross::Bitset flags = refl.get_buffer_block_flags(resource.id);
+							UniformType::Enum type = flags.get(spv::DecorationNonWritable)
+								? UniformType::Enum(kUniformReadOnlyBit | UniformType::End)
+								: UniformType::End
+								;
+
+							Uniform un;
+							un.name = name;
+							un.type = type;
+							un.num = 0;
+							un.regIndex = uint16_t(binding_index);
+							un.regCount = descriptorTypeToId(DescriptorType::StorageBuffer);
+
+							uniforms.push_back(un);
+						}
+
+						const uint16_t size = writeUniformArray(_shaderWriter, uniforms, _options.shaderType == 'f');
+
+						const bx::StringView code(result.Get().c_str() );
+						bx::write(_shaderWriter, code.getLength(), &err);
+						bx::write(_shaderWriter, code, &err);
+						const uint8_t nul = 0;
+						bx::write(_shaderWriter, nul, &err);
+
+						const uint8_t numAttr = (uint8_t)program->getNumLiveAttributes();
+						bx::write(_shaderWriter, numAttr, &err);
+
+						for (uint8_t ii = 0; ii < numAttr; ++ii)
+						{
+							bgfx::Attrib::Enum attr = toAttribEnum(program->getAttributeName(ii) );
+							if (bgfx::Attrib::Count != attr)
+							{
+								bx::write(_shaderWriter, bgfx::attribToId(attr), &err);
+							}
+							else
+							{
+								bx::write(_shaderWriter, uint16_t(UINT16_MAX), &err);
 							}
 						}
 
-						Uniform un;
-						un.name = name;
-						un.type = UniformType::Enum(UniformType::Sampler
-								| kUniformSamplerBit
-								| (isCompareSampler ? kUniformCompareBit : 0)
-								);
-
-						un.texComponent = textureComponentTypeToId(SpirvCrossBaseTypeToFormatType(componentType, imageType.depth) );
-						un.texDimension = textureDimensionToId(SpirvDimToTextureViewDimension(imageType.dim, imageType.arrayed) );
-						un.texFormat = uint16_t(s_textureFormats[imageType.format]);
-
-						un.regIndex = uint16_t(binding_index);
-						un.regCount = 0; // unused
-
-						uniforms.push_back(un);
+						bx::write(_shaderWriter, size, &err);
+						bx::write(_shaderWriter, blockSize, &err);
 					}
-
-					// Loop through the storage_images, and extract the uniform names:
-					for (auto &resource : resourcesrefl.storage_images)
+					else
 					{
-						std::string name = refl.get_name(resource.id);
-
-						uint32_t binding_index = refl.get_decoration(resource.id, spv::Decoration::DecorationBinding);
-
-						auto imageType = refl.get_type(resource.base_type_id).image;
-						auto componentType = refl.get_type(imageType.type).basetype;
-
-						spirv_cross::Bitset flags = refl.get_decoration_bitset(resource.id);
-						UniformType::Enum type = flags.get(spv::DecorationNonWritable)
-							? UniformType::Enum(kUniformReadOnlyBit | UniformType::End)
-							: UniformType::End;
-
-						Uniform un;
-						un.name = name;
-						un.type = type;
-
-						un.texComponent = textureComponentTypeToId(SpirvCrossBaseTypeToFormatType(componentType, imageType.depth) );
-						un.texDimension = textureDimensionToId(SpirvDimToTextureViewDimension(imageType.dim, imageType.arrayed) );
-						un.texFormat = uint16_t(s_textureFormats[imageType.format]);
-
-						un.regIndex = uint16_t(binding_index);
-						un.regCount = descriptorTypeToId(DescriptorType::StorageImage);
-
-						uniforms.push_back(un);
+						bx::write(_messageWriter, &messageErr, "Error: %s\n", result.Failure().reason.c_str() );
 					}
-
-					bx::Error err;
-
-					// Loop through the storage buffer, and extract the uniform names:
-					for (auto& resource : resourcesrefl.storage_buffers)
-					{
-						std::string name = refl.get_name(resource.id);
-
-						uint32_t binding_index = refl.get_decoration(resource.id, spv::Decoration::DecorationBinding);
-
-						spirv_cross::Bitset flags = refl.get_buffer_block_flags(resource.id);
-						UniformType::Enum type = flags.get(spv::DecorationNonWritable)
-							? UniformType::Enum(kUniformReadOnlyBit | UniformType::End)
-							: UniformType::End;
-
-						Uniform un;
-						un.name = name;
-						un.type = type;
-						un.num = 0;
-						un.regIndex = uint16_t(binding_index);
-						un.regCount = descriptorTypeToId(DescriptorType::StorageBuffer);
-
-						uniforms.push_back(un);
-					}
-
-					uint16_t size = writeUniformArray(_shaderWriter, uniforms, _options.shaderType == 'f');
-
-					uint32_t shaderSize = (uint32_t)spirv.size() * sizeof(uint32_t);
-					bx::write(_shaderWriter, shaderSize, &err);
-					bx::write(_shaderWriter, spirv.data(), shaderSize, &err);
-					uint8_t nul = 0;
-					bx::write(_shaderWriter, nul, &err);
-
-					const uint8_t numAttr = (uint8_t)program->getNumLiveAttributes();
-					bx::write(_shaderWriter, numAttr, &err);
-
-					for (uint8_t ii = 0; ii < numAttr; ++ii)
-					{
-						bgfx::Attrib::Enum attr = toAttribEnum(program->getAttributeName(ii) );
-						if (bgfx::Attrib::Count != attr)
-						{
-							bx::write(_shaderWriter, bgfx::attribToId(attr), &err);
-						}
-						else
-						{
-							bx::write(_shaderWriter, uint16_t(UINT16_MAX), &err);
-						}
-					}
-
-					bx::write(_shaderWriter, size, &err);
 				}
 			}
 		}
@@ -900,29 +939,29 @@ namespace bgfx { namespace spirv
 
 		glslang::FinalizeProcess();
 
-		return compiled && linked && validated;
+		return compiled && linked && validated && translated;
 	}
 
-} // namespace spirv
+} // namespace wgsl
 
-	bool compileSPIRVShader(const Options& _options, uint32_t _version, const std::string& _code, bx::WriterI* _shaderWriter, bx::WriterI* _messageWriter)
+	bool compileWgslShader(const Options& _options, uint32_t _version, const std::string& _code, bx::WriterI* _shaderWriter, bx::WriterI* _messageWriter)
 	{
-		return spirv::compile(_options, _version, _code, _shaderWriter, _messageWriter, true);
+		return wgsl::compile(_options, _version, _code, _shaderWriter, _messageWriter, true);
 	}
 
 } // namespace bgfx
 
-#else // SHADERC_HAS_GLSLANG
+#else // SHADERC_CONFIG_HAS_TINT && SHADERC_CONFIG_HAS_GLSLANG
 
 namespace bgfx
 {
-	bool compileSPIRVShader(const Options& _options, uint32_t _version, const std::string& _code, bx::WriterI* _shaderWriter, bx::WriterI* _messageWriter)
+	bool compileWgslShader(const Options& _options, uint32_t _version, const std::string& _code, bx::WriterI* _shaderWriter, bx::WriterI* _messageWriter)
 	{
 		BX_UNUSED(_options, _version, _code, _shaderWriter);
 		bx::Error messageErr;
-		bx::write(_messageWriter, &messageErr, "SPIRV compiler (glslang, spirv-cross and spirv-tools) is not compiled in.\n");
+		bx::write(_messageWriter, &messageErr, "WGSL compiler (tint) is not compiled in.\n");
 		return false;
 	}
 } // namespace bgfx
 
-#endif // SHADERC_HAS_GLSLANG
+#endif // SHADERC_CONFIG_HAS_TINT && SHADERC_CONFIG_HAS_GLSLANG

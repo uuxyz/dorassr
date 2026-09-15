@@ -43,12 +43,15 @@ set(DORA_WEB_BGFX_SOURCES
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/topology.cpp"
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/vertexlayout.cpp"
 	"${DORA_SOURCE_ROOT}/Shader/DoraShaderc/DoraShaderc.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/shaderc/pp.cpp"
 	"${DORA_SOURCE_ROOT}/3rdParty/shaderc/shaderc.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/shaderc/shaderc_dxil.cpp"
 	"${DORA_SOURCE_ROOT}/3rdParty/shaderc/shaderc_glsl.cpp"
 	"${DORA_SOURCE_ROOT}/3rdParty/shaderc/shaderc_hlsl.cpp"
 	"${DORA_SOURCE_ROOT}/3rdParty/shaderc/shaderc_metal.cpp"
 	"${DORA_SOURCE_ROOT}/3rdParty/shaderc/shaderc_pssl.cpp"
-	"${DORA_SOURCE_ROOT}/3rdParty/shaderc/shaderc_spirv.cpp")
+	"${DORA_SOURCE_ROOT}/3rdParty/shaderc/shaderc_spirv.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/shaderc/shaderc_wgsl.cpp")
 
 set(DORA_WEB_LINK_SOURCES
 	"${DORA_SOURCE_ROOT}/3rdParty/theora/TheoraSources.c"

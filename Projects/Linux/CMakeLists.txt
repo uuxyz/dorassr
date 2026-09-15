@@ -111,16 +111,22 @@ set_target_properties(
 	${DORA_BGFX_BUILD_DIR}/libbimg_decode.a
 )
 
-add_library(FCPP-lib STATIC IMPORTED)
+add_library(GLSLANG-lib STATIC IMPORTED)
 set_target_properties(
-	FCPP-lib PROPERTIES IMPORTED_LOCATION
-	${DORA_BGFX_BUILD_DIR}/libfcpp.a
+	GLSLANG-lib PROPERTIES IMPORTED_LOCATION
+	${DORA_BGFX_BUILD_DIR}/libglslang.a
 )
 
-add_library(GLSLO-lib STATIC IMPORTED)
+add_library(SPIRVCROSS-lib STATIC IMPORTED)
 set_target_properties(
-	GLSLO-lib PROPERTIES IMPORTED_LOCATION
-	${DORA_BGFX_BUILD_DIR}/libglsl_optimizer.a
+	SPIRVCROSS-lib PROPERTIES IMPORTED_LOCATION
+	${DORA_BGFX_BUILD_DIR}/libspirv-cross.a
+)
+
+add_library(SPIRVOPT-lib STATIC IMPORTED)
+set_target_properties(
+	SPIRVOPT-lib PROPERTIES IMPORTED_LOCATION
+	${DORA_BGFX_BUILD_DIR}/libspirv-opt.a
 )
 
 add_library(SHADERC-lib STATIC IMPORTED)
@@ -159,4 +165,4 @@ include("${DORA_ROOT}/Projects/CMake/DoraGeneratedSources.cmake")
 add_executable(dora-ssr ${DORA_ENGINE_SOURCES})
 dora_add_generated_lua_sources(dora-ssr)
 
-target_link_libraries(dora-ssr z SDL2-lib LOVE-lib THEORA-lib BGFX-lib BIMGDE-lib BIMG-lib SHADERC-lib GLSLO-lib FCPP-lib BX-lib ${DORA_RENDER_LINK_LIBS} ${DBUS_LINK_LIBRARIES} DORA-lib WA-lib m dl pthread rt)
+target_link_libraries(dora-ssr z SDL2-lib LOVE-lib THEORA-lib BGFX-lib BIMGDE-lib BIMG-lib SHADERC-lib GLSLANG-lib SPIRVCROSS-lib SPIRVOPT-lib BX-lib ${DORA_RENDER_LINK_LIBS} ${DBUS_LINK_LIBRARIES} DORA-lib WA-lib m dl pthread rt)
