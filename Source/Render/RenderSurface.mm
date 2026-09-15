@@ -6,50 +6,30 @@ The above copyright notice and this permission notice shall be included in all c
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
-#pragma once
+#include "Const/Header.h"
 
-#include <bgfx/bgfx.h>
+#if BX_PLATFORM_IOS
 
-#include "Shader/ShaderCompiler.h"
+#import "SDL.h"
+#import "SDL_syswm.h"
+#import <QuartzCore/CAMetalLayer.h>
+#import <UIKit/UIKit.h>
 
-NS_DORA_BEGIN
+#import "Render/RenderSurface.h"
 
-class Shader : public Object {
-public:
-	PROPERTY_READONLY(bgfx::ShaderHandle, Handle);
-	virtual ~Shader();
-	CREATE_FUNC_NOT_NULL(Shader);
+/* Global scope: the declaration in RenderSurface.cpp is not inside the
+   Dora namespace. */
+void* createIOSMetalLayer(SDL_Window* window) {
+	SDL_SysWMinfo wmi;
+	SDL_VERSION(&wmi.version);
+	SDL_GetWindowWMInfo(window, &wmi);
+	CALayer* layer = wmi.info.uikit.window.rootViewController.view.layer;
+	CAMetalLayer* displayLayer = [[CAMetalLayer alloc] init];
+	displayLayer.contentsScale = [UIScreen mainScreen].scale;
+	displayLayer.frame = layer.frame;
+	[layer addSublayer:displayLayer];
+	[layer layoutSublayers];
+	return (__bridge void*)displayLayer;
+}
 
-protected:
-	Shader(bgfx::ShaderHandle handle);
-
-private:
-	bgfx::ShaderHandle _handle;
-};
-
-class ShaderCache : public NonCopyable {
-public:
-	virtual ~ShaderCache() { }
-	void update(String name, Shader* shader);
-	/** @brief fragment or vertex shader */
-	Shader* load(String filename);
-	Shader* load(String filename, ShaderStage stage);
-	void loadAsync(String filename, const std::function<void(Shader*)>& handler);
-	bool unload(Shader* shader);
-	bool unload(String filename);
-	bool unload();
-	void removeUnused();
-
-protected:
-	ShaderCache();
-	std::string getShaderPath() const;
-
-private:
-	StringMap<Ref<Shader>> _shaders;
-	SINGLETON_REF(ShaderCache, RenderSurface);
-};
-
-#define SharedShaderCache \
-	Dora::Singleton<Dora::ShaderCache>::shared()
-
-NS_DORA_END
+#endif // BX_PLATFORM_IOS
