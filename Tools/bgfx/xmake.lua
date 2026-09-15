@@ -234,7 +234,6 @@ local bx_src = {
 
 local bimg_src = {
     "src/image.cpp",
-    "src/image_gnf.cpp",
 }
 
 local bimg_decode_src = {
@@ -279,8 +278,6 @@ local bgfx_src = {
     "src/renderer_nvn.cpp",
     "src/renderer_vk.cpp",
     "src/shader.cpp",
-    "src/shader_dxbc.cpp",
-    "src/shader_spirv.cpp",
     "src/topology.cpp",
     "src/vertexlayout.cpp",
 }
@@ -568,13 +565,20 @@ local glslang_spirv_cinterface_src = {
 }
 
 local shaderc_src = {
+    "pp.cpp",
     "shaderc.cpp",
     "shaderc_hlsl.cpp",
     "shaderc_metal.cpp",
     "shaderc_spirv.cpp",
     "shaderc_glsl.cpp",
 	 "shaderc_pssl.cpp",
+	 "shaderc_wgsl.cpp",
 }
+
+if is_plat("windows") then
+    -- DXIL 校验依赖 Windows SDK 头文件（unknwnbase.h 等）
+    table.insert(shaderc_src, "shaderc_dxil.cpp")
+end
 
 -- 平台相关链接库
 local function add_platform_links()
@@ -637,11 +641,14 @@ target("bimg")
     set_kind("static")
     add_deps("bx")
     add_common_target_settings()
-    
+
     add_includedirs(path.join(BIMG_DIR, "include"), {public = true})
     add_includedirs(path.join(BIMG_DIR, "3rdparty"), {public = true})
     add_includedirs(path.join(BIMG_DIR, "3rdparty/astc-encoder/include"))
-    
+
+    -- 解码器依赖未随 vendor 树裁剪保留（libavif/simplewebp 等）
+    add_defines("BIMG_CONFIG_PARSE_AVIF=0", "BIMG_CONFIG_PARSE_WEBP=0")
+
     add_files(table.unpack(resolve_sources(BIMG_DIR, bimg_src)))
     add_files(table.unpack(resolve_sources(BIMG_DIR, astc_encoder_src)))
     
@@ -662,6 +669,7 @@ target("bimg_decode")
     -- 不删除 bimg 内置的 miniz 文件，仅通过编译定义停用它。
     -- （image_decode.cpp 已包含 zlib.h，满足 tinyexr.h 的前置声明要求。）
     add_defines("TINYEXR_USE_MINIZ=0")
+    add_defines("BIMG_CONFIG_PARSE_AVIF=0", "BIMG_CONFIG_PARSE_WEBP=0")
     add_includedirs(path.join(DORA_ROOT, "Source/3rdParty/Zip/zlib"))
 
     add_includedirs(path.join(BIMG_DIR, "include"), {public = true})
@@ -896,7 +904,6 @@ target("glslang")
         path.join(GLSLANG_DIR, "SPIRV/GlslangToSpv.cpp"),
         path.join(GLSLANG_DIR, "SPIRV/InReadableOrder.cpp"),
         path.join(GLSLANG_DIR, "SPIRV/Logger.cpp"),
-        path.join(GLSLANG_DIR, "SPIRV/SPVRemapper.cpp"),
         path.join(GLSLANG_DIR, "SPIRV/SpvPostProcess.cpp"),
         path.join(GLSLANG_DIR, "SPIRV/SpvTools.cpp"),
         path.join(GLSLANG_DIR, "SPIRV/SpvBuilder.cpp"),
@@ -1143,7 +1150,7 @@ target("shaderc-lib")
             "SHADERC_CONFIG_METAL=0",
             "SHADERC_CONFIG_SPIRV=0"
         )
-        add_deps("bx", "fcpp")
+        add_deps("bx", "glslang", "spirv-cross", "spirv-opt")
     elseif is_plat("macosx", "iphoneos") then
         add_defines(
             "SHADERC_CONFIG_CLI=0",
@@ -1152,7 +1159,7 @@ target("shaderc-lib")
             "SHADERC_CONFIG_METAL=1",
             "SHADERC_CONFIG_SPIRV=0"
         )
-        add_deps("bx", "fcpp", "glslang", "spirv-cross")
+        add_deps("bx", "glslang", "spirv-cross", "spirv-opt")
     elseif is_plat("linux", "android") then
         add_defines(
             "SHADERC_CONFIG_CLI=0",
@@ -1161,7 +1168,7 @@ target("shaderc-lib")
             "SHADERC_CONFIG_METAL=0",
             "SHADERC_CONFIG_SPIRV=0"
         )
-        add_deps("bx", "fcpp", "glsl_optimizer")
+        add_deps("bx", "glslang", "spirv-cross", "spirv-opt")
     end
     
     add_includedirs(
@@ -1169,12 +1176,9 @@ target("shaderc-lib")
         path.join(BGFX_DIR, "include"),
         SHADERC_DIR,
         path.join(DORA_ROOT, "Source/3rdParty"),
-        FCPP_DIR,
+        GLSLANG_DIR,
         path.join(GLSLANG_DIR, "glslang/Public"),
         path.join(GLSLANG_DIR, "glslang/Include"),
-        GLSLANG_DIR,
-        path.join(GLSL_OPTIMIZER_DIR, "include"),
-        path.join(GLSL_OPTIMIZER_DIR, "src/glsl"),
         SPIRV_CROSS_DIR,
         path.join(SPIRV_TOOLS_DIR, "include")
     )
@@ -1184,8 +1188,6 @@ target("shaderc-lib")
     add_files(
         path.join(BGFX_DIR, "src/vertexlayout.cpp"),
         path.join(BGFX_DIR, "src/shader.cpp"),
-        path.join(BGFX_DIR, "src/shader_dxbc.cpp"),
-        path.join(BGFX_DIR, "src/shader_spirv.cpp"),
         path.join(DORA_SHADERC_DIR, "DoraShaderc.cpp")
     )
     
