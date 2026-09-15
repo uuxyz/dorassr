@@ -2,10 +2,10 @@
 # 同步工具: Tools/bgfx/update-upstream.sh   说明: Tools/bgfx/README.md
 repository = https://github.com/bkaradzic/bimg
 branch     = master
-tree       = 4742ef913fc479b2299bffcf4c44390887063f2a
-commit     = unknown
+tree       = 820d1fa63336c15cc91495386d35e1a240d9879f
+commit     = FETCH_HEAD
 # 注意: 3rdparty/tinyexr/deps/miniz/ 相对上游 bimg 保持删除
 # （与 IppClub 上游一致；EXR 解压走 zlib，构建定义 TINYEXR_USE_MINIZ=0）
 # commit 含义: 上游快照对应的精确 commit。tree 对应导入快照（bimg API 129），
 # 早于本文件引入，无法回溯到精确 commit；下一次同步起将记录精确值。
-keep       = 3rdparty include src LICENSE
+keep       = 3rdparty/astc-encoder 3rdparty/lodepng 3rdparty/stb 3rdparty/tinyexr include src LICENSE
