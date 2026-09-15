@@ -69,6 +69,9 @@
 #include "../Include/intermediate.h"
 #include "../Include/InfoSink.h"
 
+#include <functional>
+#include <unordered_map>
+
 namespace glslang {
 
 //
@@ -252,13 +255,14 @@ public:
     explicit TFunction(TOperator o) :
         TSymbol(nullptr),
         op(o),
-        defined(false), prototyped(false), implicitThis(false), illegalImplicitThis(false), variadic(false), defaultParamCount(0) { }
+        defined(false), prototyped(false), implicitThis(false), illegalImplicitThis(false), variadic(false), defaultParamCount(0),
+        functionControl(EfcNone) { }
     TFunction(const TString *name, const TType& retType, TOperator tOp = EOpNull) :
         TSymbol(name),
         mangledName(*name + '('),
         op(tOp),
         defined(false), prototyped(false), implicitThis(false), illegalImplicitThis(false), variadic(false), defaultParamCount(0),
-        linkType(ELinkNone)
+        functionControl(EfcNone), linkType(ELinkNone)
     {
         returnType.shallowCopy(retType);
         declaredBuiltIn = retType.getQualifier().builtIn;
@@ -348,6 +352,13 @@ public:
 
     void setExport() { linkType = ELinkExport; }
     TLinkType getLinkType() const { return linkType; }
+    void addFunctionControl(unsigned int fc) { functionControl |= fc; }
+    void setFunctionControl(unsigned int fc) { functionControl = fc; }
+    unsigned int getFunctionControl() const { return functionControl; }
+    bool hasIncompatibleFunctionControl() const
+    {
+        return (functionControl & EfcInline) != 0 && (functionControl & EfcDontInline) != 0;
+    }
 
 protected:
     explicit TFunction(const TFunction&);
@@ -371,6 +382,7 @@ protected:
     int  defaultParamCount;
 
     TSpirvInstruction spirvInst; // SPIR-V instruction qualifiers
+    unsigned int functionControl;
     TLinkType linkType;
 };
 
@@ -503,6 +515,11 @@ public:
         retargetedSymbols.push_back({from, to});
     }
 
+    void collectRetargetedSymbols(std::unordered_multimap<std::string, std::string> &out) const {
+        for (const auto &[fromName, toName] : retargetedSymbols)
+            out.insert({std::string{toName}, std::string{fromName}});
+    }
+
     TSymbol* find(const TString& name) const
     {
         tLevel::const_iterator it = level.find(name);
@@ -596,6 +613,7 @@ public:
 
     void relateToOperator(const char* name, TOperator op);
     void setFunctionExtensions(const char* name, int num, const char* const extensions[]);
+    void setFunctionExtensionsCallback(const char* name, std::function<std::vector<const char *>(const char *)> const &func);
     void setSingleFunctionExtensions(const char* name, int num, const char* const extensions[]);
     void dump(TInfoSink& infoSink, bool complete = false) const;
     TSymbolTableLevel* clone() const;
@@ -659,9 +677,10 @@ public:
     //
 protected:
     static const uint32_t LevelFlagBitOffset = 56;
-    static const int globalLevel = 3;
+    static constexpr int builtinLevel = 2;
+    static constexpr int globalLevel = 3;
     static bool isSharedLevel(int level)  { return level <= 1; }            // exclude all per-compile levels
-    static bool isBuiltInLevel(int level) { return level <= 2; }            // exclude user globals
+    static bool isBuiltInLevel(int level) { return level <= builtinLevel; } // exclude user globals
     static bool isGlobalLevel(int level)  { return level <= globalLevel; }  // include user globals
 public:
     bool isEmpty() { return table.size() == 0; }
@@ -826,6 +845,13 @@ public:
         table[level]->retargetSymbol(from, to);
     }
 
+    std::unordered_multimap<std::string, std::string> collectBuiltinAlias() {
+        std::unordered_multimap<std::string, std::string> allRetargets;
+        for (int level = 0; level <= std::min(currentLevel(), builtinLevel); ++level)
+            table[level]->collectRetargetedSymbols(allRetargets);
+
+        return allRetargets;
+    }
 
     // Find of a symbol that returns how many layers deep of nested
     // structures-with-member-functions ('this' scopes) deep the symbol was
@@ -896,6 +922,12 @@ public:
     {
         for (unsigned int level = 0; level < table.size(); ++level)
             table[level]->setFunctionExtensions(name, num, extensions);
+    }
+
+    void setFunctionExtensionsCallback(const char* name, std::function<std::vector<const char *>(const char *)> const &func)
+    {
+        for (unsigned int level = 0; level < table.size(); ++level)
+            table[level]->setFunctionExtensionsCallback(name, func);
     }
 
     void setSingleFunctionExtensions(const char* name, int num, const char* const extensions[])

@@ -2,8 +2,8 @@
 # 同步工具: Tools/bgfx/update-upstream.sh   说明: Tools/bgfx/README.md
 repository = https://github.com/bkaradzic/bgfx
 branch     = master
-tree       = 61551adcea4f9ef322e48413a737b18bf3f80062
-commit     = unknown
+tree       = b157a074e4b3146c94b8ef108d67f5cf7d345790
+commit     = FETCH_HEAD
 # commit 含义: 上游快照对应的精确 commit。tree 对应导入快照（bgfx API 129），
 # 早于本文件引入，无法回溯到精确 commit；下一次同步起将记录精确值。
 keep       = 3rdparty/astc-encoder 3rdparty/fcpp 3rdparty/glsl-optimizer 3rdparty/glslang 3rdparty/khronos 3rdparty/renderdoc 3rdparty/spirv-cross 3rdparty/spirv-headers 3rdparty/spirv-tools build include src LICENSE

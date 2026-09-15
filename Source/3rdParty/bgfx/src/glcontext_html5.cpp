@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2025 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2026 Branimir Karadzic. All rights reserved.
  * License: https://github.com/bkaradzic/bgfx/blob/master/LICENSE
  */
 
@@ -64,20 +64,31 @@ namespace bgfx { namespace gl
 		char* m_canvas;
 	};
 
-	void GlContext::create(uint32_t _width, uint32_t _height, uint32_t /*_flags*/)
+	void GlContext::create(const SwapChain& _swapChain, uint32_t _reset)
 	{
-		// assert?
-		if (m_primary != NULL)
+		if (NULL != m_primary)
+		{
 			return;
+		}
+		const bimg::ImageBlockInfo& colorBlockInfo       = bimg::getBlockInfo(bimg::TextureFormat::Enum(_swapChain.formatColor) );
+		const bimg::ImageBlockInfo& depthStecilBlockInfo = bimg::getBlockInfo(bimg::TextureFormat::Enum(_swapChain.formatDepthStencil) );
 
-		const char* canvas = (const char*) g_platformData.nwh;
+		emscripten_webgl_init_context_attributes(&s_attrs);
+		s_attrs.alpha                     = 0 != colorBlockInfo.aBits;
+		s_attrs.premultipliedAlpha        = false;
+		s_attrs.depth                     = 0 != depthStecilBlockInfo.depthBits;
+		s_attrs.stencil                   = 0 != depthStecilBlockInfo.stencilBits;
+		s_attrs.enableExtensionsByDefault = true;
+		s_attrs.antialias                 = false;
+		s_attrs.minorVersion = 0;
 
-		EMSCRIPTEN_WEBGL_CONTEXT_HANDLE context = bx::narrowCast<EMSCRIPTEN_WEBGL_CONTEXT_HANDLE>((uintptr_t) g_platformData.context);
+		const char* canvas = (const char*)_swapChain.nwh;
+		EMSCRIPTEN_WEBGL_CONTEXT_HANDLE context = bx::narrowCast<EMSCRIPTEN_WEBGL_CONTEXT_HANDLE>( (uintptr_t) g_platformData.context);
 		if (context > 0)
 		{
 			if (emscripten_webgl_get_context_attributes(context, &s_attrs) >= 0)
 			{
-				import(s_attrs.majorVersion);
+				import();
 				m_primary = BX_NEW(g_allocator, SwapChainGL)(context, canvas);
 			}
 			else
@@ -87,13 +98,17 @@ namespace bgfx { namespace gl
 		}
 		else
 		{
-			m_primary = createSwapChain((void*)canvas, (int)_width, (int)_height);
+			m_primary = createSwapChain( (void*)canvas, _swapChain.width, _swapChain.height);
 		}
 
-		if (0 != _width
-		&&  0 != _height)
+		if (0 != _swapChain.width
+		&&  0 != _swapChain.height)
 		{
-			EMSCRIPTEN_CHECK(emscripten_set_canvas_element_size(canvas, (int)_width, (int)_height) );
+			EMSCRIPTEN_CHECK(emscripten_set_canvas_element_size(
+				  canvas
+				, _swapChain.width
+				, _swapChain.height
+				) );
 		}
 
 		makeCurrent(m_primary);
@@ -113,55 +128,41 @@ namespace bgfx { namespace gl
 		}
 	}
 
-	void GlContext::resize(uint32_t _width, uint32_t _height, uint32_t /* _flags */)
+	void GlContext::resize(const SwapChain& _swapChain, uint32_t _reset)
 	{
 		if (m_primary == NULL)
 		{
 			return;
 		}
 
-		EMSCRIPTEN_CHECK(emscripten_set_canvas_element_size(m_primary->m_canvas, (int) _width, (int) _height) );
+		EMSCRIPTEN_CHECK(emscripten_set_canvas_element_size(
+			  m_primary->m_canvas
+			, _swapChain.width
+			, _swapChain.height
+			) );
 	}
 
-	SwapChainGL* GlContext::createSwapChain(void* _nwh, int _width, int _height)
+	SwapChainGL* GlContext::createSwapChain(void* _nwh, int32_t _width, int32_t _height)
 	{
-		emscripten_webgl_init_context_attributes(&s_attrs);
 		BX_UNUSED(_width, _height);
 
-		// Work around bug https://bugs.chromium.org/p/chromium/issues/detail?id=1045643 in Chrome
-		// by having alpha always enabled.
-		s_attrs.alpha                     = true;
-		s_attrs.premultipliedAlpha        = false;
-		s_attrs.depth                     = true;
-		s_attrs.stencil                   = true;
-		s_attrs.enableExtensionsByDefault = true;
-		s_attrs.antialias                 = false;
+		const char* canvas = (const char*)_nwh;
 
-		s_attrs.minorVersion = 0;
-		const char* canvas = (const char*) _nwh;
-		int32_t error = 0;
+		s_attrs.majorVersion = 2;
+		EMSCRIPTEN_WEBGL_CONTEXT_HANDLE context = emscripten_webgl_create_context(canvas, &s_attrs);
 
-		for (int version = 2; version >= 1; --version)
+		if (context > 0)
 		{
-			s_attrs.majorVersion = version;
-			EMSCRIPTEN_WEBGL_CONTEXT_HANDLE context = emscripten_webgl_create_context(canvas, &s_attrs);
+			EMSCRIPTEN_CHECK(emscripten_webgl_make_context_current(context) );
 
-			if (context > 0)
-			{
-				EMSCRIPTEN_CHECK(emscripten_webgl_make_context_current(context) );
+			SwapChainGL* swapChain = BX_NEW(g_allocator, SwapChainGL)(context, canvas);
 
-				SwapChainGL* swapChain = BX_NEW(g_allocator, SwapChainGL)(context, canvas);
+			import();
 
-				import(version);
-
-				return swapChain;
-			}
-
-			error = (int32_t)context;
+			return swapChain;
 		}
 
-		BX_TRACE("Failed to create WebGL context. (Canvas handle: '%s', last attempt error %d)", canvas, error);
-		BX_UNUSED(error);
+		BX_TRACE("Failed to create WebGL 2 context. (Canvas handle: '%s', error %d)", canvas, (int32_t)context);
 
 		return NULL;
 	}
@@ -201,10 +202,10 @@ namespace bgfx { namespace gl
 	}
 
 	template<typename Fn>
-	static Fn getProcAddress(int _version, const char* _name)
+	static Fn getProcAddress(const char* _name)
 	{
 		Fn func = reinterpret_cast<Fn>(emscripten_webgl1_get_proc_address(_name) );
-		if (NULL == func && _version >= 2)
+		if (NULL == func)
 		{
 			func = reinterpret_cast<Fn>(emscripten_webgl2_get_proc_address(_name) );
 		}
@@ -212,7 +213,7 @@ namespace bgfx { namespace gl
 		return func;
 	}
 
-	void GlContext::import(int _webGLVersion)
+	void GlContext::import()
 	{
 		BX_TRACE("Import:");
 
@@ -220,7 +221,7 @@ namespace bgfx { namespace gl
 	{                                                                               \
 		if (NULL == _func)                                                          \
 		{                                                                           \
-			_func = getProcAddress<_proto>(_webGLVersion, #_import);                \
+			_func = getProcAddress<_proto>(#_import);                               \
 			BX_TRACE("\t%p " #_func " (" #_import ")", _func);                      \
 			BGFX_FATAL(_optional || NULL != _func, Fatal::UnableToInitialize        \
 				, "Failed to create WebGL/OpenGLES context. GetProcAddress(\"%s\")" \

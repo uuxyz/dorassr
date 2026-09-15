@@ -66,6 +66,7 @@ struct TArraySize {
 
         return SameSpecializationConstants(node, rhs.node);
     }
+    bool operator!=(const TArraySize& rhs) const { return !(*this == rhs); }
 };
 
 //
@@ -197,6 +198,18 @@ struct TSmallArrayVector {
         return *sizes == *rhs.sizes;
     }
     bool operator!=(const TSmallArrayVector& rhs) const { return ! operator==(rhs); }
+
+    const TArraySize& operator[](int index) const
+    {
+        assert(sizes && index < (int)sizes->size());
+        return (*sizes)[index];
+    }
+
+    bool elementEqual(const TSmallArrayVector& rhs, uint32_t thisIdx, uint32_t rhsIdx) const
+    {
+        return sizes && rhs.sizes && thisIdx < sizes->size() && rhsIdx < rhs.sizes->size() &&
+               (*sizes)[thisIdx] == (*rhs.sizes)[rhsIdx];
+    }
 
 protected:
     TSmallArrayVector(const TSmallArrayVector&);
@@ -336,12 +349,21 @@ struct TArraySizes {
 
         return true;
     }
+    const TArraySize& getArraySize(int index) const
+    {
+        return sizes[index];
+    }
 
     void setVariablyIndexed() { variablyIndexed = true; }
     bool isVariablyIndexed() const { return variablyIndexed; }
 
     bool operator==(const TArraySizes& rhs) const { return sizes == rhs.sizes; }
     bool operator!=(const TArraySizes& rhs) const { return sizes != rhs.sizes; }
+
+    bool elementEqual(const TArraySizes& rhs, uint32_t thisIdx, uint32_t rhsIdx) const
+    {
+        return sizes.elementEqual(rhs.sizes, thisIdx, rhsIdx);
+    }
 
 protected:
     TSmallArrayVector sizes;

@@ -47,7 +47,7 @@
 #include "gitversion.h"
 #endif
 
-using namespace spv;
+using namespace SPIRV_CROSS_SPV_HEADER_NAMESPACE;
 using namespace SPIRV_CROSS_NAMESPACE;
 using namespace std;
 
@@ -285,7 +285,7 @@ static bool write_string_to_file(const char *path, const char *string)
 #pragma warning(pop)
 #endif
 
-static void print_resources(const Compiler &compiler, spv::StorageClass storage,
+static void print_resources(const Compiler &compiler, StorageClass storage,
                             const SmallVector<BuiltInResource> &resources)
 {
 	fprintf(stderr, "%s\n", storage == StorageClassInput ? "builtin inputs" : "builtin outputs");
@@ -326,12 +326,12 @@ static void print_resources(const Compiler &compiler, spv::StorageClass storage,
 		string builtin_str;
 		switch (res.builtin)
 		{
-		case spv::BuiltInPosition: builtin_str = "Position"; break;
-		case spv::BuiltInPointSize: builtin_str = "PointSize"; break;
-		case spv::BuiltInCullDistance: builtin_str = "CullDistance"; break;
-		case spv::BuiltInClipDistance: builtin_str = "ClipDistance"; break;
-		case spv::BuiltInTessLevelInner: builtin_str = "TessLevelInner"; break;
-		case spv::BuiltInTessLevelOuter: builtin_str = "TessLevelOuter"; break;
+		case BuiltInPosition: builtin_str = "Position"; break;
+		case BuiltInPointSize: builtin_str = "PointSize"; break;
+		case BuiltInCullDistance: builtin_str = "CullDistance"; break;
+		case BuiltInClipDistance: builtin_str = "ClipDistance"; break;
+		case BuiltInTessLevelInner: builtin_str = "TessLevelInner"; break;
+		case BuiltInTessLevelOuter: builtin_str = "TessLevelOuter"; break;
 		default: builtin_str = string("builtin #") + to_string(res.builtin);
 		}
 
@@ -421,13 +421,13 @@ static void print_resources(const Compiler &compiler, const char *tag, const Sma
 	fprintf(stderr, "=============\n\n");
 }
 
-static const char *execution_model_to_str(spv::ExecutionModel model)
+static const char *execution_model_to_str(ExecutionModel model)
 {
 	switch (model)
 	{
-	case spv::ExecutionModelVertex:
+	case ExecutionModelVertex:
 		return "vertex";
-	case spv::ExecutionModelTessellationControl:
+	case ExecutionModelTessellationControl:
 		return "tessellation control";
 	case ExecutionModelTessellationEvaluation:
 		return "tessellation evaluation";
@@ -538,8 +538,8 @@ static void print_resources(const Compiler &compiler, const ShaderResources &res
 	print_resources(compiler, "acceleration structures", res.acceleration_structures);
 	print_resources(compiler, "tensors", res.tensors);
 	print_resources(compiler, "record buffers", res.shader_record_buffers);
-	print_resources(compiler, spv::StorageClassInput, res.builtin_inputs);
-	print_resources(compiler, spv::StorageClassOutput, res.builtin_outputs);
+	print_resources(compiler, StorageClassInput, res.builtin_inputs);
+	print_resources(compiler, StorageClassOutput, res.builtin_outputs);
 }
 
 static void print_push_constant_resources(const Compiler &compiler, const SmallVector<Resource> &res)
@@ -677,6 +677,7 @@ struct CLIArguments
 	bool msl_manual_helper_invocation_updates = true;
 	bool msl_check_discarded_frag_stores = false;
 	bool msl_force_fragment_with_side_effects_execution = false;
+	bool msl_emulate_reversed_depth_viewport = false;
 	bool msl_sample_dref_lod_array_as_grad = false;
 	bool msl_runtime_array_rich_descriptor = false;
 	bool msl_replace_recursive_inputs = false;
@@ -694,6 +695,8 @@ struct CLIArguments
 	uint32_t glsl_ovr_multiview_view_count = 0;
 	SmallVector<pair<uint32_t, uint32_t>> glsl_ext_framebuffer_fetch;
 	bool glsl_ext_framebuffer_fetch_noncoherent = false;
+	uint32_t glsl_descriptor_heap_set = UINT32_MAX;
+	uint32_t glsl_descriptor_heap_binding = UINT32_MAX;
 	bool vulkan_glsl_disable_ext_samplerless_texture_functions = false;
 	bool emit_line_directives = false;
 	bool enable_storage_image_qualifier_deduction = true;
@@ -744,6 +747,7 @@ struct CLIArguments
 	bool hlsl_enable_16bit_types = false;
 	bool hlsl_flatten_matrix_vertex_input_semantics = false;
 	bool hlsl_preserve_structured_buffers = false;
+	bool hlsl_user_semantic = false;
 	HLSLBindingFlags hlsl_binding_flags = 0;
 	bool vulkan_semantics = false;
 	bool flatten_multidimensional_arrays = false;
@@ -820,6 +824,7 @@ static void print_help_glsl()
 	                "\t\tPrimary use case is supporting external samplers in ESSL for video rendering on Android where you could remap a texture to a YUV one.\n"
 	                "\t[--glsl-force-flattened-io-blocks]:\n\t\tAlways flatten I/O blocks and structs.\n"
 	                "\t[--glsl-ovr-multiview-view-count count]:\n\t\tIn GL_OVR_multiview2, specify layout(num_views).\n"
+	                "\t[--glsl-descriptor-heap-set-binding desc_set binding]:\n\t\tInstead of layout(descriptor_heap), emit layout(set = desc_set, binding = binding) instead for compatibility with mapping API.\n"
 	);
 	// clang-format on
 }
@@ -852,6 +857,7 @@ static void print_help_hlsl()
 	                "\t[--hlsl-enable-16bit-types]:\n\t\tEnables native use of half/int16_t/uint16_t and ByteAddressBuffer interaction with these types. Requires SM 6.2.\n"
 	                "\t[--hlsl-flatten-matrix-vertex-input-semantics]:\n\t\tEmits matrix vertex inputs with input semantics as if they were independent vectors, e.g. TEXCOORD{2,3,4} rather than matrix form TEXCOORD2_{0,1,2}.\n"
 	                "\t[--hlsl-preserve-structured-buffers]:\n\t\tEmit SturucturedBuffer<T> rather than ByteAddressBuffer. Requires UserTypeGOOGLE to be emitted. Intended for DXC roundtrips.\n"
+	                "\t[--hlsl-user-semantic]:\n\t\tUses UserSemantic decoration to generate vertex input and output semantics.\n"
 	);
 	// clang-format on
 }
@@ -976,6 +982,7 @@ static void print_help_msl()
 	                "\t\t\t4. Fragment is always discarded in fragment execution.\n"
 	                "\t\tHowever, Vulkan expects fragment shader to be executed since it cannot be discarded until the discard\n"
 	                "\t\tpresent in the fragment execution, which would also execute the operations with side effects.\n"
+	                "\t[--msl-emulate-reversed-depth-viewport]:\n\t\tEmulate reversed-depth viewports by inverting clip-space Z.\n"
 	                "\t[--msl-sample-dref-lod-array-as-grad]:\n\t\tUse a gradient instead of a level argument.\n"
 	                "\t\tSome Metal devices have a bug where the level() argument to\n"
 	                "\t\tdepth2d_array<T>::sample_compare() in a fragment shader is biased by some\n"
@@ -1042,17 +1049,17 @@ static void print_help_obscure()
 	// clang-format on
 }
 
-static void print_help()
+static void print_help_all()
 {
 	print_version();
 
 	// clang-format off
-	fprintf(stderr, "Usage: spirv-cross <...>\n"
+	fprintf(stderr, "Usage: spirv-cross [SPIR-V file] [options]\n"
 	                "\nBasic:\n"
 	                "\t[SPIR-V file] (- is stdin)\n"
 	                "\t[--output <output path>]: If not provided, prints output to stdout.\n"
 	                "\t[--dump-resources]:\n\t\tPrints a basic reflection of the SPIR-V module along with other output.\n"
-	                "\t[--help]:\n\t\tPrints this help message.\n"
+	                "\t[--help]:\n\t\tPrints a summary help message.\n"
 	);
 	// clang-format on
 
@@ -1062,6 +1069,33 @@ static void print_help()
 	print_help_msl();
 	print_help_hlsl();
 	print_help_obscure();
+}
+
+static void print_help()
+{
+	print_version();
+
+	// clang-format off
+	fprintf(stderr, "Usage: spirv-cross [SPIR-V file] [options]\n"
+	                "\nBasic:\n"
+	                "\t[SPIR-V file] (- is stdin)\n"
+	                "\t[--output <output path>]: If not provided, prints output to stdout.\n"
+	                "\t[--help]:\n\t\tPrints this summary help message.\n"
+	                "\t[--help-all]:\n\t\tPrints all available help options.\n"
+	);
+	// clang-format on
+
+	print_help_backend();
+	print_help_common();
+
+	// clang-format off
+	fprintf(stderr, "\nHelp Categories:\n"
+	                "\t[--help-glsl]\n"
+	                "\t[--help-msl]\n"
+	                "\t[--help-hlsl]\n"
+	                "\t[--help-obscure]\n"
+	);
+	// clang-format on
 }
 
 static bool remap_generic(Compiler &compiler, const SmallVector<Resource> &resources, const Remap &remap)
@@ -1175,9 +1209,9 @@ static ExecutionModel stage_to_execution_model(const std::string &stage)
 	else if (stage == "rcall")
 		return ExecutionModelCallableKHR;
 	else if (stage == "mesh")
-		return spv::ExecutionModelMeshEXT;
+		return ExecutionModelMeshEXT;
 	else if (stage == "task")
-		return spv::ExecutionModelTaskEXT;
+		return ExecutionModelTaskEXT;
 	else
 		SPIRV_CROSS_THROW("Invalid stage.");
 }
@@ -1266,6 +1300,7 @@ static string compile_iteration(const CLIArguments &args, std::vector<uint32_t> 
 		msl_opts.manual_helper_invocation_updates = args.msl_manual_helper_invocation_updates;
 		msl_opts.check_discarded_frag_stores = args.msl_check_discarded_frag_stores;
 		msl_opts.force_fragment_with_side_effects_execution = args.msl_force_fragment_with_side_effects_execution;
+		msl_opts.emulate_reversed_depth_viewport = args.msl_emulate_reversed_depth_viewport;
 		msl_opts.sample_dref_lod_array_as_grad = args.msl_sample_dref_lod_array_as_grad;
 		msl_opts.ios_support_base_vertex_instance = true;
 		msl_opts.runtime_array_rich_descriptor = args.msl_runtime_array_rich_descriptor;
@@ -1429,6 +1464,10 @@ static string compile_iteration(const CLIArguments &args, std::vector<uint32_t> 
 	opts.force_recompile_max_debug_iterations = args.force_recompile_max_debug_iterations;
 	compiler->set_common_options(opts);
 
+	// This is enough for Vulkan mapping API.
+	if (args.glsl_descriptor_heap_set != UINT32_MAX)
+		compiler->remap_descriptor_heap(ResourceTypeUnknown, args.glsl_descriptor_heap_set, args.glsl_descriptor_heap_binding);
+
 	for (auto &fetch : args.glsl_ext_framebuffer_fetch)
 		compiler->remap_ext_framebuffer_fetch(fetch.first, fetch.second, !args.glsl_ext_framebuffer_fetch_noncoherent);
 
@@ -1471,6 +1510,7 @@ static string compile_iteration(const CLIArguments &args, std::vector<uint32_t> 
 		hlsl_opts.enable_16bit_types = args.hlsl_enable_16bit_types;
 		hlsl_opts.flatten_matrix_vertex_input_semantics = args.hlsl_flatten_matrix_vertex_input_semantics;
 		hlsl_opts.preserve_structured_buffers = args.hlsl_preserve_structured_buffers;
+		hlsl_opts.user_semantic = args.hlsl_user_semantic;
 		hlsl->set_hlsl_options(hlsl_opts);
 		hlsl->set_resource_binding_flags(args.hlsl_binding_flags);
 		if (args.hlsl_base_vertex_index_explicit_binding)
@@ -1607,6 +1647,34 @@ static int main_inner(int argc, char *argv[])
 		print_help();
 		parser.end();
 	});
+	cbs.add("--help-all", [](CLIParser &parser) {
+		print_help_all();
+		parser.end();
+	});
+	cbs.add("--help-backend", [](CLIParser &parser) {
+		print_help_backend();
+		parser.end();
+	});
+	cbs.add("--help-common", [](CLIParser &parser) {
+		print_help_common();
+		parser.end();
+	});
+	cbs.add("--help-glsl", [](CLIParser &parser) {
+		print_help_glsl();
+		parser.end();
+	});
+	cbs.add("--help-msl", [](CLIParser &parser) {
+		print_help_msl();
+		parser.end();
+	});
+	cbs.add("--help-hlsl", [](CLIParser &parser) {
+		print_help_hlsl();
+		parser.end();
+	});
+	cbs.add("--help-obscure", [](CLIParser &parser) {
+		print_help_obscure();
+		parser.end();
+	});
 	cbs.add("--revision", [](CLIParser &parser) {
 		print_version();
 		parser.end();
@@ -1646,6 +1714,11 @@ static int main_inner(int argc, char *argv[])
 	cbs.add("--glsl-ext-framebuffer-fetch-noncoherent", [&args](CLIParser &) {
 		args.glsl_ext_framebuffer_fetch_noncoherent = true;
 	});
+	cbs.add("--glsl-descriptor-heap-set-binding", [&args](CLIParser &parser)
+	{
+		args.glsl_descriptor_heap_set = parser.next_uint();
+		args.glsl_descriptor_heap_binding = parser.next_uint();
+	});
 	cbs.add("--vulkan-glsl-disable-ext-samplerless-texture-functions",
 	        [&args](CLIParser &) { args.vulkan_glsl_disable_ext_samplerless_texture_functions = true; });
 	cbs.add("--disable-storage-image-qualifier-deduction",
@@ -1673,6 +1746,7 @@ static int main_inner(int argc, char *argv[])
 	cbs.add("--hlsl-flatten-matrix-vertex-input-semantics",
 	        [&args](CLIParser &) { args.hlsl_flatten_matrix_vertex_input_semantics = true; });
 	cbs.add("--hlsl-preserve-structured-buffers", [&args](CLIParser &) { args.hlsl_preserve_structured_buffers = true; });
+	cbs.add("--hlsl-user-semantic", [&args](CLIParser &) { args.hlsl_user_semantic = true; });
 	cbs.add("--vulkan-semantics", [&args](CLIParser &) { args.vulkan_semantics = true; });
 	cbs.add("-V", [&args](CLIParser &) { args.vulkan_semantics = true; });
 	cbs.add("--flatten-multidimensional-arrays", [&args](CLIParser &) { args.flatten_multidimensional_arrays = true; });
@@ -1830,6 +1904,7 @@ static int main_inner(int argc, char *argv[])
 	        [&args](CLIParser &) { args.msl_manual_helper_invocation_updates = false; });
 	cbs.add("--msl-check-discarded-frag-stores", [&args](CLIParser &) { args.msl_check_discarded_frag_stores = true; });
 	cbs.add("--msl-force-frag-with-side-effects-execution", [&args](CLIParser &) { args.msl_force_fragment_with_side_effects_execution = true; });
+	cbs.add("--msl-emulate-reversed-depth-viewport", [&args](CLIParser &) { args.msl_emulate_reversed_depth_viewport = true; });
 	cbs.add("--msl-sample-dref-lod-array-as-grad",
 	        [&args](CLIParser &) { args.msl_sample_dref_lod_array_as_grad = true; });
 	cbs.add("--msl-no-readwrite-texture-fences", [&args](CLIParser &) { args.msl_readwrite_texture_fences = false; });
