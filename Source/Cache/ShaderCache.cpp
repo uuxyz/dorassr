@@ -8,7 +8,17 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 #include "Const/Header.h"
 
+#include <bgfx/bgfx.h>
+
 #include "Cache/ShaderCache.h"
+
+namespace {
+/* Frees the shader binary after bgfx has consumed the memory reference. */
+void releaseShaderBinary(void* _ptr, void* _userData) {
+	DORA_UNUSED_PARAM(_ptr);
+	delete r_cast<std::pair<Dora::OwnArray<uint8_t>, size_t>*>(_userData);
+}
+} // namespace
 
 #include "Basic/Content.h"
 #include "Shader/Builtin.h"
@@ -102,7 +112,10 @@ Shader* ShaderCache::load(String filename) {
 	if (it != _shaders.end()) {
 		return it->second;
 	}
-	const bgfx::Memory* mem = SharedContent.loadBX(shaderFile);
+		auto binary = SharedContent.load(shaderFile);
+	auto* holder = new std::pair<OwnArray<uint8_t>, size_t>(std::move(binary));
+	const bgfx::Memory* mem = bgfx::makeRef(
+		holder->first.get(), s_cast<uint32_t>(holder->second), releaseShaderBinary, holder);
 	bgfx::ShaderHandle handle = bgfx::createShader(mem);
 	if (!bgfx::isValid(handle)) {
 		Error("failed to load shader \"{}\".", shaderFile);
@@ -148,7 +161,10 @@ Shader* ShaderCache::load(String filename, ShaderStage stage) {
 
 void ShaderCache::loadAsync(String filename, const std::function<void(Shader*)>& handler) {
 	std::string shaderFile = SharedContent.getFullPath(getShaderPath() + filename);
-	SharedContent.loadAsyncBX(shaderFile, [this, shaderFile, handler](const bgfx::Memory* mem) {
+	SharedContent.loadAsyncData(shaderFile, [this, shaderFile, handler](OwnArray<uint8_t>&& data, size_t size) {
+		auto* holder = new std::pair<OwnArray<uint8_t>, size_t>(std::move(data), size);
+		const bgfx::Memory* mem = bgfx::makeRef(
+			holder->first.get(), s_cast<uint32_t>(size), releaseShaderBinary, holder);
 		bgfx::ShaderHandle handle = bgfx::createShader(mem);
 		if (bgfx::isValid(handle)) {
 			Shader* shader = Shader::create(handle);

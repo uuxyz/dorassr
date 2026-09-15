@@ -8,6 +8,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 #include "Const/Header.h"
 
+#include <bgfx/bgfx.h>
+
 #include "Basic/Director.h"
 #if BX_PLATFORM_EMSCRIPTEN
 #include <emscripten.h>

@@ -8,6 +8,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 #pragma once
 
+#include <bgfx/bgfx.h>
+
 #include "Common/Async.h"
 #include "Input/TouchDispather.h"
 
@@ -98,7 +100,7 @@ private:
 	Own<ConsolePanel> _console;
 	std::shared_ptr<ImGuiTouchHandler> _touchHandler;
 	std::unordered_map<int, int> _keymap;
-	SINGLETON_REF(ImGuiDora, FontManager, BGFXDora);
+	SINGLETON_REF(ImGuiDora, FontManager, RenderSurface);
 };
 
 #define SharedImGui \

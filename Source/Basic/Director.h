@@ -206,7 +206,7 @@ private:
 	std::stack<Own<ViewProject>> _viewProjs;
 	NVGcontext* _nvgContext;
 	Matrix _currentViewProj;
-	SINGLETON_REF(Director, EffekManager, FontManager, LuaEngine, BGFXDora, Application);
+	SINGLETON_REF(Director, EffekManager, FontManager, LuaEngine, RenderSurface, Application);
 };
 
 #define SharedDirector \

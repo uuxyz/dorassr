@@ -1,0 +1,8 @@
+# 本目录是上游快照 + Dora 本地修改（修改以普通 commit 形式存在 main 上）。
+# 同步工具: Tools/bx/update-upstream.sh   说明: Tools/bgfx/README.md
+repository = https://github.com/bkaradzic/bx
+branch     = master
+tree       = 8fdcf5aa6f3fc0ff17f2a5eae467b091f2636054
+commit     = unknown
+# commit 含义: 上游快照对应的精确 commit。tree 对应导入快照（bx API 129），
+# 早于本文件引入，无法回溯到精确 commit；下一次同步起将记录精确值。

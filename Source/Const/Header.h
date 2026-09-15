@@ -37,8 +37,10 @@ using namespace std::string_view_literals;
 
 #include "bx/bx.h"
 #include "bx/os.h"
-
-#include "bgfx/platform.h"
+/* Platform detection macros (BX_PLATFORM_*) come from bx. Rendering device
+   headers are intentionally NOT included here: only the render module's
+   implementation files may include them directly. */
+#include "bx/platform.h"
 
 #include "Other/AcfDelegate.h"
 #include "fmt/format.h"

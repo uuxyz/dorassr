@@ -8,48 +8,17 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 #pragma once
 
-#include <bgfx/bgfx.h>
+/* The only render-device header the general engine code may depend on. It
+   exposes the device's frozen ABI constants and hides naming drift behind
+   DORA_* shims so upstream renames are absorbed here in one place. */
 
-#include "Shader/ShaderCompiler.h"
+#include <bgfx/defines.h>
 
-NS_DORA_BEGIN
-
-class Shader : public Object {
-public:
-	PROPERTY_READONLY(bgfx::ShaderHandle, Handle);
-	virtual ~Shader();
-	CREATE_FUNC_NOT_NULL(Shader);
-
-protected:
-	Shader(bgfx::ShaderHandle handle);
-
-private:
-	bgfx::ShaderHandle _handle;
-};
-
-class ShaderCache : public NonCopyable {
-public:
-	virtual ~ShaderCache() { }
-	void update(String name, Shader* shader);
-	/** @brief fragment or vertex shader */
-	Shader* load(String filename);
-	Shader* load(String filename, ShaderStage stage);
-	void loadAsync(String filename, const std::function<void(Shader*)>& handler);
-	bool unload(Shader* shader);
-	bool unload(String filename);
-	bool unload();
-	void removeUnused();
-
-protected:
-	ShaderCache();
-	std::string getShaderPath() const;
-
-private:
-	StringMap<Ref<Shader>> _shaders;
-	SINGLETON_REF(ShaderCache, RenderSurface);
-};
-
-#define SharedShaderCache \
-	Dora::Singleton<Dora::ShaderCache>::shared()
-
-NS_DORA_END
+/* Texture formats appended by Dora. Current vendored tree (API 129 + patch)
+   names them EACR/EACRS/EACRG/EACRGS; upstream bgfx (#3487, API >= 130ish)
+   names them EACR11/EACR11S/EACRG11/EACRG11S. Flip the four lines below when
+   upgrading and the whole engine follows. */
+#define DORA_TEXTURE_FORMAT_EACR bgfx::TextureFormat::EACR
+#define DORA_TEXTURE_FORMAT_EACRS bgfx::TextureFormat::EACRS
+#define DORA_TEXTURE_FORMAT_EACRG bgfx::TextureFormat::EACRG
+#define DORA_TEXTURE_FORMAT_EACRGS bgfx::TextureFormat::EACRGS

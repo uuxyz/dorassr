@@ -8,6 +8,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 #pragma once
 
+#include <bgfx/bgfx.h>
+
 #include "bx/allocator.h"
 
 NS_DORA_BEGIN
@@ -72,7 +74,7 @@ protected:
 private:
 	bx::DefaultAllocator _allocator;
 	StringMap<Ref<Texture2D>> _textures;
-	SINGLETON_REF(TextureCache, BGFXDora);
+	SINGLETON_REF(TextureCache, RenderSurface);
 };
 
 #define SharedTextureCache \

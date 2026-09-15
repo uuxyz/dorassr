@@ -39,7 +39,7 @@ namespace bgfx
 #include <bx/string.h>
 #include <bx/hash.h>
 #include <bx/file.h>
-#include "../../src/vertexlayout.h"
+#include "bgfx/src/vertexlayout.h"
 
 #include <string.h>
 #include <algorithm>

@@ -13,8 +13,8 @@
 #include <vector>
 
 /* bgfx shaderc headers */
-#include "../tools/shaderc/shaderc.h"
-#include "../src/vertexlayout.h"
+#include "shaderc/shaderc.h"
+#include "bgfx/src/vertexlayout.h"
 
 #include <bx/bx.h>
 #include <bx/file.h>

@@ -8,6 +8,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 #pragma once
 
+#include <bgfx/bgfx.h>
+
 #include "Node/Node.h"
 
 NS_DORA_BEGIN
@@ -65,7 +67,7 @@ public:
 private:
 	std::unordered_map<int, Ref<Texture2D>> _textureRefs;
 	StringMap<Ref<EffekEff>> _effects;
-	SINGLETON_REF(EffekManager, BGFXDora);
+	SINGLETON_REF(EffekManager, RenderSurface);
 };
 
 #define SharedEffekManager \

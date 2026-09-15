@@ -8,6 +8,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 #pragma once
 
+#include <bgfx/bgfx.h>
+
 #include "Support/Common.h"
 #include "Support/Geometry.h"
 #include "Support/Value.h"

@@ -82,6 +82,7 @@ set(DORA_ENGINE_SOURCES
 	${DORA_SOURCE_ROOT}/Render/Camera3D.cpp
 	${DORA_SOURCE_ROOT}/Render/RenderTarget.cpp
 	${DORA_SOURCE_ROOT}/Render/Renderer.cpp
+	${DORA_SOURCE_ROOT}/Render/RenderSurface.cpp
 	${DORA_SOURCE_ROOT}/Render/VGRender.cpp
 	${DORA_SOURCE_ROOT}/Render/View.cpp
 	${DORA_SOURCE_ROOT}/Shader/Builtin.cpp

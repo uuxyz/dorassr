@@ -99,7 +99,7 @@ private:
 		uint64_t state = 0;
 	};
 	std::vector<StateOverride> _stateOverrides;
-	SINGLETON_REF(RendererManager, BGFXDora);
+	SINGLETON_REF(RendererManager, RenderSurface);
 };
 
 #define SharedRendererManager \

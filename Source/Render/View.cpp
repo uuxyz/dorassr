@@ -8,9 +8,12 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 #include "Const/Header.h"
 
+#include <bgfx/bgfx.h>
+
 #include "Render/View.h"
 
 #include "Basic/Application.h"
+#include "Render/RenderSurface.h"
 #include "Basic/Director.h"
 #include "Effect/Effect.h"
 #include "Event/Event.h"
@@ -150,7 +153,7 @@ void View::setVSync(bool var) {
 			_flag &= ~BGFX_RESET_VSYNC;
 		}
 		Size bufferSize = SharedApplication.getBufferSize();
-		bgfx::reset(
+		SharedRenderSurface.reset(
 			s_cast<uint32_t>(bufferSize.width),
 			s_cast<uint32_t>(bufferSize.height),
 			_flag);
@@ -233,7 +236,7 @@ SpriteEffect* View::getPostEffect() const noexcept {
 
 void View::reset() {
 	Size bufferSize = SharedApplication.getBufferSize();
-	bgfx::reset(
+	SharedRenderSurface.reset(
 		s_cast<uint32_t>(bufferSize.width),
 		s_cast<uint32_t>(bufferSize.height),
 		_flag);

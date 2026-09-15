@@ -9,6 +9,8 @@ endif()
 
 file(GLOB DORA_WEB_BX_SOURCES CONFIGURE_DEPENDS
 	"${DORA_SOURCE_ROOT}/3rdParty/bx/src/*.cpp")
+# amalgamated.cpp 由上游提供但本构建使用分文件编译，排除以防符号重复
+list(FILTER DORA_WEB_BX_SOURCES EXCLUDE REGEX "/amalgamated\.cpp$")
 file(GLOB DORA_WEB_BIMG_SOURCES CONFIGURE_DEPENDS
 	"${DORA_SOURCE_ROOT}/3rdParty/bimg/src/*.cpp"
 	"${DORA_SOURCE_ROOT}/3rdParty/bimg/3rdparty/astc-encoder/source/*.cpp")
@@ -40,13 +42,13 @@ set(DORA_WEB_BGFX_SOURCES
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/shader_spirv.cpp"
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/topology.cpp"
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/vertexlayout.cpp"
-	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/dora/DoraShaderc.cpp"
-	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/tools/shaderc/shaderc.cpp"
-	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/tools/shaderc/shaderc_glsl.cpp"
-	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/tools/shaderc/shaderc_hlsl.cpp"
-	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/tools/shaderc/shaderc_metal.cpp"
-	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/tools/shaderc/shaderc_pssl.cpp"
-	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/tools/shaderc/shaderc_spirv.cpp")
+	"${DORA_SOURCE_ROOT}/Shader/DoraShaderc/DoraShaderc.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/shaderc/shaderc.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/shaderc/shaderc_glsl.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/shaderc/shaderc_hlsl.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/shaderc/shaderc_metal.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/shaderc/shaderc_pssl.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/shaderc/shaderc_spirv.cpp")
 
 set(DORA_WEB_LINK_SOURCES
 	"${DORA_SOURCE_ROOT}/3rdParty/theora/TheoraSources.c"

@@ -1924,6 +1924,7 @@
     <ClCompile Include="..\..\..\Source\Render\Camera3D.cpp" />
     <ClCompile Include="..\..\..\Source\Render\Renderer.cpp" />
     <ClCompile Include="..\..\..\Source\Render\RenderTarget.cpp" />
+    <ClCompile Include="..\..\..\Source\Render\RenderSurface.cpp" />
     <ClCompile Include="..\..\..\Source\Render\VGRender.cpp" />
     <ClCompile Include="..\..\..\Source\Render\View.cpp" />
     <ClCompile Include="..\..\..\Source\Shader\Builtin.cpp" />

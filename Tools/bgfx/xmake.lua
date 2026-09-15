@@ -1,5 +1,9 @@
 -- bgfx, bimg, bx, shaderc 构建脚本
 -- 用法: xmake build [bx|bimg|bimg_decode|bgfx|shaderc-libs]
+--
+-- 此脚本位于 Dora 仓库（Tools/bgfx/），上游 bgfx/bimg/bx 源码树保持原样，
+-- 升级上游后重新运行本脚本即可。构建产物仍输出到
+-- Source/3rdParty/bgfx/build/<plat>/<arch>/<mode>/，与各平台工程的引用路径保持一致。
 
 -- 版本相关配置，集中在这里便于统一调整
 local PROJECT_VERSION = "1.0.0"
@@ -12,16 +16,22 @@ set_project("bgfx-libs")
 set_version(PROJECT_VERSION)
 set_languages(CXX_LANGUAGE_STANDARD)
 
+-- 源码路径配置（Dora 侧脚本 + 上游只读源码树）
+local DORA_ROOT = path.join(os.scriptdir(), "../..")
+local BGFX_DIR = path.join(DORA_ROOT, "Source/3rdParty/bgfx")
+local BIMG_DIR = path.join(BGFX_DIR, "../bimg")
+local BX_DIR = path.join(BGFX_DIR, "../bx")
+local MINIZ_DIR = path.join(DORA_ROOT, "Source/3rdParty/Zip")
+local DORA_SHADERC_DIR = path.join(DORA_ROOT, "Source/Shader/DoraShaderc")
+local SHADERC_DIR = path.join(DORA_ROOT, "Source/3rdParty/shaderc")
+
+-- 构建产物固定输出到上游树旁的 build/ 目录（gitignore），兼容各平台工程路径
+set_config("buildir", path.join(BGFX_DIR, "build"))
+
 -- MSVC 需要这些选项来正确报告 C++ 标准版本和支持标准预处理器
 if is_plat("windows") then
     add_cxxflags("/Zc:__cplusplus", "/Zc:preprocessor", {force = true})
 end
-
--- 源码路径配置
-local BGFX_DIR = os.scriptdir()
-local BIMG_DIR = path.join(BGFX_DIR, "../bimg")
-local BX_DIR = path.join(BGFX_DIR, "../bx")
-local MINIZ_DIR = path.join(BGFX_DIR, "../Zip")
 
 -- 通用配置
 add_rules("mode.debug", "mode.release")
@@ -39,7 +49,7 @@ local function resolve_sources(base_dir, files)
 end
 
 local function get_embedded_bgfx_shader_sources()
-    local generated_dir = path.join(BGFX_DIR, "dora/generated")
+    local generated_dir = path.join(DORA_SHADERC_DIR, "generated")
     return {
         generated_dir = generated_dir,
         shader_output = path.join(generated_dir, "bgfx_shader.sh.h"),
@@ -54,6 +64,10 @@ local function add_bgfx_renderer_config()
         add_defines("BGFX_CONFIG_RENDERER_OPENGLES=30")
     elseif is_plat("linux") and is_arch("arm64", "aarch64") then
         add_defines("BGFX_CONFIG_RENDERER_OPENGLES=30")
+    elseif is_plat("linux") then
+        -- 上游 config.h 在 Linux 上默认 D3D11（供 Xbox/Proton 场景），
+        -- 桌面 Linux 用构建参数显式选 OpenGL，避免修改上游 config.h
+        add_defines("BGFX_CONFIG_RENDERER_OPENGL=1")
     elseif is_plat("macosx", "iphoneos") then
         add_defines("BGFX_CONFIG_RENDERER_METAL=1")
     end
@@ -554,12 +568,12 @@ local glslang_spirv_cinterface_src = {
 }
 
 local shaderc_src = {
-    "tools/shaderc/shaderc.cpp",
-    "tools/shaderc/shaderc_hlsl.cpp",
-    "tools/shaderc/shaderc_metal.cpp",
-    "tools/shaderc/shaderc_spirv.cpp",
-    "tools/shaderc/shaderc_glsl.cpp",
-	 "tools/shaderc/shaderc_pssl.cpp",
+    "shaderc.cpp",
+    "shaderc_hlsl.cpp",
+    "shaderc_metal.cpp",
+    "shaderc_spirv.cpp",
+    "shaderc_glsl.cpp",
+	 "shaderc_pssl.cpp",
 }
 
 -- 平台相关链接库
@@ -593,7 +607,7 @@ target("bx")
     add_includedirs(path.join(BX_DIR, "include"), {public = true})
     add_includedirs(path.join(BX_DIR, "3rdparty"), {public = true})
     
-    -- 平台特定的 compat 头文件目录
+    -- 平台相关的 compat 头文件目录
     -- xmake 平台名称: macosx, iphoneos, linux, windows, android
     if is_plat("macosx") then
         add_includedirs(path.join(BX_DIR, "include/compat/osx"), {public = true})
@@ -643,7 +657,13 @@ target("bimg_decode")
     set_kind("static")
     add_deps("bx")
     add_common_target_settings({fast_math = true})
-    
+
+    -- tinyexr 的 ZIP 像素解码走 zlib（Dora 全程序唯一解压实现），
+    -- 不删除 bimg 内置的 miniz 文件，仅通过编译定义停用它。
+    -- （image_decode.cpp 已包含 zlib.h，满足 tinyexr.h 的前置声明要求。）
+    add_defines("TINYEXR_USE_MINIZ=0")
+    add_includedirs(path.join(DORA_ROOT, "Source/3rdParty/Zip/zlib"))
+
     add_includedirs(path.join(BIMG_DIR, "include"), {public = true})
     add_includedirs(path.join(BIMG_DIR, "3rdparty"))
     add_includedirs(MINIZ_DIR)
@@ -1147,6 +1167,8 @@ target("shaderc-lib")
     add_includedirs(
         path.join(BIMG_DIR, "include"),
         path.join(BGFX_DIR, "include"),
+        SHADERC_DIR,
+        path.join(DORA_ROOT, "Source/3rdParty"),
         FCPP_DIR,
         path.join(GLSLANG_DIR, "glslang/Public"),
         path.join(GLSLANG_DIR, "glslang/Include"),
@@ -1157,14 +1179,14 @@ target("shaderc-lib")
         path.join(SPIRV_TOOLS_DIR, "include")
     )
     
-    add_files(table.unpack(resolve_sources(BGFX_DIR, shaderc_src)))
+    add_files(table.unpack(resolve_sources(SHADERC_DIR, shaderc_src)))
 
     add_files(
         path.join(BGFX_DIR, "src/vertexlayout.cpp"),
         path.join(BGFX_DIR, "src/shader.cpp"),
         path.join(BGFX_DIR, "src/shader_dxbc.cpp"),
         path.join(BGFX_DIR, "src/shader_spirv.cpp"),
-        path.join(BGFX_DIR, "dora/DoraShaderc.cpp")
+        path.join(DORA_SHADERC_DIR, "DoraShaderc.cpp")
     )
     
     if is_plat("macosx") then

@@ -12,7 +12,7 @@ if errorlevel 1 (
 )
 
 set SCRIPT_DIR=%~dp0
-cd /d "%SCRIPT_DIR%..\..\Source\3rdParty\bgfx"
+cd /d "%SCRIPT_DIR%..\bgfx"
 
 xmake f -c -p windows -a x86 -m %BUILD_MODE% -y
 if errorlevel 1 exit /b %errorlevel%

@@ -5,7 +5,10 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-cd "$SCRIPT_DIR/../../Source/3rdParty/bgfx"
+cd "$SCRIPT_DIR/../bgfx"
+
+# xmake 的 buildir 固定指向上游树旁的产物目录（见 Tools/bgfx/xmake.lua）
+BUILD_OUT="$SCRIPT_DIR/../../Source/3rdParty/bgfx/build"
 
 BUILD_MODE="release"
 MACOS_ARCH="universal"
@@ -105,7 +108,7 @@ build_macos() {
     local libs
     libs=$(get_libs_for_platform "macosx")
 
-    mkdir -p build/macosx/universal
+    mkdir -p $BUILD_OUT/macosx/universal
     if [ "$MACOS_ARCH" = "universal" ]; then
         log_info "=== Building macOS (Universal) ==="
         clean_build
@@ -116,22 +119,22 @@ build_macos() {
         log_info "Creating fat libraries..."
         for lib in $libs; do
             lipo -create \
-                build/macosx/arm64/${BUILD_MODE}/lib${lib}.a \
-                build/macosx/x86_64/${BUILD_MODE}/lib${lib}.a \
-                -output build/macosx/universal/lib${lib}.a
+                $BUILD_OUT/macosx/arm64/${BUILD_MODE}/lib${lib}.a \
+                $BUILD_OUT/macosx/x86_64/${BUILD_MODE}/lib${lib}.a \
+                -output $BUILD_OUT/macosx/universal/lib${lib}.a
         done
     else
         log_info "=== Building macOS ($MACOS_ARCH) ==="
         clean_build
         build_arch macosx "$MACOS_ARCH" "$BUILD_MODE"
         for lib in $libs; do
-            cp "build/macosx/$MACOS_ARCH/${BUILD_MODE}/lib${lib}.a" \
-                "build/macosx/universal/lib${lib}.a"
+            cp "$BUILD_OUT/macosx/$MACOS_ARCH/${BUILD_MODE}/lib${lib}.a" \
+                "$BUILD_OUT/macosx/universal/lib${lib}.a"
         done
     fi
 
-    log_info "macOS universal libraries created at: build/macosx/universal/"
-    ls -lh build/macosx/universal/*.a
+    log_info "macOS universal libraries created at: $BUILD_OUT/macosx/universal/"
+    ls -lh $BUILD_OUT/macosx/universal/*.a
 }
 
 build_ios() {
@@ -150,29 +153,29 @@ build_ios() {
     xmake f -c -y
     build_arch iphoneos arm64 "$BUILD_MODE" --appledev=simulator
 
-    mkdir -p build/ios/device
-    mkdir -p build/ios/simulator
+    mkdir -p $BUILD_OUT/ios/device
+    mkdir -p $BUILD_OUT/ios/simulator
 
     log_info "Copying device libraries..."
     for lib in $libs; do
-        cp build/iphoneos/arm64/${BUILD_MODE}/lib${lib}.a build/ios/device/
+        cp $BUILD_OUT/iphoneos/arm64/${BUILD_MODE}/lib${lib}.a $BUILD_OUT/ios/device/
     done
 
     log_info "Creating simulator fat libraries..."
     for lib in $libs; do
         lipo -create \
-            build/iphoneos/x86_64/${BUILD_MODE}/lib${lib}.a \
-            build/iphoneos/arm64/${BUILD_MODE}/lib${lib}.a \
-            -output build/ios/simulator/lib${lib}.a
+            $BUILD_OUT/iphoneos/x86_64/${BUILD_MODE}/lib${lib}.a \
+            $BUILD_OUT/iphoneos/arm64/${BUILD_MODE}/lib${lib}.a \
+            -output $BUILD_OUT/ios/simulator/lib${lib}.a
     done
 
     log_info "iOS libraries created:"
-    echo "  Device:     build/ios/device/"
-    echo "  Simulator:  build/ios/simulator/"
+    echo "  Device:     $BUILD_OUT/ios/device/"
+    echo "  Simulator:  $BUILD_OUT/ios/simulator/"
     echo ""
     echo "  Note: Device and simulator both contain arm64, so they are kept"
     echo "  as separate outputs instead of being merged into a single fat library."
-    ls -lh build/ios/device/*.a | head -5
+    ls -lh $BUILD_OUT/ios/device/*.a | head -5
 }
 
 build_android() {
@@ -207,30 +210,30 @@ build_android() {
     xmake f -c -y
     build_arch android x86_64 "$BUILD_MODE" "${android_extra_opts[@]}"
 
-    mkdir -p build/android/arm64-v8a
-    mkdir -p build/android/armeabi-v7a
-    mkdir -p build/android/x86_64
+    mkdir -p $BUILD_OUT/android/arm64-v8a
+    mkdir -p $BUILD_OUT/android/armeabi-v7a
+    mkdir -p $BUILD_OUT/android/x86_64
 
     log_info "Copying arm64-v8a libraries..."
     for lib in $libs; do
-        cp build/android/arm64-v8a/${BUILD_MODE}/lib${lib}.a build/android/arm64-v8a/
+        cp $BUILD_OUT/android/arm64-v8a/${BUILD_MODE}/lib${lib}.a $BUILD_OUT/android/arm64-v8a/
     done
 
     log_info "Copying armeabi-v7a libraries..."
     for lib in $libs; do
-        cp build/android/armeabi-v7a/${BUILD_MODE}/lib${lib}.a build/android/armeabi-v7a/
+        cp $BUILD_OUT/android/armeabi-v7a/${BUILD_MODE}/lib${lib}.a $BUILD_OUT/android/armeabi-v7a/
     done
 
     log_info "Copying x86_64 libraries..."
     for lib in $libs; do
-        cp build/android/x86_64/${BUILD_MODE}/lib${lib}.a build/android/x86_64/
+        cp $BUILD_OUT/android/x86_64/${BUILD_MODE}/lib${lib}.a $BUILD_OUT/android/x86_64/
     done
 
     log_info "Android libraries created:"
-    echo "  ARM64-v8a:   build/android/arm64-v8a/"
-    echo "  ARM v7-a:    build/android/armeabi-v7a/"
-    echo "  x86_64:      build/android/x86_64/"
-    ls -lh build/android/arm64-v8a/*.a | head -5
+    echo "  ARM64-v8a:   $BUILD_OUT/android/arm64-v8a/"
+    echo "  ARM v7-a:    $BUILD_OUT/android/armeabi-v7a/"
+    echo "  x86_64:      $BUILD_OUT/android/x86_64/"
+    ls -lh $BUILD_OUT/android/arm64-v8a/*.a | head -5
 }
 
 build_linux() {
@@ -252,8 +255,8 @@ build_linux() {
     clean_build
     build_arch linux "$host_arch" "$BUILD_MODE"
 
-    log_info "Linux libraries created at: build/linux/$host_arch/$BUILD_MODE/"
-    ls -lh "build/linux/$host_arch/$BUILD_MODE"/*.a | head -8
+    log_info "Linux libraries created at: $BUILD_OUT/linux/$host_arch/$BUILD_MODE/"
+    ls -lh "$BUILD_OUT/linux/$host_arch/$BUILD_MODE"/*.a | head -8
 }
 
 show_help() {
@@ -274,18 +277,18 @@ show_help() {
     echo ""
     echo "Output directories:"
     echo "  macOS:"
-    echo "    build/macosx/arm64/<mode>/      - ARM64 library"
-    echo "    build/macosx/x86_64/<mode>/     - x86_64 library"
-    echo "    build/macosx/universal/         - Fat library (x86_64 + arm64)"
+    echo "    $BUILD_OUT/macosx/arm64/<mode>/      - ARM64 library"
+    echo "    $BUILD_OUT/macosx/x86_64/<mode>/     - x86_64 library"
+    echo "    $BUILD_OUT/macosx/universal/         - Fat library (x86_64 + arm64)"
     echo ""
     echo "  iOS:"
-    echo "    build/ios/device/               - Device only (arm64)"
-    echo "    build/ios/simulator/            - Simulator (x86_64 + arm64)"
+    echo "    $BUILD_OUT/ios/device/               - Device only (arm64)"
+    echo "    $BUILD_OUT/ios/simulator/            - Simulator (x86_64 + arm64)"
     echo ""
     echo "  Android:"
-    echo "    build/android/arm64-v8a/        - ARM64 library"
-    echo "    build/android/armeabi-v7a/      - ARM v7-a library"
-    echo "    build/android/x86_64/           - x86_64 library (emulator)"
+    echo "    $BUILD_OUT/android/arm64-v8a/        - ARM64 library"
+    echo "    $BUILD_OUT/android/armeabi-v7a/      - ARM v7-a library"
+    echo "    $BUILD_OUT/android/x86_64/           - x86_64 library (emulator)"
 }
 
 COMMAND=""
@@ -341,7 +344,7 @@ case "${COMMAND:-help}" in
         ;;
     clean)
         clean_build
-        rm -rf build
+        rm -rf "$BUILD_OUT"
         log_info "Build directory cleaned."
         ;;
     help|--help|-h)

@@ -19,6 +19,9 @@ BX_PRAGMA_DIAGNOSTIC_IGNORED_MSVC(4505) // warning C4505: 'tinyexr::miniz::def_r
 #define MINIZ_NO_ARCHIVE_APIS
 #define MINIZ_NO_STDIO
 #define TINYEXR_IMPLEMENTATION
+
+/* TINYEXR_USE_MINIZ=0: tinyexr expects zlib declarations ahead of it (#46). */
+#include <zlib.h>
 #include <tinyexr/tinyexr.h>
 BX_PRAGMA_DIAGNOSTIC_POP()
 

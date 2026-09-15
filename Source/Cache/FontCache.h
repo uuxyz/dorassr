@@ -8,6 +8,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 #pragma once
 
+#include <bgfx/bgfx.h>
+
 #include "Support/Geometry.h"
 #include "font/font_manager.h"
 
@@ -56,7 +58,7 @@ class FontManager : public bgfx::FontManager {
 protected:
 	FontManager()
 		: bgfx::FontManager(DORA_FONT_TEXTURE_SIZE) { }
-	SINGLETON_REF(FontManager, BGFXDora);
+	SINGLETON_REF(FontManager, RenderSurface);
 };
 
 #define SharedFontManager \
@@ -93,7 +95,7 @@ private:
 	Ref<SpriteEffect> _sdfEffect;
 	StringMap<Ref<TrueTypeFile>> _fontFiles;
 	StringMap<Ref<Font>> _fonts;
-	SINGLETON_REF(FontCache, FontManager, BGFXDora);
+	SINGLETON_REF(FontCache, FontManager, RenderSurface);
 };
 
 #define SharedFontCache \
