@@ -68,7 +68,7 @@ cd "$ROOT_DIR/Source/Rust"
 cargo build --target "$RUST_TARGET"
 cp "target/$RUST_TARGET/debug/libdora_runtime.a" lib/macOS/libdora_runtime.a
 # 与 CI 一致：Xcode 工程由 CMake 生成
-cmake -B "$ROOT_DIR/Projects/macOS/build-cmake" -G Xcode \
+cmake -S "$ROOT_DIR/Projects/macOS" -B "$ROOT_DIR/Projects/macOS/build-cmake" -G Xcode \
 	-DCMAKE_BUILD_TYPE=Debug \
 	-DCMAKE_OSX_ARCHITECTURES="$XCODE_ARCH" \
 	-DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO

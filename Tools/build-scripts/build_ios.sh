@@ -25,7 +25,7 @@ esac
 cd "$SCRIPT_DIR/../.."
 
 # Xcode 工程由 CMake 生成（单一构建约定来源，见 Projects/apple/AppleApp.cmake）
-cmake -B Projects/iOS/build-cmake -G Xcode \
+cmake -S Projects/iOS -B Projects/iOS/build-cmake -G Xcode \
 	-DCMAKE_SYSTEM_NAME=iOS \
 	-DCMAKE_OSX_SYSROOT=iphonesimulator \
 	-DCMAKE_OSX_ARCHITECTURES=arm64 \
