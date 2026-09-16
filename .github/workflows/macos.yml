@@ -12,6 +12,7 @@ on:
       - 'Tools/dora-rust/**'
       # Platform-specific code
       - 'Projects/macOS/**'
+      - 'Projects/apple/**'
   pull_request:
     branches: [ main ]
     paths:
@@ -20,6 +21,7 @@ on:
       - 'Tools/build-scripts/**'
       - 'Tools/dora-rust/**'
       - 'Projects/macOS/**'
+      - 'Projects/apple/**'
   workflow_dispatch:
 
 jobs:
