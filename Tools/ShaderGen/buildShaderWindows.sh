@@ -65,17 +65,31 @@ compile "$dir" fs_model3d.sc f fs_model3d_thickness_sheen "$dir/fs_model3d_thick
 	"--define DORA_THICKNESS_SHEEN_TEXTURE=1"
 
 dir="$SHADER_PATH/efkbgfx"
-for modeltype in sprite model; do
-	for shadertype in Unlit Lit BackDistortion AdvancedUnlit AdvancedLit AdvancedBackDistortion; do
-		vs="${modeltype}_${shadertype}_vs"
-		fs="${modeltype}_${shadertype}_ps"
-		for pair in "$vs v" "$fs f"; do
-			read -r sname stage <<<"$pair"
-			[ -e "$dir/$sname.fx.sc" ] || continue
-			: > "$dir/$sname.bin.h"
-			compile "$dir" "$sname.fx.sc" "$stage" "$sname" "$dir/$sname.bin.h" \
-				"$dir/${modeltype}_${shadertype}_varying.def.sc"
-		done
+# efkbgfx 命名不是规则的 <model>_<Type>_<stage>：按原 buildShaderMac.yue 显式映射
+# modeltype shadertype  vs-name                fs-name
+efk_map=(
+	"sprite Unlit             sprite_unlit_vs          model_unlit_ps"
+	"sprite Lit               sprite_lit_vs            model_lit_ps"
+	"sprite BackDistortion    sprite_distortion_vs     model_distortion_ps"
+	"sprite AdvancedUnlit     ad_sprite_unlit_vs       ad_model_unlit_ps"
+	"sprite AdvancedLit       ad_sprite_lit_vs         ad_model_lit_ps"
+	"sprite AdvancedBackDistortion ad_sprite_distortion_vs ad_model_distortion_ps"
+	"model  Unlit             model_unlit_vs           model_unlit_ps"
+	"model  Lit               model_lit_vs             model_lit_ps"
+	"model  BackDistortion    model_distortion_vs      model_distortion_ps"
+	"model  AdvancedUnlit     ad_model_unlit_vs        ad_model_unlit_ps"
+	"model  AdvancedLit       ad_model_lit_vs          ad_model_lit_ps"
+	"model  AdvancedBackDistortion ad_model_distortion_vs ad_model_distortion_ps"
+)
+
+for entry in "${efk_map[@]}"; do
+	read -r modeltype shadertype vsname fsname <<<"$entry"
+	for pair in "$vsname v" "$fsname f"; do
+		read -r sname stage <<<"$pair"
+		[ -e "$dir/$sname.fx.sc" ] || { echo "missing $dir/$sname.fx.sc" >&2; continue; }
+		: > "$dir/$sname.bin.h"
+		compile "$dir" "$sname.fx.sc" "$stage" "$sname" "$dir/$sname.bin.h" \
+			"$dir/${modeltype}_${shadertype}_varying.def.sc"
 	done
 done
 
