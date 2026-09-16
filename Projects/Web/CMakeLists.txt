@@ -10,6 +10,10 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXECUTABLE_SUFFIX ".html")
 
+# 嵌入着色器不含 wgsl 变体（shaderc 未编译进 tint）；pthread player 需显式
+# 打开线程（新 bx 默认在 Emscripten 上关闭线程）。
+add_compile_definitions(BGFX_PLATFORM_SUPPORTS_WGSL=0)
+
 get_filename_component(DORA_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." REALPATH)
 set(DORA_SOURCE_ROOT "${DORA_ROOT}/Source")
 set(DORA_WEB_BOOTSTRAP_ASSETS "${CMAKE_CURRENT_SOURCE_DIR}/runtime-assets")
