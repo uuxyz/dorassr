@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2025 Branimir Karadzic. All rights reserved.
+ * Copyright 2010-2026 Branimir Karadzic. All rights reserved.
  * License: https://github.com/bkaradzic/bx/blob/master/LICENSE
  */
 
@@ -159,6 +159,7 @@ namespace bx
 {
 	Mutex::Mutex()
 	{
+		BX_UNUSED(m_internal);
 	}
 
 	Mutex::~Mutex()

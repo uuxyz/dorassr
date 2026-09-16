@@ -46,6 +46,9 @@ get_base() {
 get_repo() {
 	grep -E "^repository *=" "$UPSTREAM_FILE" | tail -1 | sed 's/^[^=]*= *//' | tr -d '[:space:]'
 }
+get_keep() {
+	grep -E "^keep *=" "$UPSTREAM_FILE" | tail -1 | sed 's/^[^=]*= *//' | xargs
+}
 set_base() {
 	local tree=$1 commit=${2:-}
 	sed -i "s#^tree *=.*#tree       = $tree#" "$UPSTREAM_FILE"
@@ -98,6 +101,32 @@ case "$MODE" in
 esac
 [ -n "$THEIRS" ] || { echo "empty upstream tree" >&2; exit 1; }
 
+# 裁剪上游树：UPSTREAM 文件里的 keep 列表声明保留的顶层目录/文件，
+# 其余（tests、tools、.github 等引擎不用的内容）在合并前剔除，
+# 这样上游新增目录不会作为"新文件"涌进合并结果。
+KEEP=$(get_keep)
+if [ -n "$KEEP" ]; then
+	FULL="$THEIRS"
+	TMPIDX=$(mktemp)
+	GIT_INDEX_FILE="$TMPIDX" git read-tree "$THEIRS"
+	# keep 条目支持子路径（如 3rdparty/stb）：精确匹配或作为目录前缀匹配
+	while read -r p; do
+		[ -n "$p" ] || continue
+		keepit=""
+		for k in $KEEP; do
+			case "$p" in
+				"$k"|"$k"/*) keepit=1; break ;;
+			esac
+		done
+		[ -n "$keepit" ] || GIT_INDEX_FILE="$TMPIDX" git rm -rf --cached -q --ignore-unmatch "$p"
+	done <<EOF
+$(git ls-tree -r --name-only "$THEIRS")
+EOF
+	THEIRS=$(GIT_INDEX_FILE="$TMPIDX" git write-tree)
+	rm -f "$TMPIDX"
+	echo "[INFO] keep-list applied: $FULL -> $THEIRS"
+fi
+
 [ "$THEIRS" != "$BASE" ] || { echo "upstream tree unchanged."; exit 0; }
 
 # ---- 三方合并 ----
@@ -114,6 +143,7 @@ if [ "$RC" -ne 0 ]; then
 	echo ""
 	echo "合并树已就绪: $TREE"
 	if [ "$DRY" -eq 1 ]; then echo "(dry-run: 未改动工作区)"; exit 1; fi
+	git rm -r --cached --quiet "Source/3rdParty/$LIB" 2>/dev/null || true
 	git read-tree --prefix="Source/3rdParty/$LIB/" "$TREE"
 	git checkout-index -f -a
 	set_base "$THEIRS" "$(git rev-parse FETCH_HEAD 2>/dev/null || echo)"
