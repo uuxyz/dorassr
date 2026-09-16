@@ -56,11 +56,9 @@ function(dora_add_apple_app)
 	include("${DORA_ROOT}/Projects/CMake/DoraEngineSources.cmake")
 	include("${DORA_ROOT}/Projects/CMake/DoraGeneratedSources.cmake")
 
-	# 平台实现以 .mm 替代可移植 .cpp
-	list(FILTER DORA_ENGINE_SOURCES EXCLUDE REGEX "/Basic/Application\\.cpp$")
-	list(FILTER DORA_ENGINE_SOURCES EXCLUDE REGEX "/Basic/Content\\.cpp$")
-	list(FILTER DORA_ENGINE_SOURCES EXCLUDE REGEX "/Render/RenderSurface\\.cpp$")
-	# nfd 文件对话框：Apple 用 nfd_cocoa.m，排除 Linux 的 DBus 后端
+	# 平台实现以 .mm 补充可移植 .cpp（Application.cpp 内部有平台守卫，
+	# 与 Application.mm 共存）；nfd 文件对话框：Apple 用 nfd_cocoa.m，
+	# 排除 Linux 的 DBus 后端
 	list(FILTER DORA_ENGINE_SOURCES EXCLUDE REGEX "/3rdParty/nfd/nfd_portal\\.cpp$")
 
 	set(DORA_APPLE_SOURCES
@@ -124,6 +122,10 @@ function(dora_add_apple_app)
 		d_m3HasWASI
 		SPDLOG_FMT_EXTERNAL
 		JPH_NO_FORCE_INLINE)
+	if(platform STREQUAL "ios")
+		# iOS 禁用 system()，Lua 走 l_system 空实现
+		target_compile_definitions(${app} PRIVATE LUA_USE_IOS=1)
+	endif()
 
 	# ---- 预编译库 ----
 	set(DORA_VENDOR_LIBS "")
