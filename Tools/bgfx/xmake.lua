@@ -78,11 +78,13 @@ local function add_apple_flags()
         return
     end
 
-    add_cxflags("-Wfatal-errors", "-Wunused-value", "-Wundef", "-Wno-constant-logical-operand", {force = true})
+    add_cxxflags("-Wfatal-errors", "-Wunused-value", "-Wundef", "-Wno-constant-logical-operand", {force = true})
     add_mxflags("-Wfatal-errors", "-Wunused-value", "-Wundef", "-Wno-constant-logical-operand", {force = true})
 
-    if is_plat("macosx") and is_arch("x86_64") then
-        add_cxflags("-msse4.2", {force = true})
+    if is_arch("x86_64", "x86", "i386") then
+        -- 新版 bx 的 SIMD 路径以 SSE4.2 为最低规格（此前 add_cxflags 笔误
+        -- 导致该标志从未生效，旧 bx 无此需求故未暴露）。
+        add_cxxflags("-msse4.2", {force = true})
         add_mxflags("-msse4.2", {force = true})
     end
 end

@@ -88,13 +88,10 @@
 		)
 #endif // BGFX_PLATFORM_SUPPORTS_SPIRV
 
+// Dora: wgsl variants are not generated (shaderc needs tint); platforms that
+// generate them must define BGFX_PLATFORM_SUPPORTS_WGSL=1 explicitly.
 #ifndef BGFX_PLATFORM_SUPPORTS_WGSL
-#	define BGFX_PLATFORM_SUPPORTS_WGSL (0 \
-		|| BX_PLATFORM_EMSCRIPTEN          \
-		|| BX_PLATFORM_LINUX              \
-		|| BX_PLATFORM_WINDOWS            \
-		|| BX_PLATFORM_OSX                \
-		)
+#	define BGFX_PLATFORM_SUPPORTS_WGSL 0
 #endif // BGFX_PLATFORM_SUPPORTS_WGSL
 
 ///

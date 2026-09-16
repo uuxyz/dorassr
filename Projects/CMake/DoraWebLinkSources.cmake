@@ -14,6 +14,8 @@ list(FILTER DORA_WEB_BX_SOURCES EXCLUDE REGEX "/amalgamated\.cpp$")
 file(GLOB DORA_WEB_BIMG_SOURCES CONFIGURE_DEPENDS
 	"${DORA_SOURCE_ROOT}/3rdParty/bimg/src/*.cpp"
 	"${DORA_SOURCE_ROOT}/3rdParty/bimg/3rdparty/astc-encoder/source/*.cpp")
+# image_encode.cpp 依赖未随 vendor 保留的编码库（libsquish/nvtt/etcpak 等）
+list(FILTER DORA_WEB_BIMG_SOURCES EXCLUDE REGEX "/image_encode\.cpp$")
 
 # glslang + SPIRV-Tools + SPIRV-Cross：新版 shaderc 的 GLSL/SPIR-V 路径依赖
 file(GLOB DORA_WEB_GLSLANG_SOURCES CONFIGURE_DEPENDS
