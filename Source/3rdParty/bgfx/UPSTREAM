@@ -6,4 +6,4 @@ tree       = 61551adcea4f9ef322e48413a737b18bf3f80062
 commit     = unknown
 # commit 含义: 上游快照对应的精确 commit。tree 对应导入快照（bgfx API 129），
 # 早于本文件引入，无法回溯到精确 commit；下一次同步起将记录精确值。
-keep       = 3rdparty build include src LICENSE
+keep       = 3rdparty/astc-encoder 3rdparty/fcpp 3rdparty/glsl-optimizer 3rdparty/glslang 3rdparty/khronos 3rdparty/renderdoc 3rdparty/spirv-cross 3rdparty/spirv-headers 3rdparty/spirv-tools build include src LICENSE
