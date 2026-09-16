@@ -381,6 +381,11 @@ if(DORA_WEB_LINK_PLAYER)
 		SHADERC_CONFIG_METAL=0
 		SHADERC_CONFIG_SPIRV=0
 	)
+	if(DORA_WEB_PTHREADS)
+		# pthread 版 player 依赖 Love 线程 worker；新 bx 默认在 Emscripten 上
+		# 关闭线程，需显式打开。
+		target_compile_definitions(dora-web-link-deps PRIVATE BX_CONFIG_SUPPORTS_THREADING=1)
+	endif()
 	target_compile_options(dora-web-link-deps PRIVATE
 		${DORA_WEB_THREAD_COMPILE_OPTIONS}
 		-fno-rtti

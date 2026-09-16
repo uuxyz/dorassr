@@ -208,7 +208,12 @@
 #elif defined(__wasm__)
 #	include <emscripten/version.h>
 #	undef  BX_PLATFORM_EMSCRIPTEN
-#	define BX_PLATFORM_EMSCRIPTEN (__EMSCRIPTEN_MAJOR__ * 10000 + __EMSCRIPTEN_MINOR__ * 100 + __EMSCRIPTEN_TINY__)
+	// Dora: emsdk < 3.1.8x provides lowercase version macros; support both.
+#	if defined(__EMSCRIPTEN_MAJOR__)
+#		define BX_PLATFORM_EMSCRIPTEN (__EMSCRIPTEN_MAJOR__ * 10000 + __EMSCRIPTEN_MINOR__ * 100 + __EMSCRIPTEN_TINY__)
+#	else
+#		define BX_PLATFORM_EMSCRIPTEN (__EMSCRIPTEN_major__ * 10000 + __EMSCRIPTEN_minor__ * 100 + __EMSCRIPTEN_tiny__)
+#	endif
 #elif defined(__ORBIS__)
 #	undef  BX_PLATFORM_PS4
 #	define BX_PLATFORM_PS4 1
