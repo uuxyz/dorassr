@@ -60,6 +60,8 @@ function(dora_add_apple_app)
 	list(FILTER DORA_ENGINE_SOURCES EXCLUDE REGEX "/Basic/Application\\.cpp$")
 	list(FILTER DORA_ENGINE_SOURCES EXCLUDE REGEX "/Basic/Content\\.cpp$")
 	list(FILTER DORA_ENGINE_SOURCES EXCLUDE REGEX "/Render/RenderSurface\\.cpp$")
+	# nfd 文件对话框：Apple 用 nfd_cocoa.m，排除 Linux 的 DBus 后端
+	list(FILTER DORA_ENGINE_SOURCES EXCLUDE REGEX "/3rdParty/nfd/nfd_portal\\.cpp$")
 
 	set(DORA_APPLE_SOURCES
 		"${DORA_SOURCE_ROOT}/Basic/Application.mm"
