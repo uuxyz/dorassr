@@ -44,7 +44,6 @@ ipch/
 xcschememanagement.plist
 build/
 result/
-emsdk-cache/
 .DS_Store
 Thumbs.db
 ._.*
@@ -108,6 +107,7 @@ Projects/*/build-love*/
 Projects/Linux/build-theora-check/
 Docs/design/evidence/
 Source/Shader/DoraShaderc/generated
+Source/3rdParty/bgfx/dora/generated
 Source/3rdParty/SDL2/Lib/
 Source/3rdParty/Wa/Lib/
 Source/3rdParty/Wa/Source/.build/
@@ -121,9 +121,13 @@ Docs/kanban
 .codex*
 Docs/design/agent-vision/validation/
 Docs/static/play/
-# Delivery state — worktrees and the like. Never committed.
-.akb/
 Projects/*/build*/
 
 Projects/macOS/build-cmake/
 Projects/iOS/build-cmake/
+Projects/Windows/build/
+
+# Delivery state — worktrees and the like. Never committed.
+.akb/
+emsdk-cache/
+
