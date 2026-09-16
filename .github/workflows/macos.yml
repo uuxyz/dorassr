@@ -5,6 +5,7 @@ on:
     branches: [ main ]
     tags: 'v*.*.*'
     paths:
+      - '.github/workflows/macos.yml'
       # Shared engine code — triggers all platforms
       - 'Source/**'
       - 'Tools/tolua\+\+/**'

@@ -26,8 +26,16 @@ function(dora_add_apple_app)
 		set(DORA_BX_COMPAT osx)
 		set(DORA_BUILD_STYLE universal)
 	else()
-		set(DORA_LIB_SUFFIX iOS)
 		set(DORA_BX_COMPAT ios)
+		if(NOT DORA_IOS_VARIANT)
+			set(DORA_IOS_VARIANT simulator)
+		endif()
+		# 模拟器与真机的 SDL2/Love/theora/wa/Rust 预编译库是不同产物
+		if(DORA_IOS_VARIANT STREQUAL "simulator")
+			set(DORA_LIB_SUFFIX iOS-Simulator)
+		else()
+			set(DORA_LIB_SUFFIX iOS)
+		endif()
 	endif()
 
 	# ---- 预编译库路径（与 Tools/build-scripts 的产物布局一致；
