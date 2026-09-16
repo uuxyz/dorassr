@@ -164,3 +164,5 @@ function(dora_add_apple_app)
 			"-e _SDL_main")
 	endif()
 endfunction()
+
+# CI trigger: this file is watched by macos.yml/ios.yml since the xcodeproj removal.
