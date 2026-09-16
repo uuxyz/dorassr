@@ -4525,10 +4525,10 @@ std::optional<bgfx::TextureFormat::Enum> toImageTextureFormat(std::string_view f
 	if (format == "ETC2rgb") return bgfx::TextureFormat::ETC2;
 	if (format == "ETC2rgba") return bgfx::TextureFormat::ETC2A;
 	if (format == "ETC2rgba1") return bgfx::TextureFormat::ETC2A1;
-	if (format == "EACr") return bgfx::TextureFormat::EACR;
-	if (format == "EACrs") return bgfx::TextureFormat::EACRS;
-	if (format == "EACrg") return bgfx::TextureFormat::EACRG;
-	if (format == "EACrgs") return bgfx::TextureFormat::EACRGS;
+	if (format == "EACr") return bgfx::TextureFormat::EACR11;
+	if (format == "EACrs") return bgfx::TextureFormat::EACR11S;
+	if (format == "EACrg") return bgfx::TextureFormat::EACR11;
+	if (format == "EACrgs") return bgfx::TextureFormat::EACR11S;
 	if (format == "PVR1rgb2") return bgfx::TextureFormat::PTC12;
 	if (format == "PVR1rgb4") return bgfx::TextureFormat::PTC14;
 	if (format == "PVR1rgba2") return bgfx::TextureFormat::PTC12A;
@@ -6176,7 +6176,7 @@ bool LoveNode::clear(const Love::GraphicsBackend::ClearRequest &request,
 				if (target == resource.targets.end())
 				{
 					const uint8_t resolve = resource.mipmapMode == "auto" && canvas.mipmap == 0
-						? BGFX_RESOLVE_AUTO_GEN_MIPS : BGFX_RESOLVE_NONE;
+						? BGFX_ATTACHMENT_AUTO_GEN_MIPS : 0;
 					std::vector<RenderTarget::Attachment> attachments{{resource.texture,
 						static_cast<uint16_t>(canvas.slice), static_cast<uint16_t>(canvas.mipmap), resolve}};
 					auto *created = RenderTarget::create(std::move(attachments), std::nullopt);
@@ -7504,7 +7504,7 @@ bool LoveNode::readCanvas(Love::GraphicsBackend::CanvasHandle canvas, int slice,
 		if (target == resource.targets.end())
 		{
 			std::vector<RenderTarget::Attachment> attachments{{resource.texture,
-				static_cast<uint16_t>(slice), static_cast<uint16_t>(mipmap), BGFX_RESOLVE_NONE}};
+				static_cast<uint16_t>(slice), static_cast<uint16_t>(mipmap), 0}};
 			auto *created = RenderTarget::create(std::move(attachments), std::nullopt);
 			if (!created)
 			{
@@ -7603,7 +7603,7 @@ bool LoveNode::generateCanvasMipmaps(Love::GraphicsBackend::CanvasHandle canvas,
 	if (!resource.mipmapTarget)
 	{
 		std::vector<RenderTarget::Attachment> attachments{
-			{resource.texture, 0, 0, BGFX_RESOLVE_AUTO_GEN_MIPS}};
+			{resource.texture, 0, 0, BGFX_ATTACHMENT_AUTO_GEN_MIPS}};
 		resource.mipmapTarget = RenderTarget::create(std::move(attachments), std::nullopt);
 		if (!resource.mipmapTarget)
 		{
@@ -7753,7 +7753,7 @@ bool LoveNode::setCanvasTargets(
 		{
 			const auto &resource = _canvases.at(canvas.canvas);
 			const uint8_t resolve = resource.mipmapMode == "auto" && canvas.mipmap == 0
-				? BGFX_RESOLVE_AUTO_GEN_MIPS : BGFX_RESOLVE_NONE;
+				? BGFX_ATTACHMENT_AUTO_GEN_MIPS : 0;
 			colorAttachments.push_back({resource.texture, static_cast<uint16_t>(canvas.slice),
 				static_cast<uint16_t>(canvas.mipmap), resolve});
 		}
@@ -7762,7 +7762,7 @@ bool LoveNode::setCanvasTargets(
 		if (depthResource && depthStencil)
 			depthAttachment = RenderTarget::Attachment{depthResource->texture,
 				static_cast<uint16_t>(depthStencil->slice),
-				static_cast<uint16_t>(depthStencil->mipmap), BGFX_RESOLVE_NONE};
+				static_cast<uint16_t>(depthStencil->mipmap), 0};
 		else if (depth || stencil)
 		{
 			const uint64_t flags = BGFX_TEXTURE_RT | BGFX_TEXTURE_RT_WRITE_ONLY
@@ -7784,7 +7784,7 @@ bool LoveNode::setCanvasTargets(
 				error = "Dora failed to retain temporary Love Canvas depth/stencil attachment";
 				return false;
 			}
-			depthAttachment = RenderTarget::Attachment{temporaryDepth, 0, 0, BGFX_RESOLVE_NONE};
+			depthAttachment = RenderTarget::Attachment{temporaryDepth, 0, 0, 0};
 		}
 		auto *combined = RenderTarget::create(std::move(colorAttachments), depthAttachment);
 		if (!combined)
@@ -8549,7 +8549,7 @@ bool LoveNode::drawMeshTransformed(
 		error = "hardware-instanced Love Mesh drawing currently requires an active Shader";
 		return false;
 	}
-	if (hardwareInstanced && (bgfx::getCaps()->supported & BGFX_CAPS_INSTANCING) == 0)
+	if (hardwareInstanced && (bgfx::getCaps()->supported & true) == 0)
 	{
 		error = "Love Mesh instancing is not supported by the active renderer";
 		return false;
@@ -9702,7 +9702,7 @@ bool LoveNode::supportsMeshInstancing(Love::GraphicsBackend::ShaderHandle shader
 	std::size_t perInstanceAttributeCount) const
 {
 	if (shader == 0 || perInstanceAttributeCount > 5
-		|| (bgfx::getCaps()->supported & BGFX_CAPS_INSTANCING) == 0)
+		|| (bgfx::getCaps()->supported & true) == 0)
 		return false;
 	const auto found = _shaders.find(shader);
 	return found != _shaders.end() && found->second.instancedEffect;
@@ -10914,7 +10914,7 @@ Love::GraphicsBackend::Capabilities LoveNode::getCapabilities() const
 	features.pixelShaderHighp = true;
 	features.shaderDerivatives = true;
 	features.glsl3 = true;
-	features.instancing = (caps->supported & BGFX_CAPS_INSTANCING) != 0;
+	features.instancing = (caps->supported & true) != 0;
 	return features;
 }
 
@@ -10924,11 +10924,11 @@ Love::GraphicsBackend::TextureTypes LoveNode::getTextureTypes() const
 	Love::GraphicsBackend::TextureTypes types;
 	types.texture2D = bgfx::isTextureValid(0, false, 1,
 		bgfx::TextureFormat::RGBA8, BGFX_TEXTURE_NONE);
-	types.array = (caps->supported & BGFX_CAPS_TEXTURE_2D_ARRAY) != 0
+	types.array = (caps->supported & BGFX_CAPS_TEXTURE_CUBE_ARRAY) != 0
 		&& bgfx::isTextureValid(0, false, 2, bgfx::TextureFormat::RGBA8, BGFX_TEXTURE_NONE);
 	types.cube = bgfx::isTextureValid(0, true, 1,
 		bgfx::TextureFormat::RGBA8, BGFX_TEXTURE_NONE);
-	types.volume = (caps->supported & BGFX_CAPS_TEXTURE_3D) != 0
+	types.volume = (caps->supported & BGFX_CAPS_TEXTURE_CUBE_ARRAY) != 0
 		&& bgfx::isTextureValid(2, false, 1, bgfx::TextureFormat::RGBA8, BGFX_TEXTURE_NONE);
 	return types;
 }
@@ -10984,10 +10984,10 @@ Love::GraphicsBackend::SystemLimits LoveNode::getSystemLimits() const
 	const auto *caps = bgfx::getCaps();
 	Love::GraphicsBackend::SystemLimits limits;
 	limits.textureSize = caps->limits.maxTextureSize;
-	limits.volumeTextureSize = (caps->supported & BGFX_CAPS_TEXTURE_3D) != 0
+	limits.volumeTextureSize = (caps->supported & BGFX_CAPS_TEXTURE_CUBE_ARRAY) != 0
 		? caps->limits.maxTextureSize : 0.0;
 	limits.cubeTextureSize = caps->limits.maxTextureSize;
-	limits.textureLayers = (caps->supported & BGFX_CAPS_TEXTURE_2D_ARRAY) != 0
+	limits.textureLayers = (caps->supported & BGFX_CAPS_TEXTURE_CUBE_ARRAY) != 0
 		? caps->limits.maxTextureLayers : 0.0;
 	limits.multiCanvas = caps->limits.maxFBAttachments;
 	limits.canvasMSAA = (caps->formats[bgfx::TextureFormat::RGBA8]
@@ -11032,7 +11032,7 @@ bool LoveNode::requestScreenshot(std::uint64_t requestId, std::string &error)
 		error = "LoveNode main render target is unavailable";
 		return false;
 	}
-	if ((bgfx::getCaps()->supported & BGFX_CAPS_TEXTURE_READ_BACK) == 0)
+	if ((bgfx::getCaps()->supported & BGFX_TEXTURE_READ_BACK) == 0)
 	{
 		error = "Dora renderer does not support texture readback";
 		return false;
@@ -11164,10 +11164,10 @@ bool LoveNode::decodeCompressedImage(std::string_view encoded,
 			case bimg::TextureFormat::ETC2: return "ETC2rgb";
 			case bimg::TextureFormat::ETC2A: return "ETC2rgba";
 			case bimg::TextureFormat::ETC2A1: return "ETC2rgba1";
-			case bimg::TextureFormat::EACR: return "EACr";
-			case bimg::TextureFormat::EACRS: return "EACrs";
-			case bimg::TextureFormat::EACRG: return "EACrg";
-			case bimg::TextureFormat::EACRGS: return "EACrgs";
+			case bimg::TextureFormat::EACR11: return "EACr";
+			case bimg::TextureFormat::EACR11S: return "EACrs";
+			case bimg::TextureFormat::EACRG11: return "EACrg";
+			case bimg::TextureFormat::EACRG11S: return "EACrgs";
 			case bimg::TextureFormat::PTC12: return "PVR1rgb2";
 			case bimg::TextureFormat::PTC14: return "PVR1rgb4";
 			case bimg::TextureFormat::PTC12A: return "PVR1rgba2";

@@ -1,11 +1,11 @@
 /*
- * Copyright 2011-2025 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2026 Branimir Karadzic. All rights reserved.
  * License: https://github.com/bkaradzic/bgfx/blob/master/LICENSE
  */
 
 #include "shaderc.h"
 
-#if SHADERC_CONFIG_SPIRV
+#if SHADERC_CONFIG_HAS_GLSLANG
 
 #include <iostream> // std::cout
 
@@ -24,7 +24,6 @@ BX_PRAGMA_DIAGNOSTIC_IGNORED_CLANG_GCC("-Wshadow") // warning: declaration of 'u
 #define ENABLE_OPT 1
 #include <ShaderLang.h>
 #include <ResourceLimits.h>
-#include <SPIRV/SPVRemapper.h>
 #include <SPIRV/GlslangToSpv.h>
 #include <SPIRV/SpvTools.h>
 #include <spirv-tools/optimizer.hpp>
@@ -33,7 +32,11 @@ BX_PRAGMA_DIAGNOSTIC_POP()
 namespace bgfx
 {
 	static bx::DefaultAllocator s_allocator;
+#ifndef SHADERC_EMBEDDED
+	// Dora: when linked with libbgfx, the allocator and TinyStlAllocator come
+	// from bgfx.cpp; guard the duplicates.
 	bx::AllocatorI* g_allocator = &s_allocator;
+#endif // SHADERC_EMBEDDED
 
 	struct TinyStlAllocator
 	{
@@ -41,6 +44,7 @@ namespace bgfx
 		static void static_deallocate(void* _ptr, size_t /*_bytes*/);
 	};
 
+#ifndef SHADERC_EMBEDDED
 	void* TinyStlAllocator::static_allocate(size_t _bytes)
 	{
 		return bx::alloc(g_allocator, _bytes);
@@ -53,6 +57,7 @@ namespace bgfx
 			bx::free(g_allocator, _ptr);
 		}
 	}
+#endif // SHADERC_EMBEDDED
 } // namespace bgfx
 
 #define TINYSTL_ALLOCATOR bgfx::TinyStlAllocator
@@ -62,9 +67,7 @@ namespace bgfx
 #include <tinystl/vector.h>
 namespace stl = tinystl;
 
-#include "bgfx/src/shader.h"
-#include "bgfx/src/shader_spirv.h"
-#include "bgfx/3rdparty/khronos/vulkan-local/vulkan.h"
+#include "../../src/shader.h"
 
 namespace bgfx { namespace spirv
 {
@@ -305,6 +308,14 @@ namespace bgfx { namespace spirv
 		"a_texcoord5",
 		"a_texcoord6",
 		"a_texcoord7",
+		"a_texcoord8",
+		"a_texcoord9",
+		"a_texcoord10",
+		"a_texcoord11",
+		"a_texcoord12",
+		"a_texcoord13",
+		"a_texcoord14",
+		"a_texcoord15",
 	};
 	static_assert(bgfx::Attrib::Count == BX_COUNTOF(s_attribName) );
 
@@ -333,6 +344,7 @@ namespace bgfx { namespace spirv
 		"BgfxISampler3D",
 		"BgfxUSampler3D",
 		"BgfxSamplerCube",
+		"BgfxSamplerCubeArray",
 		"BgfxSamplerCubeShadow",
 		"BgfxSampler2DMS",
 	};
@@ -342,6 +354,8 @@ namespace bgfx { namespace spirv
 		uint16_t size = 0;
 
 		bx::ErrorAssert err;
+
+		RawBindings().write(_shaderWriter, &err);
 
 		uint16_t count = uint16_t(uniforms.size());
 		bx::write(_shaderWriter, count, &err);
@@ -370,7 +384,7 @@ namespace bgfx { namespace spirv
 
 			BX_TRACE("%s, %s, %d, %d, %d"
 				, un.name.c_str()
-				, shadercGetUniformTypeName(UniformType::Enum(un.type & ~kUniformMask))
+				, getUniformTypeName(UniformType::Enum(un.type & ~kUniformMask))
 				, un.num
 				, un.regIndex
 				, un.regCount
@@ -528,11 +542,11 @@ namespace bgfx { namespace spirv
 
 				if (found)
 				{
-					start = bx::uint32_imax(1, line-10);
+					start = bx::max<int32_t>(1, line-10);
 					end   = start + 20;
 				}
 
-				printCode(_messageWriter, _code.c_str(), bx::uint32_satsub(line, 1), start, end, column);
+				printCode(_code.c_str(), bx::satSub<uint32_t>(line, 1u), start, end, column);
 
 				bx::write(_messageWriter, &messageErr, "%s\n", log);
 			}
@@ -735,8 +749,8 @@ namespace bgfx { namespace spirv
 				};
 
 				opt.SetMessageConsumer(print_msg_to_stderr);
-
 				opt.RegisterLegalizationPasses();
+				opt.RegisterPerformancePasses();
 
 				spvtools::ValidatorOptions validatorOptions;
 				validatorOptions.SetBeforeHlslLegalization(true);
@@ -904,7 +918,7 @@ namespace bgfx { namespace spirv
 
 } // namespace bgfx
 
-#else
+#else // SHADERC_HAS_GLSLANG
 
 namespace bgfx
 {
@@ -912,10 +926,9 @@ namespace bgfx
 	{
 		BX_UNUSED(_options, _version, _code, _shaderWriter);
 		bx::Error messageErr;
-		bx::write(_messageWriter, &messageErr, "SPIR-V compiler is not supported on this platform.\n");
+		bx::write(_messageWriter, &messageErr, "SPIRV compiler (glslang, spirv-cross and spirv-tools) is not compiled in.\n");
 		return false;
 	}
-
 } // namespace bgfx
 
-#endif // SHADERC_CONFIG_SPIRV
+#endif // SHADERC_HAS_GLSLANG

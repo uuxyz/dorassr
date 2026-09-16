@@ -749,10 +749,6 @@ WL_EGL_IMPORT
 			m_current = NULL;
 			m_swapInterval = !!(_reset & BGFX_RESET_VSYNC) ? 1 : 0;
 		}
-		else
-		{
-			m_context = (EGLContext)g_platformData.context;
-		}
 
 		import();
 

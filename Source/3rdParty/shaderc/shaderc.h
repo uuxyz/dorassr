@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2025 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2026 Branimir Karadzic. All rights reserved.
  * License: https://github.com/bkaradzic/bgfx/blob/master/LICENSE
  */
 
@@ -11,35 +11,63 @@ namespace bgfx
 	extern bool g_verbose;
 }
 
-#ifndef SHADERC_CONFIG_HLSL
-#	define SHADERC_CONFIG_HLSL BX_PLATFORM_WINDOWS
-#endif // SHADERC_CONFIG_HLSL
-
-#ifndef SHADERC_CONFIG_GLSL
-#	define SHADERC_CONFIG_GLSL 1
-#endif // SHADERC_CONFIG_GLSL
-
-#ifndef SHADERC_CONFIG_METAL
-#	define SHADERC_CONFIG_METAL (BX_PLATFORM_OSX || BX_PLATFORM_IOS)
-#endif // SHADERC_CONFIG_METAL
-
-#ifndef SHADERC_CONFIG_SPIRV
-#	define SHADERC_CONFIG_SPIRV 1
-#endif // SHADERC_CONFIG_SPIRV
-
-#ifndef SHADERC_CONFIG_CLI
-#	define SHADERC_CONFIG_CLI 1
-#endif // SHADERC_CONFIG_CLI
-
 #include <bx/bx.h>
+
+// HLSL compilation support:
+// - Windows: Native D3DCompiler DLL
+// - Linux/macOS: d3d4linux (Wine-based D3DCompiler via IPC)
+#ifndef SHADERC_CONFIG_HAS_D3DCOMPILER
+#	if BX_PLATFORM_WINDOWS
+#		if __has_include(<d3dcompiler.h>)
+#			define SHADERC_CONFIG_HAS_D3DCOMPILER 1
+#		endif
+#	elif BX_PLATFORM_LINUX
+#		if __has_include(<d3d4linux.h>)
+#			define SHADERC_CONFIG_HAS_D3DCOMPILER 1
+#		endif
+#	endif
+// Still not?
+#	ifndef SHADERC_CONFIG_HAS_D3DCOMPILER
+#		define SHADERC_CONFIG_HAS_D3DCOMPILER 0
+#	endif
+#endif // SHADERC_CONFIG_HAS_D3DCOMPILER
+
+// DXIL compilation support (Shader Model 6.0+):
+// - Windows: Native DXC (dxcompiler.dll)
+// - Linux: DXC (libdxcompiler.so) via directx-headers
+// - macOS: Not supported (no DXC dynamic library available)
+#ifndef SHADERC_CONFIG_HAS_DXC
+#	define SHADERC_CONFIG_HAS_DXC (0  \
+		|| BX_PLATFORM_WINDOWS     \
+		|| BX_PLATFORM_LINUX       \
+		)
+#endif // SHADERC_CONFIG_HAS_DXC
+
+#ifndef SHADERC_CONFIG_HAS_TINT
+#	if __has_include(<tint/api/tint.h>)
+#		define SHADERC_CONFIG_HAS_TINT 1
+#	else
+#		define SHADERC_CONFIG_HAS_TINT 0
+#	endif
+#endif
+
+#ifndef SHADERC_CONFIG_HAS_GLSLANG
+#	if __has_include(<ShaderLang.h>) \
+	&& __has_include(<SPIRV/SpvTools.h>)
+#		define SHADERC_CONFIG_HAS_GLSLANG 1
+#	else
+#		define SHADERC_CONFIG_HAS_GLSLANG 0
+#	endif
+#endif
+
 #include <bx/debug.h>
 #include <bx/commandline.h>
 #include <bx/endian.h>
-#include <bx/uint32_t.h>
 #include <bx/string.h>
+#include <bx/scanner.h>
 #include <bx/hash.h>
 #include <bx/file.h>
-#include "bgfx/src/vertexlayout.h"
+#include "../../src/vertexlayout.h"
 
 #include <string.h>
 #include <algorithm>
@@ -53,6 +81,13 @@ namespace bgfx
 
 	bx::StringView nextWord(bx::StringView& _parse);
 
+	constexpr uint16_t kAccessRead  = 0x8000;
+	constexpr uint16_t kAccessWrite = 0x4000;
+	constexpr uint16_t kAccessMask  = 0
+		| kAccessRead
+		| kAccessWrite
+		;
+
 	constexpr uint8_t kUniformFragmentBit  = 0x10;
 	constexpr uint8_t kUniformSamplerBit   = 0x20;
 	constexpr uint8_t kUniformReadOnlyBit  = 0x40;
@@ -64,8 +99,12 @@ namespace bgfx
 		| kUniformCompareBit
 		;
 
-	const char* shadercGetUniformTypeName(UniformType::Enum _enum);
-	UniformType::Enum shadercNameToUniformTypeEnum(const char* _name);
+	const char* getUniformTypeName(UniformType::Enum _enum);
+	UniformType::Enum nameToUniformTypeEnum(const char* _name);
+
+	/// Converts a SPIR-V `spv::Dim` (plus the arrayed flag) into the texture
+	/// dimension id stored in `Uniform::texDimension`.
+	uint8_t spirvDimToTextureDimensionId(uint32_t _dim, bool _arrayed);
 
 	struct Uniform
 	{
@@ -90,11 +129,26 @@ namespace bgfx
 		uint16_t texFormat;
 	};
 
+	struct RawBindings
+	{
+		RawBindings()
+			: srv(0)
+			, uav(0)
+		{
+		}
+
+		void write(bx::WriterI* _writer, bx::Error* _err) const
+		{
+			bx::write(_writer, srv, _err);
+			bx::write(_writer, uav, _err);
+		}
+
+		uint32_t srv;
+		uint32_t uav;
+	};
+
 	struct Options
 	{
-		typedef long (*GetFileSizeFn)(const char* _path, void* _userData);
-		typedef int (*ReadFileFn)(const char* _path, char* _buffer, int _size, void* _userData);
-
 		Options();
 
 		void dump();
@@ -109,10 +163,6 @@ namespace bgfx
 		std::vector<std::string> includeDirs;
 		std::vector<std::string> defines;
 		std::vector<std::string> dependencies;
-
-		GetFileSizeFn getFileSize;
-		ReadFileFn readFile;
-		void* fileReaderUserData;
 
 		bool disasm;
 		bool raw;
@@ -135,16 +185,18 @@ namespace bgfx
 
 	typedef std::vector<Uniform> UniformArray;
 
-	void printCode(bx::WriterI* _writer, const char* _code, int32_t _line = 0, int32_t _start = 0, int32_t _end = INT32_MAX, int32_t _column = -1);
+	void printCode(const char* _code, int32_t _line = 0, int32_t _start = 0, int32_t _end = INT32_MAX, int32_t _column = -1);
 	void strReplace(char* _str, const char* _find, const char* _replace);
 	int32_t writef(bx::WriterI* _writer, const char* _format, ...);
 	void writeFile(const char* _filePath, const void* _data, int32_t _size);
 
 	bool compileGLSLShader(const Options& _options, uint32_t _version, const std::string& _code, bx::WriterI* _writer, bx::WriterI* _messages);
 	bool compileHLSLShader(const Options& _options, uint32_t _version, const std::string& _code, bx::WriterI* _writer, bx::WriterI* _messages);
+	bool compileDxilShader(const Options& _options, uint32_t _version, const std::string& _code, bx::WriterI* _writer, bx::WriterI* _messages);
 	bool compileMetalShader(const Options& _options, uint32_t _version, const std::string& _code, bx::WriterI* _writer, bx::WriterI* _messages);
 	bool compilePSSLShader(const Options& _options, uint32_t _version, const std::string& _code, bx::WriterI* _writer, bx::WriterI* _messages);
 	bool compileSPIRVShader(const Options& _options, uint32_t _version, const std::string& _code, bx::WriterI* _writer, bx::WriterI* _messages);
+	bool compileWgslShader(const Options& _options, uint32_t _version, const std::string& _code, bx::WriterI* _writer, bx::WriterI* _messages);
 
 	const char* getPsslPreamble();
 

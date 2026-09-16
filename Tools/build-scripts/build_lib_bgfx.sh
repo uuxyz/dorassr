@@ -15,14 +15,14 @@ MACOS_ARCH="universal"
 
 get_libs_for_platform() {
     local platform=$1
-    local libs="bx bimg bimg_decode bgfx fcpp shaderc-lib"
+    local libs="bx bimg bimg_decode bgfx glslang shaderc-lib"
 
     case "$platform" in
         macosx|iphoneos)
-            libs="$libs spirv-cross spirv-opt glslang"
+            libs="$libs spirv-cross spirv-opt"
             ;;
         linux|android)
-            libs="$libs glsl_optimizer"
+            libs="$libs spirv-cross spirv-opt"
             ;;
     esac
 

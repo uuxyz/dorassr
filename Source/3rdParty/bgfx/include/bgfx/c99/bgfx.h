@@ -293,11 +293,6 @@ typedef enum bgfx_texture_format
     BGFX_TEXTURE_FORMAT_D32FS8,               /** (103) 32-bit depth, floating point, with 8-bit stencil (stored as 64-bit). 64 BPP. */
     BGFX_TEXTURE_FORMAT_D0S8,                 /** (104) 8-bit stencil only, no depth. 8 BPP. */
 
-    BGFX_TEXTURE_FORMAT_EACR,                 /** (96) EAC R11                        */
-    BGFX_TEXTURE_FORMAT_EACRS,                /** (97) EAC signed R11                 */
-    BGFX_TEXTURE_FORMAT_EACRG,                /** (98) EAC RG11                       */
-    BGFX_TEXTURE_FORMAT_EACRGS,               /** (99) EAC signed RG11                */
-
     BGFX_TEXTURE_FORMAT_COUNT
 
 } bgfx_texture_format_t;

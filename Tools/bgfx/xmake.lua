@@ -223,6 +223,7 @@ local bx_src = {
     "src/mutex.cpp",
     "src/os.cpp",
     "src/process.cpp",
+    "src/scanner.cpp",
     "src/semaphore.cpp",
     "src/settings.cpp",
     "src/sort.cpp",
@@ -234,11 +235,11 @@ local bx_src = {
 
 local bimg_src = {
     "src/image.cpp",
-    "src/image_gnf.cpp",
 }
 
 local bimg_decode_src = {
     "src/image_decode.cpp",
+    "src/image_decode_wic.cpp",
 }
 
 local astc_encoder_src = {
@@ -275,14 +276,18 @@ local bgfx_src = {
     "src/renderer_d3d12.cpp",
     "src/renderer_gl.cpp",
     "src/renderer_gnm.cpp",
+    "src/renderer_mtl.cpp",
     "src/renderer_noop.cpp",
     "src/renderer_nvn.cpp",
     "src/renderer_vk.cpp",
+    "src/renderer_webgpu.cpp",
     "src/shader.cpp",
-    "src/shader_dxbc.cpp",
-    "src/shader_spirv.cpp",
     "src/topology.cpp",
     "src/vertexlayout.cpp",
+    "src/video_d3d11.cpp",
+    "src/video_d3d12.cpp",
+    "src/video_mtl.cpp",
+    "src/video_vk.cpp",
 }
 
 local bgfx_windows_src = {
@@ -291,182 +296,7 @@ local bgfx_windows_src = {
     "src/nvapi.cpp",
 }
 
-local bgfx_macos_src = {
-    "src/renderer_mtl.mm",
-}
 
-local spirv_opt_src = {
-    "source/opt/aggressive_dead_code_elim_pass.cpp",
-    "source/opt/amd_ext_to_khr.cpp",
-    "source/opt/analyze_live_input_pass.cpp",
-    "source/opt/basic_block.cpp",
-    "source/opt/block_merge_pass.cpp",
-    "source/opt/block_merge_util.cpp",
-    "source/opt/build_module.cpp",
-    "source/opt/canonicalize_ids_pass.cpp",
-    "source/opt/ccp_pass.cpp",
-    "source/opt/cfg.cpp",
-    "source/opt/cfg_cleanup_pass.cpp",
-    "source/opt/code_sink.cpp",
-    "source/opt/combine_access_chains.cpp",
-    "source/opt/compact_ids_pass.cpp",
-    "source/opt/composite.cpp",
-    "source/opt/const_folding_rules.cpp",
-    "source/opt/constants.cpp",
-    "source/opt/control_dependence.cpp",
-    "source/opt/convert_to_half_pass.cpp",
-    "source/opt/convert_to_sampled_image_pass.cpp",
-    "source/opt/copy_prop_arrays.cpp",
-    "source/opt/dataflow.cpp",
-    "source/opt/dead_branch_elim_pass.cpp",
-    "source/opt/dead_insert_elim_pass.cpp",
-    "source/opt/dead_variable_elimination.cpp",
-    "source/opt/debug_info_manager.cpp",
-    "source/opt/decoration_manager.cpp",
-    "source/opt/def_use_manager.cpp",
-    "source/opt/desc_sroa.cpp",
-    "source/opt/desc_sroa_util.cpp",
-    "source/opt/dominator_analysis.cpp",
-    "source/opt/dominator_tree.cpp",
-    "source/opt/eliminate_dead_constant_pass.cpp",
-    "source/opt/eliminate_dead_functions_pass.cpp",
-    "source/opt/eliminate_dead_functions_util.cpp",
-    "source/opt/eliminate_dead_io_components_pass.cpp",
-    "source/opt/eliminate_dead_members_pass.cpp",
-    "source/opt/eliminate_dead_output_stores_pass.cpp",
-    "source/opt/feature_manager.cpp",
-    "source/opt/fix_func_call_arguments.cpp",
-    "source/opt/fix_storage_class.cpp",
-    "source/opt/flatten_decoration_pass.cpp",
-    "source/opt/fold.cpp",
-    "source/opt/fold_spec_constant_op_and_composite_pass.cpp",
-    "source/opt/folding_rules.cpp",
-    "source/opt/freeze_spec_constant_value_pass.cpp",
-    "source/opt/function.cpp",
-    "source/opt/graphics_robust_access_pass.cpp",
-    "source/opt/if_conversion.cpp",
-    "source/opt/inline_exhaustive_pass.cpp",
-    "source/opt/inline_opaque_pass.cpp",
-    "source/opt/inline_pass.cpp",
-    "source/opt/instruction.cpp",
-    "source/opt/instruction_list.cpp",
-    "source/opt/interface_var_sroa.cpp",
-    "source/opt/interp_fixup_pass.cpp",
-    "source/opt/invocation_interlock_placement_pass.cpp",
-    "source/opt/ir_context.cpp",
-    "source/opt/ir_loader.cpp",
-    "source/opt/licm_pass.cpp",
-    "source/opt/liveness.cpp",
-    "source/opt/local_access_chain_convert_pass.cpp",
-    "source/opt/local_redundancy_elimination.cpp",
-    "source/opt/local_single_block_elim_pass.cpp",
-    "source/opt/local_single_store_elim_pass.cpp",
-    "source/opt/loop_dependence.cpp",
-    "source/opt/loop_dependence_helpers.cpp",
-    "source/opt/loop_descriptor.cpp",
-    "source/opt/loop_fission.cpp",
-    "source/opt/loop_fusion.cpp",
-    "source/opt/loop_fusion_pass.cpp",
-    "source/opt/loop_peeling.cpp",
-    "source/opt/loop_unroller.cpp",
-    "source/opt/loop_unswitch_pass.cpp",
-    "source/opt/loop_utils.cpp",
-    "source/opt/mem_pass.cpp",
-    "source/opt/merge_return_pass.cpp",
-    "source/opt/modify_maximal_reconvergence.cpp",
-    "source/opt/module.cpp",
-    "source/opt/opextinst_forward_ref_fixup_pass.cpp",
-    "source/opt/optimizer.cpp",
-    "source/opt/pass.cpp",
-    "source/opt/pass_manager.cpp",
-    "source/opt/pch_source_opt.cpp",
-    "source/opt/private_to_local_pass.cpp",
-    "source/opt/propagator.cpp",
-    "source/opt/reduce_load_size.cpp",
-    "source/opt/redundancy_elimination.cpp",
-    "source/opt/register_pressure.cpp",
-    "source/opt/relax_float_ops_pass.cpp",
-    "source/opt/remove_dontinline_pass.cpp",
-    "source/opt/remove_duplicates_pass.cpp",
-    "source/opt/remove_unused_interface_variables_pass.cpp",
-    "source/opt/replace_desc_array_access_using_var_index.cpp",
-    "source/opt/replace_invalid_opc.cpp",
-    "source/opt/resolve_binding_conflicts_pass.cpp",
-    "source/opt/scalar_analysis.cpp",
-    "source/opt/scalar_analysis_simplification.cpp",
-    "source/opt/scalar_replacement_pass.cpp",
-    "source/opt/set_spec_constant_default_value_pass.cpp",
-    "source/opt/simplification_pass.cpp",
-    "source/opt/split_combined_image_sampler_pass.cpp",
-    "source/opt/spread_volatile_semantics.cpp",
-    "source/opt/ssa_rewrite_pass.cpp",
-    "source/opt/strength_reduction_pass.cpp",
-    "source/opt/strip_debug_info_pass.cpp",
-    "source/opt/strip_nonsemantic_info_pass.cpp",
-    "source/opt/struct_cfg_analysis.cpp",
-    "source/opt/struct_packing_pass.cpp",
-    "source/opt/switch_descriptorset_pass.cpp",
-    "source/opt/trim_capabilities_pass.cpp",
-    "source/opt/type_manager.cpp",
-    "source/opt/types.cpp",
-    "source/opt/unify_const_pass.cpp",
-    "source/opt/upgrade_memory_model.cpp",
-    "source/opt/value_number_table.cpp",
-    "source/opt/vector_dce.cpp",
-    "source/opt/workaround1209.cpp",
-    "source/opt/wrap_opkill.cpp",
-}
-
-local spirv_val_src = {
-    "source/val/basic_block.cpp",
-    "source/val/construct.cpp",
-    "source/val/function.cpp",
-    "source/val/instruction.cpp",
-    "source/val/validate.cpp",
-    "source/val/validate_adjacency.cpp",
-    "source/val/validate_annotation.cpp",
-    "source/val/validate_arithmetics.cpp",
-    "source/val/validate_atomics.cpp",
-    "source/val/validate_barriers.cpp",
-    "source/val/validate_bitwise.cpp",
-    "source/val/validate_builtins.cpp",
-    "source/val/validate_capability.cpp",
-    "source/val/validate_cfg.cpp",
-    "source/val/validate_composites.cpp",
-    "source/val/validate_constants.cpp",
-    "source/val/validate_conversion.cpp",
-    "source/val/validate_debug.cpp",
-    "source/val/validate_decorations.cpp",
-    "source/val/validate_derivatives.cpp",
-    "source/val/validate_execution_limitations.cpp",
-    "source/val/validate_extensions.cpp",
-    "source/val/validate_function.cpp",
-    "source/val/validate_graph.cpp",
-    "source/val/validate_id.cpp",
-    "source/val/validate_image.cpp",
-    "source/val/validate_instruction.cpp",
-    "source/val/validate_interfaces.cpp",
-    "source/val/validate_invalid_type.cpp",
-    "source/val/validate_layout.cpp",
-    "source/val/validate_literals.cpp",
-    "source/val/validate_logicals.cpp",
-    "source/val/validate_memory.cpp",
-    "source/val/validate_memory_semantics.cpp",
-    "source/val/validate_mesh_shading.cpp",
-    "source/val/validate_misc.cpp",
-    "source/val/validate_mode_setting.cpp",
-    "source/val/validate_non_uniform.cpp",
-    "source/val/validate_primitives.cpp",
-    "source/val/validate_ray_query.cpp",
-    "source/val/validate_ray_tracing.cpp",
-    "source/val/validate_ray_tracing_reorder.cpp",
-    "source/val/validate_scopes.cpp",
-    "source/val/validate_small_type_uses.cpp",
-    "source/val/validate_tensor.cpp",
-    "source/val/validate_tensor_layout.cpp",
-    "source/val/validate_type.cpp",
-    "source/val/validation_state.cpp",
-}
 
 local spirv_reduce_src = {
     "source/reduce/change_operand_reduction_opportunity.cpp",
@@ -568,13 +398,23 @@ local glslang_spirv_cinterface_src = {
 }
 
 local shaderc_src = {
+    "pp.cpp",
     "shaderc.cpp",
     "shaderc_hlsl.cpp",
     "shaderc_metal.cpp",
     "shaderc_spirv.cpp",
     "shaderc_glsl.cpp",
 	 "shaderc_pssl.cpp",
+	 "shaderc_wgsl.cpp",
 }
+
+if is_plat("windows") then
+    -- DXIL 校验依赖 Windows SDK 头文件（unknwnbase.h 等）
+    table.insert(shaderc_src, "shaderc_dxil.cpp")
+else
+    -- 非 Windows 平台链接 DXC 空实现
+    table.insert(shaderc_src, "shaderc_dxil_stub.cpp")
+end
 
 -- 平台相关链接库
 local function add_platform_links()
@@ -637,11 +477,14 @@ target("bimg")
     set_kind("static")
     add_deps("bx")
     add_common_target_settings()
-    
+
     add_includedirs(path.join(BIMG_DIR, "include"), {public = true})
     add_includedirs(path.join(BIMG_DIR, "3rdparty"), {public = true})
     add_includedirs(path.join(BIMG_DIR, "3rdparty/astc-encoder/include"))
-    
+
+    -- 解码器依赖未随 vendor 树裁剪保留（libavif/simplewebp 等）
+    add_defines("BIMG_CONFIG_PARSE_AVIF=0", "BIMG_CONFIG_PARSE_WEBP=0")
+
     add_files(table.unpack(resolve_sources(BIMG_DIR, bimg_src)))
     add_files(table.unpack(resolve_sources(BIMG_DIR, astc_encoder_src)))
     
@@ -662,6 +505,7 @@ target("bimg_decode")
     -- 不删除 bimg 内置的 miniz 文件，仅通过编译定义停用它。
     -- （image_decode.cpp 已包含 zlib.h，满足 tinyexr.h 的前置声明要求。）
     add_defines("TINYEXR_USE_MINIZ=0")
+    add_defines("BIMG_CONFIG_PARSE_AVIF=0", "BIMG_CONFIG_PARSE_WEBP=0")
     add_includedirs(path.join(DORA_ROOT, "Source/3rdParty/Zip/zlib"))
 
     add_includedirs(path.join(BIMG_DIR, "include"), {public = true})
@@ -679,10 +523,6 @@ local function add_bgfx_sources()
     add_files(table.unpack(resolve_sources(BGFX_DIR, bgfx_src)))
     if is_plat("windows") then
         add_files(table.unpack(resolve_sources(BGFX_DIR, bgfx_windows_src)))
-    end
-    if is_plat("macosx", "iphoneos") then
-        add_files(table.unpack(resolve_sources(BGFX_DIR, bgfx_macos_src)))
-        add_mxxflags("-fno-objc-arc", {force = true})
     end
 end
 
@@ -842,10 +682,10 @@ target("spirv-opt")
     )
     
     -- opt 优化器
-    add_files(table.unpack(resolve_sources(SPIRV_TOOLS_DIR, spirv_opt_src)))
+    add_files(path.join(SPIRV_TOOLS_DIR, "source/opt/*.cpp"))
     
     -- val 验证器
-    add_files(table.unpack(resolve_sources(SPIRV_TOOLS_DIR, spirv_val_src)))
+    add_files(path.join(SPIRV_TOOLS_DIR, "source/val/*.cpp"))
     
     -- reduce
     add_files(table.unpack(resolve_sources(SPIRV_TOOLS_DIR, spirv_reduce_src)))
@@ -877,6 +717,7 @@ target("glslang")
     add_files(table.unpack(resolve_sources(GLSLANG_DIR, glslang_generic_codegen_src)))
     add_files(table.unpack(resolve_sources(GLSLANG_DIR, glslang_machine_independent_src)))
     add_files(table.unpack(resolve_sources(GLSLANG_DIR, glslang_preprocessor_src)))
+    add_files(path.join(GLSLANG_DIR, "glslang/ResourceLimits/ResourceLimits.cpp"))
     
     -- OSDependent
     if is_plat("windows") then
@@ -896,7 +737,6 @@ target("glslang")
         path.join(GLSLANG_DIR, "SPIRV/GlslangToSpv.cpp"),
         path.join(GLSLANG_DIR, "SPIRV/InReadableOrder.cpp"),
         path.join(GLSLANG_DIR, "SPIRV/Logger.cpp"),
-        path.join(GLSLANG_DIR, "SPIRV/SPVRemapper.cpp"),
         path.join(GLSLANG_DIR, "SPIRV/SpvPostProcess.cpp"),
         path.join(GLSLANG_DIR, "SPIRV/SpvTools.cpp"),
         path.join(GLSLANG_DIR, "SPIRV/SpvBuilder.cpp"),
@@ -1137,31 +977,31 @@ target("shaderc-lib")
 
     if is_plat("windows") then
         add_defines(
-            "SHADERC_CONFIG_CLI=0",
+            "SHADERC_CONFIG_CLI=0", "SHADERC_CONFIG_NO_MAIN=1", "SHADERC_EMBEDDED=1",
             "SHADERC_CONFIG_HLSL=1",
             "SHADERC_CONFIG_GLSL=0",
             "SHADERC_CONFIG_METAL=0",
             "SHADERC_CONFIG_SPIRV=0"
         )
-        add_deps("bx", "fcpp")
+        add_deps("bx", "glslang", "spirv-cross", "spirv-opt")
     elseif is_plat("macosx", "iphoneos") then
         add_defines(
-            "SHADERC_CONFIG_CLI=0",
+            "SHADERC_CONFIG_CLI=0", "SHADERC_CONFIG_NO_MAIN=1", "SHADERC_EMBEDDED=1",
             "SHADERC_CONFIG_HLSL=0",
             "SHADERC_CONFIG_GLSL=0",
             "SHADERC_CONFIG_METAL=1",
             "SHADERC_CONFIG_SPIRV=0"
         )
-        add_deps("bx", "fcpp", "glslang", "spirv-cross")
+        add_deps("bx", "glslang", "spirv-cross", "spirv-opt")
     elseif is_plat("linux", "android") then
         add_defines(
-            "SHADERC_CONFIG_CLI=0",
+            "SHADERC_CONFIG_CLI=0", "SHADERC_CONFIG_NO_MAIN=1", "SHADERC_EMBEDDED=1",
             "SHADERC_CONFIG_HLSL=0",
             "SHADERC_CONFIG_GLSL=1",
             "SHADERC_CONFIG_METAL=0",
             "SHADERC_CONFIG_SPIRV=0"
         )
-        add_deps("bx", "fcpp", "glsl_optimizer")
+        add_deps("bx", "glslang", "spirv-cross", "spirv-opt")
     end
     
     add_includedirs(
@@ -1169,12 +1009,9 @@ target("shaderc-lib")
         path.join(BGFX_DIR, "include"),
         SHADERC_DIR,
         path.join(DORA_ROOT, "Source/3rdParty"),
-        FCPP_DIR,
+        GLSLANG_DIR,
         path.join(GLSLANG_DIR, "glslang/Public"),
         path.join(GLSLANG_DIR, "glslang/Include"),
-        GLSLANG_DIR,
-        path.join(GLSL_OPTIMIZER_DIR, "include"),
-        path.join(GLSL_OPTIMIZER_DIR, "src/glsl"),
         SPIRV_CROSS_DIR,
         path.join(SPIRV_TOOLS_DIR, "include")
     )
@@ -1184,8 +1021,6 @@ target("shaderc-lib")
     add_files(
         path.join(BGFX_DIR, "src/vertexlayout.cpp"),
         path.join(BGFX_DIR, "src/shader.cpp"),
-        path.join(BGFX_DIR, "src/shader_dxbc.cpp"),
-        path.join(BGFX_DIR, "src/shader_spirv.cpp"),
         path.join(DORA_SHADERC_DIR, "DoraShaderc.cpp")
     )
     
@@ -1193,5 +1028,31 @@ target("shaderc-lib")
         add_frameworks("Cocoa")
     elseif is_plat("linux", "android") then
         add_syslinks("pthread")
+        add_cxxflags("-fPIC", {force = true})
+    end
+
+-- 独立 shaderc CLI（离线再生成 Source/Shader/**/*.bin.h 嵌入着色器用）
+target("shaderc-cli")
+    set_kind("binary")
+    add_common_target_settings()
+    add_files(table.unpack(resolve_sources(SHADERC_DIR, shaderc_src)))
+    add_files(
+        path.join(BGFX_DIR, "src/vertexlayout.cpp"),
+        path.join(BGFX_DIR, "src/shader.cpp")
+    )
+    add_includedirs(
+        path.join(BIMG_DIR, "include"),
+        path.join(BGFX_DIR, "include"),
+        SHADERC_DIR,
+        path.join(DORA_ROOT, "Source/3rdParty"),
+        GLSLANG_DIR,
+        path.join(GLSLANG_DIR, "glslang/Public"),
+        path.join(GLSLANG_DIR, "glslang/Include"),
+        SPIRV_CROSS_DIR,
+        path.join(SPIRV_TOOLS_DIR, "include")
+    )
+    add_deps("bx", "glslang", "spirv-cross", "spirv-opt")
+    if is_plat("linux", "android") then
+        add_syslinks("pthread", "dl")
         add_cxxflags("-fPIC", {force = true})
     end

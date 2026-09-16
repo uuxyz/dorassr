@@ -338,11 +338,6 @@ static DoraShadercResult compileSourceInternal(
     bgfxOpts.outputFilePath.clear();
     bgfxOpts.optimize = options->optimize != 0;
     bgfxOpts.debugInformation = options->debug != 0;
-    if (options->fileOps) {
-        bgfxOpts.getFileSize = options->fileOps->getFileSize;
-        bgfxOpts.readFile = options->fileOps->readFile;
-        bgfxOpts.fileReaderUserData = options->fileOps->userData;
-    }
 
     if (options->includeDirs && options->includeDirCount > 0) {
         for (int i = 0; i < options->includeDirCount; i++) {

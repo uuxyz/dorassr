@@ -3,6 +3,15 @@ project(Dora-SSR)
 
 set(CMAKE_CXX_STANDARD 20)
 
+# 新版 bx 的 SIMD 路径以 SSE4.2 为最低规格（simd_t.h 直接包含 smmintrin/nmmintrin）
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "(x86)|(X86)|(amd64)|(AMD64)")
+	add_compile_options(-msse4.2)
+	# 嵌入着色器不含 dxbc 变体（其生成依赖 Windows SDK，见 Tools/ShaderGen）
+	add_compile_options(-DBGFX_PLATFORM_SUPPORTS_DXBC=0)
+	# wgsl 生成需要 tint（shaderc 未编译进 tint，见 Tools/ShaderGen）
+	add_compile_options(-DBGFX_PLATFORM_SUPPORTS_WGSL=0)
+endif()
+
 set(DORA_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../..)
 set(DORA_SOURCE_ROOT ${DORA_ROOT}/Source)
 set(DORA_BGFX_ROOT ${DORA_SOURCE_ROOT}/3rdParty/bgfx)
@@ -111,16 +120,22 @@ set_target_properties(
 	${DORA_BGFX_BUILD_DIR}/libbimg_decode.a
 )
 
-add_library(FCPP-lib STATIC IMPORTED)
+add_library(GLSLANG-lib STATIC IMPORTED)
 set_target_properties(
-	FCPP-lib PROPERTIES IMPORTED_LOCATION
-	${DORA_BGFX_BUILD_DIR}/libfcpp.a
+	GLSLANG-lib PROPERTIES IMPORTED_LOCATION
+	${DORA_BGFX_BUILD_DIR}/libglslang.a
 )
 
-add_library(GLSLO-lib STATIC IMPORTED)
+add_library(SPIRVCROSS-lib STATIC IMPORTED)
 set_target_properties(
-	GLSLO-lib PROPERTIES IMPORTED_LOCATION
-	${DORA_BGFX_BUILD_DIR}/libglsl_optimizer.a
+	SPIRVCROSS-lib PROPERTIES IMPORTED_LOCATION
+	${DORA_BGFX_BUILD_DIR}/libspirv-cross.a
+)
+
+add_library(SPIRVOPT-lib STATIC IMPORTED)
+set_target_properties(
+	SPIRVOPT-lib PROPERTIES IMPORTED_LOCATION
+	${DORA_BGFX_BUILD_DIR}/libspirv-opt.a
 )
 
 add_library(SHADERC-lib STATIC IMPORTED)
@@ -159,4 +174,4 @@ include("${DORA_ROOT}/Projects/CMake/DoraGeneratedSources.cmake")
 add_executable(dora-ssr ${DORA_ENGINE_SOURCES})
 dora_add_generated_lua_sources(dora-ssr)
 
-target_link_libraries(dora-ssr z SDL2-lib LOVE-lib THEORA-lib BGFX-lib BIMGDE-lib BIMG-lib SHADERC-lib GLSLO-lib FCPP-lib BX-lib ${DORA_RENDER_LINK_LIBS} ${DBUS_LINK_LIBRARIES} DORA-lib WA-lib m dl pthread rt)
+target_link_libraries(dora-ssr z SDL2-lib LOVE-lib THEORA-lib BGFX-lib BIMGDE-lib BIMG-lib SHADERC-lib GLSLANG-lib SPIRVCROSS-lib SPIRVOPT-lib BX-lib ${DORA_RENDER_LINK_LIBS} ${DBUS_LINK_LIBRARIES} DORA-lib WA-lib m dl pthread rt)
