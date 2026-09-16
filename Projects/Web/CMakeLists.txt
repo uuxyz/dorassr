@@ -419,6 +419,7 @@ if(DORA_WEB_LINK_PLAYER)
 		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-headers/include"
 		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-tools"
 		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-tools/include"
+		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-tools/include/generated"
 		"${DORA_SOURCE_ROOT}/3rdParty/shaderc"
 		"${DORA_SOURCE_ROOT}/3rdParty/theora/include"
 		"${DORA_SOURCE_ROOT}/3rdParty/theora/Source"
