@@ -39,7 +39,7 @@ esac
 cd "$SCRIPT_DIR/../.."
 
 # Xcode 工程由 CMake 生成（单一构建约定来源，见 Projects/apple/AppleApp.cmake）
-cmake -B Projects/macOS/build-cmake -G Xcode \
+cmake -S Projects/macOS -B Projects/macOS/build-cmake -G Xcode \
 	-DCMAKE_BUILD_TYPE="$XCODE_CONFIGURATION" \
 	-DCMAKE_OSX_ARCHITECTURES="$XCODE_ARCH" \
 	-DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO

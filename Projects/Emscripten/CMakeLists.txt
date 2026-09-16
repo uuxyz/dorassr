@@ -176,8 +176,8 @@ file(GLOB DORA_SPIRV_TOOLS_WASM_SOURCES CONFIGURE_DEPENDS
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-tools/source/opt/*.cpp"
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-tools/source/val/*.cpp"
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-tools/source/*.cpp"
-list(FILTER DORA_SPIRV_TOOLS_WASM_SOURCES EXCLUDE REGEX "/mimalloc\.cpp$")
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-tools/source/util/*.cpp")
+list(FILTER DORA_SPIRV_TOOLS_WASM_SOURCES EXCLUDE REGEX "/mimalloc\.cpp$")
 file(GLOB DORA_SPIRV_CROSS_WASM_SOURCES CONFIGURE_DEPENDS
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-cross/*.cpp")
 list(FILTER DORA_SPIRV_CROSS_WASM_SOURCES EXCLUDE REGEX "spirv_cross_c\.cpp$")

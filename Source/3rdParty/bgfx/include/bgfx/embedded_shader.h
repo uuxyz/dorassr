@@ -88,6 +88,12 @@
 		)
 #endif // BGFX_PLATFORM_SUPPORTS_SPIRV
 
+// Dora: dxil variants are not generated on CI (DXC requires dxcompiler.dll);
+// platforms that generate them must define BGFX_PLATFORM_SUPPORTS_DXIL=1.
+#ifndef BGFX_PLATFORM_SUPPORTS_DXIL
+#	define BGFX_PLATFORM_SUPPORTS_DXIL 0
+#endif // BGFX_PLATFORM_SUPPORTS_DXIL
+
 // Dora: wgsl variants are not generated (shaderc needs tint); platforms that
 // generate them must define BGFX_PLATFORM_SUPPORTS_WGSL=1 explicitly.
 #ifndef BGFX_PLATFORM_SUPPORTS_WGSL
