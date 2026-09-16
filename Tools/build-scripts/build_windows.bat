@@ -17,6 +17,9 @@ if /I "%BUILD_MODE%"=="release" (
 call "%SCRIPT_DIR%build_lib_windows.bat" %BUILD_MODE%
 if errorlevel 1 exit /b %errorlevel%
 
+call "%SCRIPT_DIR%regen_shaders_windows.bat" %BUILD_MODE%
+if errorlevel 1 exit /b %errorlevel%
+
 msbuild ..\..\Projects\Windows\Dora.sln -p:Configuration=%MSBUILD_CONFIGURATION%
 if errorlevel 1 exit /b %errorlevel%
 
