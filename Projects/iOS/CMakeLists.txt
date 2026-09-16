@@ -10,5 +10,6 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(DORA_APPLE_PLATFORM ios)
+set(DORA_IOS_VARIANT simulator CACHE STRING "Which prebuilt iOS bgfx libraries to link (simulator/device)")
 include("${CMAKE_CURRENT_SOURCE_DIR}/../apple/AppleApp.cmake")
 dora_add_apple_app(TARGET Dora PLATFORM ${DORA_APPLE_PLATFORM})

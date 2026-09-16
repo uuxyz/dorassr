@@ -30,8 +30,16 @@ function(dora_add_apple_app)
 		set(DORA_BX_COMPAT ios)
 	endif()
 
-	# ---- 预编译库路径（与 Tools/build-scripts 的产物布局一致）----
-	set(DORA_BGFX_LIB_DIR "${DORA_BGFX_ROOT}/build/${platform}/${DORA_BUILD_STYLE}")
+	# ---- 预编译库路径（与 Tools/build-scripts 的产物布局一致；
+	#      注意 xmake 平台名是 macosx/iphoneos，iOS 库分 device/simulator）----
+	if(platform STREQUAL "macos")
+		set(DORA_BGFX_LIB_DIR "${DORA_BGFX_ROOT}/build/macosx/universal")
+	else()
+		if(NOT DORA_IOS_VARIANT)
+			set(DORA_IOS_VARIANT simulator)
+		endif()
+		set(DORA_BGFX_LIB_DIR "${DORA_BGFX_ROOT}/build/ios/${DORA_IOS_VARIANT}")
+	endif()
 	set(DORA_SDL2_LIB "${DORA_SDL2_ROOT}/Lib/${DORA_LIB_SUFFIX}/libSDL2.a")
 	set(DORA_LOVE_LIB "${DORA_SOURCE_ROOT}/3rdParty/Love/Artifacts/${DORA_LIB_SUFFIX}/liblove.a")
 	set(DORA_THEORA_LIB "${DORA_SOURCE_ROOT}/3rdParty/theora/Lib/${DORA_LIB_SUFFIX}/libtheoradec.a")
