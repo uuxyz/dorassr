@@ -427,11 +427,11 @@ local function add_platform_links()
     elseif is_plat("macosx") then
         -- GENie 脚本中的完整框架列表
         add_frameworks("Cocoa", "IOKit", "OpenGL", "QuartzCore")
-        -- Metal 框架使用 weak linking（旧系统可能没有）
-        add_ldflags("-weak_framework", "Metal", "-weak_framework", "MetalKit", {force = true})
+        -- Metal 渲染器 + 视频解码（新 Metal 后端与 h264/l-smash）
+        add_frameworks("Metal", "MetalKit", "CoreVideo", "CoreMedia", "Foundation")
     elseif is_plat("iphoneos") then
         add_frameworks("Foundation", "QuartzCore", "UIKit")
-        add_ldflags("-weak_framework", "Metal", "-weak_framework", "MetalKit", {force = true})
+        add_frameworks("Metal", "MetalKit", "CoreVideo", "CoreMedia")
     elseif is_plat("windows") then
         add_syslinks("gdi32", "psapi", "dxgi", "d3d11", "d3d12", "opengl32")
     elseif is_plat("android") then
@@ -520,6 +520,12 @@ target("bimg_decode")
 
 -- bgfx 渲染库
 local function add_bgfx_sources()
+    if is_plat("macosx", "iphoneos") then
+        -- 新版 Metal 渲染器（renderer_mtl.cpp + video_mtl.cpp）依赖同一翻译
+        -- 单元里 metal-cpp 的声明顺序，与上游一致使用 amalgamated 编译。
+        add_files(path.join(BGFX_DIR, "src/amalgamated.cpp"))
+        return
+    end
     add_files(table.unpack(resolve_sources(BGFX_DIR, bgfx_src)))
     if is_plat("windows") then
         add_files(table.unpack(resolve_sources(BGFX_DIR, bgfx_windows_src)))
