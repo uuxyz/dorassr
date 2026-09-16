@@ -20,7 +20,15 @@ if errorlevel 1 exit /b %errorlevel%
 call "%SCRIPT_DIR%regen_shaders_windows.bat" %BUILD_MODE%
 if errorlevel 1 exit /b %errorlevel%
 
-msbuild ..\..\Projects\Windows\Dora.sln -p:Configuration=%MSBUILD_CONFIGURATION%
+rem 应用目标由 xmake 构建（取代 Dora.vcxproj/Dora.sln）
+pushd "%SCRIPT_DIR%..\..\Projects\Windows"
+xmake f -c -p windows -a x86 -m %BUILD_MODE% -y
+if errorlevel 1 exit /b 1
+xmake -j8 dora
+if errorlevel 1 exit /b 1
+popd
+
+echo Built APP in 'Projects\Windows\build\%BUILD_MODE%'
 if errorlevel 1 exit /b %errorlevel%
 
 echo Built APP in 'Projects\Windows\build\%MSBUILD_CONFIGURATION%'
