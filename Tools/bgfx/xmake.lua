@@ -428,10 +428,10 @@ local function add_platform_links()
         -- GENie 脚本中的完整框架列表
         add_frameworks("Cocoa", "IOKit", "OpenGL", "QuartzCore")
         -- Metal 渲染器 + 视频解码（新 Metal 后端与 h264/l-smash）
-        add_frameworks("Metal", "MetalKit", "CoreVideo", "CoreMedia", "Foundation")
+        add_frameworks("Metal", "MetalKit", "CoreVideo", "CoreMedia", "VideoToolbox", "Foundation")
     elseif is_plat("iphoneos") then
         add_frameworks("Foundation", "QuartzCore", "UIKit")
-        add_frameworks("Metal", "MetalKit", "CoreVideo", "CoreMedia")
+        add_frameworks("Metal", "MetalKit", "CoreVideo", "CoreMedia", "VideoToolbox")
     elseif is_plat("windows") then
         add_syslinks("gdi32", "psapi", "dxgi", "d3d11", "d3d12", "opengl32")
     elseif is_plat("android") then
@@ -523,6 +523,8 @@ local function add_bgfx_sources()
     if is_plat("macosx", "iphoneos") then
         -- 新版 Metal 渲染器（renderer_mtl.cpp + video_mtl.cpp）依赖同一翻译
         -- 单元里 metal-cpp 的声明顺序，与上游一致使用 amalgamated 编译。
+        -- 上游同时以 objective-c++ 编译 bgfx 源（CoreVideo 的 Metal 类型需要）。
+        add_cxxflags("-x objective-c++", {force = true})
         add_files(path.join(BGFX_DIR, "src/amalgamated.cpp"))
         return
     end

@@ -67,7 +67,9 @@ jobs:
       - name: Regenerate embedded shaders (adds dxbc/dxil variants)
         shell: bash
         run: |
-          cd Tools/bgfx && xmake -j8 shaderc-cli
+          cd Tools/bgfx
+          xmake f -c -p windows -a x64 -m release --toolset=msc -y
+          xmake -j8 shaderc-cli
           cd ../..
           bash Tools/ShaderGen/buildShaderWindows.sh
       - name: Windows build
