@@ -3,13 +3,14 @@ project(Dora-SSR)
 
 set(CMAKE_CXX_STANDARD 20)
 
+# 嵌入着色器不含 dxbc 变体（其生成依赖 Windows SDK，见 Tools/ShaderGen）；
+# wgsl 生成需要 tint（shaderc 未编译进 tint）。
+add_compile_options(-DBGFX_PLATFORM_SUPPORTS_DXBC=0)
+add_compile_options(-DBGFX_PLATFORM_SUPPORTS_WGSL=0)
+
 # 新版 bx 的 SIMD 路径以 SSE4.2 为最低规格（simd_t.h 直接包含 smmintrin/nmmintrin）
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "(x86)|(X86)|(amd64)|(AMD64)")
 	add_compile_options(-msse4.2)
-	# 嵌入着色器不含 dxbc 变体（其生成依赖 Windows SDK，见 Tools/ShaderGen）
-	add_compile_options(-DBGFX_PLATFORM_SUPPORTS_DXBC=0)
-	# wgsl 生成需要 tint（shaderc 未编译进 tint，见 Tools/ShaderGen）
-	add_compile_options(-DBGFX_PLATFORM_SUPPORTS_WGSL=0)
 endif()
 
 set(DORA_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../..)

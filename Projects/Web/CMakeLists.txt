@@ -369,8 +369,13 @@ if(DORA_WEB_LINK_PLAYER)
 		DORA_EMSCRIPTEN
 		BGFX_CONFIG_RENDERER_OPENGLES=30
 		BGFX_CONFIG_MAX_FRAME_BUFFERS=256
+		BIMG_CONFIG_PARSE_AVIF=0
+		BIMG_CONFIG_PARSE_WEBP=0
+		BGFX_PLATFORM_SUPPORTS_WGSL=0
 		DORA_SHADERC_WEB_RUNTIME
 		SHADERC_CONFIG_CLI=0
+		SHADERC_CONFIG_NO_MAIN=1
+		SHADERC_EMBEDDED=1
 		SHADERC_CONFIG_GLSL=1
 		SHADERC_CONFIG_HLSL=0
 		SHADERC_CONFIG_METAL=0
@@ -399,11 +404,11 @@ if(DORA_WEB_LINK_PLAYER)
 		"${DORA_SOURCE_ROOT}/3rdParty/bimg/3rdparty/astc-encoder/include"
 		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/include"
 		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty"
-		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/fcpp"
-		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glsl-optimizer/include"
-		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glsl-optimizer/src"
-		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glsl-optimizer/src/mesa"
-		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glsl-optimizer/src/glsl"
+		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glslang"
+		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-cross"
+		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-headers/include"
+		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-tools"
+		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-tools/include"
 		"${DORA_SOURCE_ROOT}/3rdParty/shaderc"
 		"${DORA_SOURCE_ROOT}/3rdParty/theora/include"
 		"${DORA_SOURCE_ROOT}/3rdParty/theora/Source"
