@@ -56,7 +56,7 @@
 namespace spv {
     #include "GLSL.ext.KHR.h"
     #include "GLSL.ext.EXT.h"
-    #include "NonSemanticShaderDebugInfo100.h"
+    #include "NonSemanticShaderDebugInfo.h"
 }
 
 #include <algorithm>
@@ -82,7 +82,239 @@ typedef enum {
     Spv_1_6 = (1 << 16) | (6 << 8),
 } SpvVersion;
 
+struct StructMemberDebugInfo {
+    std::string name {};
+    int line {0};
+    int column {0};
+    // Set if the caller knows a better debug type than what is associated with the functional SPIR-V type.
+    spv::Id debugTypeOverride {0};
+};
+
 class Builder {
+    class CompositeConstantKey {
+    public:
+        enum Kind {
+            Key_Instruction,
+            Key_CompositeConstant,
+        };
+
+        CompositeConstantKey(
+            Op typeClass, Instruction* instruction)
+        : kind(Key_Instruction)
+        , instruction(instruction)
+        , typeClass(typeClass)
+        , opcode(Op::OpNop)
+        , typeId(NoType)
+        , numMembers(0)
+        , comps()
+        {}
+
+        CompositeConstantKey(
+            Op typeClass, Op opcode, Id typeId, const std::vector<Id>& comps, size_t numMembers)
+        : kind(Key_CompositeConstant)
+        , instruction(nullptr)
+        , typeClass(typeClass)
+        , opcode(opcode)
+        , typeId(typeId)
+        , numMembers(numMembers)
+        , comps(comps)
+        {}
+
+        Instruction* getInstruction() const {
+            return instruction;
+        }
+
+        // Functor to hash an instruction key.
+        struct Hash {
+            size_t operator()(CompositeConstantKey const &key) const {
+                switch (key.kind) {
+                case Key_Instruction:
+                    {
+                        Instruction* constant = key.instruction;
+                        size_t num_operands = constant->getNumOperands();
+                        size_t hash = std::hash<Op>()(key.typeClass) * 7 ^
+                            std::hash<Op>()(constant->getOpCode()) * 11 ^
+                            std::hash<Id>()(constant->getTypeId()) * 13 ^
+                            std::hash<size_t>()(num_operands) * 17;
+                        for (size_t i = 0; i < num_operands; ++i) {
+                            hash = hash * 19 ^ std::hash<Id>()(constant->getIdOperand(i));
+                        }
+                        return hash;
+                    }
+                case Key_CompositeConstant:
+                    {
+                        size_t hash = std::hash<Op>()(key.typeClass) * 7 ^
+                            std::hash<Op>()(key.opcode) * 11 ^
+                            std::hash<Id>()(key.typeId) * 13 ^
+                            std::hash<size_t>()(key.numMembers) * 17;
+                        for (size_t i = 0; i < key.numMembers; ++i) {
+                            hash = hash * 19 ^ std::hash<Id>()(key.comps[i]);
+                        }
+                        return hash;
+                    }
+                }
+                return 0;
+            }
+        };
+
+        // Functor to compare two instruction keys.
+        struct Equal {
+            bool operator() (CompositeConstantKey const &a, CompositeConstantKey const &b) const
+            {
+                if (a.typeClass != b.typeClass)
+                    return false;
+
+                if (a.kind == b.kind) {
+                    // we need only the Instruction case, as the other keys only used for searching
+                    return
+                        a.kind == Key_Instruction &&
+                        a.instruction == b.instruction;
+                }
+                const CompositeConstantKey* s = &a;
+                const CompositeConstantKey* o = &b;
+
+                if (s->kind == Key_CompositeConstant && o->kind == Key_Instruction) {
+                    s = o;
+                    o = &a;
+                }
+
+                // compare a composite constant with an instruction
+                if (s->kind == Key_Instruction && o->kind == Key_CompositeConstant) {
+                    Instruction* constant = s->instruction;
+                    if (constant->getTypeId() != o->typeId)
+                        return false;
+
+                    if (constant->getOpCode() != o->opcode) {
+                        return false;
+                    }
+
+                    if (constant->getNumOperands() != (int)o->numMembers)
+                        return false;
+
+                    // same contents?
+                    for (int op = 0; op < constant->getNumOperands(); ++op) {
+                        if (constant->getIdOperand(op) != o->comps[op]) {
+                            return false;
+                        }
+                    }
+                    return true;
+                }
+                return false;
+            }
+        };
+
+    private:
+        Kind kind;
+        Instruction* instruction;
+        Op typeClass;
+        Op opcode;
+        Id typeId;
+        size_t numMembers;
+        std::vector<Id> comps;
+    };
+
+    class StructConstantKey {
+    public:
+        enum Kind {
+            Key_Instruction,
+            Key_StructConstant,
+        };
+
+        StructConstantKey(
+            Instruction* instruction)
+        : kind(Key_Instruction)
+        , instruction(instruction)
+        , typeId(NoType)
+        , numMembers(0)
+        , comps()
+        {}
+
+        StructConstantKey(
+            Id typeId, const std::vector<Id>& comps, size_t numMembers)
+        : kind(Key_StructConstant)
+        , instruction(nullptr)
+        , typeId(typeId)
+        , numMembers(numMembers)
+        , comps(comps)
+        {}
+
+        Instruction* getInstruction() const {
+            return instruction;
+        }
+
+        // Functor to hash an instruction key.
+        struct Hash {
+            size_t operator()(StructConstantKey const &key) const {
+                switch (key.kind) {
+                case Key_Instruction:
+                    {
+                        Instruction* constant = key.instruction;
+                        size_t hash = std::hash<Id>()(constant->getTypeId()) * 13;
+                        for (size_t i = 0, n = constant->getNumOperands(); i < n; ++i) {
+                            hash = hash * 19 ^ std::hash<Id>()(constant->getIdOperand(i));
+                        }
+                        return hash;
+                    }
+                case Key_StructConstant:
+                    {
+                        size_t hash = std::hash<Id>()(key.typeId) * 13;
+                        for (size_t i = 0; i < key.numMembers; ++i) {
+                            hash = hash * 19 ^ std::hash<Id>()(key.comps[i]);
+                        }
+                        return hash;
+                    }
+                }
+                return 0;
+            }
+        };
+
+        // Functor to compare two instruction keys.
+        struct Equal {
+            bool operator() (StructConstantKey const &a, StructConstantKey const &b) const
+            {
+                if (a.kind == b.kind) {
+                    // we need only the Instruction case, as the other keys only used for searching
+                    return
+                        a.kind == Key_Instruction &&
+                        a.instruction == b.instruction;
+                }
+                const StructConstantKey* s = &a;
+                const StructConstantKey* o = &b;
+
+                if (s->kind == Key_StructConstant && o->kind == Key_Instruction) {
+                    s = o;
+                    o = &a;
+                }
+
+                // compare a composite constant with an instruction
+                if (s->kind == Key_Instruction && o->kind == Key_StructConstant) {
+                    Instruction* constant = s->instruction;
+                    if (constant->getTypeId() != o->typeId)
+                        return false;
+
+                    if (constant->getNumOperands() != (int)o->numMembers)
+                        return false;
+
+                    // same contents?
+                    for (int op = 0; op < constant->getNumOperands(); ++op) {
+                        if (constant->getIdOperand(op) != o->comps[op]) {
+                            return false;
+                        }
+                    }
+                    return true;
+                }
+                return false;
+            }
+        };
+
+    private:
+        Kind kind;
+        Instruction* instruction;
+        Id typeId;
+        size_t numMembers;
+        std::vector<Id> comps;
+    };
+
 public:
     Builder(unsigned int spvVersion, unsigned int userNumber, SpvBuildLogger* logger);
     virtual ~Builder();
@@ -130,7 +362,7 @@ public:
         if (trackDebugInfo) {
             dirtyLineTracker = true;
             if (line != 0) {
-                // TODO: This is special handling of some AST nodes having (untracked) line 0. 
+                // TODO: This is special handling of some AST nodes having (untracked) line 0.
                 //       But they should have a valid line number.
                 currentLine = line;
                 if (filename) {
@@ -198,12 +430,31 @@ public:
         return id;
     }
 
+    // Maps the given OpType Id to a Non-Semantic DebugType Id.
+    Id getDebugType(Id type) {
+        if (auto it = debugTypeIdLookup.find(type); it != debugTypeIdLookup.end()) {
+            return it->second;
+        }
+        
+        return NoType;
+    }
+
+    // Maps the given OpFunction Id to a Non-Semantic DebugFunction Id.
+    Id getDebugFunction(Id func) {
+        if (auto it = debugFuncIdLookup.find(func); it != debugFuncIdLookup.end()) {
+            return it->second;
+        }
+        
+        return NoResult;
+    }
+
     // For creating new types (will return old type if the requested one was already made).
     Id makeVoidType();
     Id makeBoolType();
     Id makePointer(StorageClass, Id pointee);
     Id makeForwardPointer(StorageClass);
     Id makePointerFromForwardPointer(StorageClass, Id forwardPointerType, Id pointee);
+    Id makeUntypedPointer(StorageClass storageClass, bool setBufferPointer = false);
     Id makeIntegerType(int width, bool hasSign);   // generic
     Id makeIntType(int width) { return makeIntegerType(width, true); }
     Id makeUintType(int width) { return makeIntegerType(width, false); }
@@ -211,16 +462,23 @@ public:
     Id makeBFloat16Type();
     Id makeFloatE5M2Type();
     Id makeFloatE4M3Type();
-    Id makeStructType(const std::vector<Id>& members, const char* name, bool const compilerGenerated = true);
+    Id makeFloatE2M1Type();
+    Id makeFloatE3M2Type();
+    Id makeFloatE2M3Type();
+    Id makeFloatUE8M0Type();
+    Id makeFloatMXINT8Type();
+    Id makeFloatOcpMicroscalingType(uint32_t width, FPEncoding encoding, Capability cap);
+    Id makeStructType(const std::vector<Id>& members, const std::vector<spv::StructMemberDebugInfo>& memberDebugInfo,
+                      const char* name, bool const compilerGenerated = true);
     Id makeStructResultType(Id type0, Id type1);
     Id makeVectorType(Id component, int size);
     Id makeMatrixType(Id component, int cols, int rows);
     Id makeArrayType(Id element, Id sizeId, int stride);  // 0 stride means no stride decoration
     Id makeRuntimeArray(Id element);
     Id makeFunctionType(Id returnType, const std::vector<Id>& paramTypes);
-    Id makeImageType(Id sampledType, Dim, bool depth, bool arrayed, bool ms, unsigned sampled, ImageFormat format);
-    Id makeSamplerType();
-    Id makeSampledImageType(Id imageType);
+    Id makeImageType(Id sampledType, Dim, bool depth, bool arrayed, bool ms, unsigned sampled, ImageFormat format, const char* debugNames);
+    Id makeSamplerType(const char* debugName);
+    Id makeSampledImageType(Id imageType, const char* debugName);
     Id makeCooperativeMatrixTypeKHR(Id component, Id scope, Id rows, Id cols, Id use);
     Id makeCooperativeMatrixTypeNV(Id component, Id scope, Id rows, Id cols);
     Id makeCooperativeMatrixTypeWithSameShape(Id component, Id otherType);
@@ -229,23 +487,20 @@ public:
     Id makeGenericType(spv::Op opcode, std::vector<spv::IdImmediate>& operands);
 
     // SPIR-V NonSemantic Shader DebugInfo Instructions
-    struct DebugTypeLoc {
-        std::string name {};
-        int line {0};
-        int column {0};
-    };
-    std::unordered_map<Id, DebugTypeLoc> debugTypeLocs;
     Id makeDebugInfoNone();
     Id makeBoolDebugType(int const size);
     Id makeIntegerDebugType(int const width, bool const hasSign);
-    Id makeFloatDebugType(int const width);
-    Id makeSequentialDebugType(Id const baseType, Id const componentCount, NonSemanticShaderDebugInfo100Instructions const sequenceType);
+    Id makeFloatDebugType(int const width, Id const fpEncoding = NoType);
+    Id makeSequentialDebugType(Id const baseType, Id const componentCount, NonSemanticShaderDebugInfoInstructions const sequenceType);
     Id makeArrayDebugType(Id const baseType, Id const componentCount);
     Id makeVectorDebugType(Id const baseType, int const componentCount);
     Id makeMatrixDebugType(Id const vectorType, int const vectorCount, bool columnMajor = true);
-    Id makeMemberDebugType(Id const memberType, DebugTypeLoc const& debugTypeLoc);
-    Id makeCompositeDebugType(std::vector<Id> const& memberTypes, char const*const name,
-        NonSemanticShaderDebugInfo100DebugCompositeType const tag, bool const isOpaqueType = false);
+    Id makeMemberDebugType(Id const memberType, StructMemberDebugInfo const& debugTypeLoc);
+    Id makeCompositeDebugType(std::vector<Id> const& memberTypes, std::vector<StructMemberDebugInfo> const& memberDebugInfo,
+                              char const* const name, NonSemanticShaderDebugInfoDebugCompositeType const tag);
+    Id makeOpaqueDebugType(char const* const name);
+    Id makeVectorIdDebugType(Id componentType, Id componentCount);
+    Id makeCooperativeMatrixDebugTypeKHR(Id componentType, Id scope, Id rows, Id cols, Id use);
     Id makePointerDebugType(StorageClass storageClass, Id const baseType);
     Id makeForwardPointerDebugType(StorageClass storageClass);
     Id makeDebugSource(const Id fileName);
@@ -272,6 +527,8 @@ public:
     Id makeRayQueryType();
     // hitObjectNV type
     Id makeHitObjectNVType();
+    // hitObjectEXT type
+    Id makeHitObjectEXTType();
 
     // For querying about types.
     Id getTypeId(Id resultId) const { return module.getTypeId(resultId); }
@@ -293,6 +550,14 @@ public:
     Id getCooperativeVectorNumComponents(Id typeId) const { return module.getInstruction(typeId)->getIdOperand(1); }
 
     bool isPointer(Id resultId)      const { return isPointerType(getTypeId(resultId)); }
+    bool isUntypedPointer(Id resultId) const
+    {
+        const Id tid = getTypeId(resultId);
+        // Expect that OpString have no type
+        if (tid == 0)
+            return false;
+        return isUntypedPointerType(tid);
+    }
     bool isScalar(Id resultId)       const { return isScalarType(getTypeId(resultId)); }
     bool isVector(Id resultId)       const { return isVectorType(getTypeId(resultId)); }
     bool isMatrix(Id resultId)       const { return isMatrixType(getTypeId(resultId)); }
@@ -310,6 +575,7 @@ public:
         { return getTypeClass(typeId) == Op::OpTypeInt && module.getInstruction(typeId)->getImmediateOperand(1) == 0; }
     bool isFloatType(Id typeId)        const { return getTypeClass(typeId) == Op::OpTypeFloat; }
     bool isPointerType(Id typeId)      const { return getTypeClass(typeId) == Op::OpTypePointer; }
+    bool isUntypedPointerType(Id typeId) const { return getTypeClass(typeId) == Op::OpTypeUntypedPointerKHR; }
     bool isScalarType(Id typeId)       const
         { return getTypeClass(typeId) == Op::OpTypeFloat || getTypeClass(typeId) == Op::OpTypeInt ||
           getTypeClass(typeId) == Op::OpTypeBool; }
@@ -420,9 +686,19 @@ public:
     Id makeBFloat16Constant(float bf16, bool specConstant = false);
     Id makeFloatE5M2Constant(float fe5m2, bool specConstant = false);
     Id makeFloatE4M3Constant(float fe4m3, bool specConstant = false);
+    Id makeFloatE2M1Constant(float fe2m1, bool specConstant = false);
+    Id makeFloatE3M2Constant(float fe3m2, bool specConstant = false);
+    Id makeFloatE2M3Constant(float fe2m3, bool specConstant = false);
+    Id makeFloatUE8M0Constant(float fue8m0, bool specConstant = false);
+    Id makeFloatMXINT8Constant(float mxint8, bool specConstant = false);
     Id makeFpConstant(Id type, double d, bool specConstant = false);
 
     Id importNonSemanticShaderDebugInfoInstructions();
+    // Ensure the NonSemantic.Shader.DebugInfo import string names at least `version`.
+    // If the import instruction already exists, its name is patched in place.
+    // If it has not been created yet, importNonSemanticShaderDebugInfoInstructions()
+    // will use the updated version when it runs.
+    void requireNonSemanticShaderDebugInfoVersion(unsigned version);
 
     // Turn the array of constants into a proper spv constant of the requested type.
     Id makeCompositeConstant(Id type, const std::vector<Id>& comps, bool specConst = false);
@@ -445,11 +721,13 @@ public:
     void addMemberDecoration(Id, unsigned int member, Decoration, const char*);
     void addMemberDecoration(Id, unsigned int member, Decoration, const std::vector<unsigned>& literals);
     void addMemberDecoration(Id, unsigned int member, Decoration, const std::vector<const char*>& strings);
+    void addMemberDecorationIdEXT(Id, unsigned int member, Decoration, const std::vector<unsigned>& operands);
 
     // At the end of what block do the next create*() instructions go?
     // Also reset current last DebugScope and current source line to unknown
     void setBuildPoint(Block* bp) {
         buildPoint = bp;
+        descHeapShiftedBaseCache.clear();
         dirtyLineTracker = true;
         dirtyScopeTracker = true;
     }
@@ -499,12 +777,23 @@ public:
     // such as OpEmitMeshTasksEXT
     void makeStatementTerminator(spv::Op opcode, const std::vector<Id>& operands, const char* name);
 
+    // Create a global/local constant. Because OpConstant is automatically emitted by getting the constant
+    // ids, this function only handles debug info.
+    void createConstVariable(Id type, const char* name, Id constant, bool isGlobal);
+
     // Create a global or function local or IO variable.
     Id createVariable(Decoration precision, StorageClass storageClass, Id type, const char* name = nullptr,
         Id initializer = NoResult, bool const compilerGenerated = true);
 
+    // Create an untyped global or function local or IO variable.
+    Id createUntypedVariable(Decoration precision, StorageClass storageClass, const char* name = nullptr,
+                             Id dataType = NoResult, Id initializer = NoResult);
+
     // Create an intermediate with an undefined value.
     Id createUndefined(Id type);
+
+    // Create load/store instruction with a remapped descriptor heap base.
+    Instruction* createDescHeapLoadStoreBaseRemap(Id base, Op op);
 
     // Store into an Id and return the l-value
     void createStore(Id rValue, Id lValue, spv::MemoryAccessMask memoryAccess = spv::MemoryAccessMask::MaskNone,
@@ -518,8 +807,11 @@ public:
     // Create an OpAccessChain instruction
     Id createAccessChain(StorageClass, Id base, const std::vector<Id>& offsets);
 
+    // Create an OpUntypedAccessChainKHR instruction
+    Id createUntypedAccessChain(Id resultType, Id base, const std::vector<Id>& offsets, Id resultId = NoResult);
+
     // Create an OpArrayLength instruction
-    Id createArrayLength(Id base, unsigned int member);
+    Id createArrayLength(Id base, unsigned int member, unsigned int bits);
 
     // Create an OpCooperativeMatrixLengthKHR instruction
     Id createCooperativeMatrixLengthKHR(Id type);
@@ -540,14 +832,18 @@ public:
     void createNoResultOp(Op, const std::vector<Id>& operands);
     void createNoResultOp(Op, const std::vector<IdImmediate>& operands);
     void createControlBarrier(Scope execution, Scope memory, MemorySemanticsMask);
+    void createSplitControlBarrier(Op op, Scope execution, Scope memory, MemorySemanticsMask memorySem);
     void createMemoryBarrier(Scope executionScope, MemorySemanticsMask memorySemantics);
     Id createUnaryOp(Op, Id typeId, Id operand);
     Id createBinOp(Op, Id typeId, Id operand1, Id operand2);
     Id createTriOp(Op, Id typeId, Id operand1, Id operand2, Id operand3);
     Id createOp(Op, Id typeId, const std::vector<Id>& operands);
     Id createOp(Op, Id typeId, const std::vector<IdImmediate>& operands);
+    Id createConstData(Op opCode, Id typeId, const std::vector<const char*> operands);
     Id createFunctionCall(spv::Function*, const std::vector<spv::Id>&);
     Id createSpecConstantOp(Op, Id typeId, const std::vector<spv::Id>& operands, const std::vector<unsigned>& literals);
+    Id createSpecConstantAlignTo(Id value, Id alignment);
+    Id createSpecConstantSelectMax(Id lhs, Id rhs);
 
     // Take an rvalue (source) and a set of channels to extract from it to
     // make a new rvalue, which is returned.
@@ -609,6 +905,7 @@ public:
         Id lodClamp;
         Id granularity;
         Id coarse;
+        Id gatherMode;
         bool nonprivate;
         bool volatil;
         bool nontemporal;
@@ -762,6 +1059,19 @@ public:
         unsigned int alignment;        // bitwise OR of alignment values passed in. Accumulates worst alignment.
                                        // Only tracks base and (optional) component selection alignment.
 
+        struct DescHeapInfo {
+            Id descHeapBaseTy;                  // for descriptor heap, record its base data type.
+            Id descHeapBaseOffset;              // byte offset applied to the heap base before descriptor lookup.
+            std::vector<Id> descHeapIndexChain;
+            Id descTy;                          // for target resource type
+            StorageClass descStorageClass;      // for descriptor heap, record its basic storage class.
+            bool descReadonly;                  // for decorating OpBufferPointerEXT results.
+            bool descWriteonly;                 // for decorating OpBufferPointerEXT results.
+            std::vector<Instruction*> descHeapInstId;
+                                                // for descriptor heap, record its data type for loading/store results.
+        };
+        DescHeapInfo descHeapInfo;
+
         // Accumulate whether anything in the chain of structures has coherent decorations.
         struct CoherentFlags {
             CoherentFlags() { clear(); }
@@ -825,13 +1135,37 @@ public:
     AccessChain getAccessChain() { return accessChain; }
     void setAccessChain(AccessChain newChain) { accessChain = newChain; }
 
+    // for EXT_descriptor_heap and EXT_structured_descriptor_heap
+    Id getAccessChainDescHeapBaseType() const { return accessChain.descHeapInfo.descHeapBaseTy; }
+    void setAccessChainDescHeapBaseType(Id baseType) { accessChain.descHeapInfo.descHeapBaseTy = baseType; }
+    void setAccessChainDescHeapBaseOffset(Id baseOffset) { accessChain.descHeapInfo.descHeapBaseOffset = baseOffset; }
+    const std::vector<Id>& getAccessChainDescHeapIndexChain() const { return accessChain.descHeapInfo.descHeapIndexChain; }
+    void accessChainPushDescHeapIndex(Id index) { accessChain.descHeapInfo.descHeapIndexChain.push_back(index); }
+    bool hasAccessChainIndex() const { return !accessChain.indexChain.empty(); }
+    void moveAccessChainIndexToDescHeapIndexChain()
+    {
+        assert(accessChain.indexChain.size() == 1);
+        accessChainPushDescHeapIndex(accessChain.indexChain.back());
+        accessChain.indexChain.pop_back();
+    }
+    void setAccessChainDescHeapDescriptorType(Id descTy, StorageClass storageClass, bool readonly, bool writeonly)
+    {
+        accessChain.descHeapInfo.descTy = descTy;
+        accessChain.descHeapInfo.descStorageClass = storageClass;
+        accessChain.descHeapInfo.descReadonly = readonly;
+        accessChain.descHeapInfo.descWriteonly = writeonly;
+    }
+
     // clear accessChain
     void clearAccessChain();
+
+    Id createDescHeapAccessChain();
+    Id createConstantSizeOfEXT(Id typeId);
 
     // set new base as an l-value base
     void setAccessChainLValue(Id lValue)
     {
-        assert(isPointer(lValue));
+        assert(isPointer(lValue) || isUntypedPointer(lValue));
         accessChain.base = lValue;
     }
 
@@ -924,12 +1258,17 @@ public:
 
     void setUseReplicatedComposites(bool use) { useReplicatedComposites = use; }
 
- protected:
+private:
+    // Helper to get size of a scalar (in bytes)
+    unsigned int postProcessGetLargestScalarSize(const Instruction& type);
+
+protected:
     Id findScalarConstant(Op typeClass, Op opcode, Id typeId, unsigned value);
     Id findScalarConstant(Op typeClass, Op opcode, Id typeId, unsigned v1, unsigned v2);
     Id findCompositeConstant(Op typeClass, Op opcode, Id typeId, const std::vector<Id>& comps, size_t numMembers);
-    Id findStructConstant(Id typeId, const std::vector<Id>& comps);
+    Id findStructConstant(Id typeId, const std::vector<Id>& comps, size_t numMembers);
     Id collapseAccessChain();
+    Id getOrCreateDescHeapByteArrayType();
     void remapDynamicSwizzle();
     void transferAccessChainSwizzle(bool dynamic);
     void simplifyAccessChainSwizzle();
@@ -944,12 +1283,20 @@ public:
     struct DecorationInstructionLessThan {
         bool operator()(const std::unique_ptr<Instruction>& lhs, const std::unique_ptr<Instruction>& rhs) const;
     };
+    template <typename SpvUtilsType>
+    Id makeFloatConstantHelper(float f, Id typeId, bool specConstant);
 
     unsigned int spvVersion;     // the version of SPIR-V to emit in the header
     SourceLanguage sourceLang;
     int sourceVersion;
     spv::Id nonSemanticShaderCompilationUnitId {0};
     spv::Id nonSemanticShaderDebugInfo {0};
+    // Pointer to the OpExtInstImport instruction for NonSemantic.Shader.DebugInfo.
+    // Kept so requireNonSemanticShaderDebugInfoVersion() can patch the name in place.
+    Instruction* nonSemanticShaderDebugInfoImportInst {nullptr};
+    // Spec version encoded in the NonSemantic.Shader.DebugInfo import name.
+    // Defaults to 100. Promoted to N the first time a version-N opcode is emitted.
+    unsigned int nonSemanticShaderDebugInfoVersion{100};
     spv::Id debugInfoNone {0};
     spv::Id debugExpression {0}; // Debug expression with zero operations.
     std::string sourceText;
@@ -990,6 +1337,8 @@ public:
     Block* buildPoint;
     Id uniqueId;
     Function* entryPointFunction;
+    // This tracks the current function being built, or nullptr if not in a function.
+    Function const* currentFunction { nullptr };
     bool generatingOpCodeForSpecConst;
     bool useReplicatedComposites { false };
     AccessChain accessChain;
@@ -1007,16 +1356,86 @@ public:
 
     // not output, internally used for quick & dirty canonical (unique) creation
 
+    // Key for scalar constants (handles both 32-bit and 64-bit)
+    struct ScalarConstantKey {
+        unsigned int typeClass;  // OpTypeInt, OpTypeFloat, OpTypeBool
+        unsigned int opcode;     // OpConstant, OpSpecConstant, OpConstantTrue, etc.
+        Id typeId;               // The specific type
+        unsigned value1;         // First operand (or only operand)
+        unsigned value2;         // Second operand (0 for single-operand constants)
+
+        bool operator==(const ScalarConstantKey& other) const {
+            return typeClass == other.typeClass &&
+                   opcode == other.opcode &&
+                   typeId == other.typeId &&
+                   value1 == other.value1 &&
+                   value2 == other.value2;
+        }
+    };
+
+    struct ScalarConstantKeyHash {
+        // 64/32 bit mix function from MurmurHash3
+        inline std::size_t hash_mix(std::size_t h) const {
+            if constexpr (sizeof(std::size_t) == 8) {
+                h ^= h >> 33;
+                h *= UINT64_C(0xff51afd7ed558ccd);
+                h ^= h >> 33;
+                h *= UINT64_C(0xc4ceb9fe1a85ec53);
+                h ^= h >> 33;
+                return h;
+            } else {
+                h ^= h >> 16;
+                h *= UINT32_C(0x85ebca6b);
+                h ^= h >> 13;
+                h *= UINT32_C(0xc2b2ae35);
+                h ^= h >> 16;
+                return h;
+            }
+        }
+
+        // Hash combine from boost
+        inline std::size_t hash_combine(std::size_t seed, std::size_t v) const {
+            return hash_mix(seed + 0x9e3779b9 + v);
+        }
+        
+        std::size_t operator()(const ScalarConstantKey& k) const {
+            size_t hash1 = hash_combine(std::hash<unsigned>{}(k.typeClass), std::hash<unsigned>{}(k.opcode));
+            size_t hash2 = hash_combine(std::hash<Id>{}(k.value1), std::hash<unsigned>{}(k.value2));
+            size_t hash3 = hash_combine(hash1, hash2);
+            return hash_combine(hash3, std::hash<unsigned>{}(k.typeId));
+        }
+    };
+
+    typedef std::unordered_set<
+        CompositeConstantKey,
+        CompositeConstantKey::Hash,
+        CompositeConstantKey::Equal> CompositeConstantCache;
+
+    typedef std::unordered_set<
+        StructConstantKey,
+        StructConstantKey::Hash,
+        StructConstantKey::Equal> StructConstantCache;
+
     // map type opcodes to constant inst.
-    std::unordered_map<unsigned int, std::vector<Instruction*>> groupedConstants;
+    CompositeConstantCache groupedCompositeConstants;
     // map struct-id to constant instructions
-    std::unordered_map<unsigned int, std::vector<Instruction*>> groupedStructConstants;
+    StructConstantCache groupedStructConstants;
     // map type opcodes to type instructions
     std::unordered_map<unsigned int, std::vector<Instruction*>> groupedTypes;
     // map type opcodes to debug type instructions
     std::unordered_map<unsigned int, std::vector<Instruction*>> groupedDebugTypes;
     // list of OpConstantNull instructions
     std::vector<Instruction*> nullConstants;
+    // map scalar constants to result IDs
+    std::unordered_map<ScalarConstantKey, Id, ScalarConstantKeyHash> groupedScalarConstantResultIDs;
+    // map type ids to OpConstantSizeOfEXT result IDs
+    std::unordered_map<Id, Id> constantSizeOfEXTIds;
+
+    // Descriptor heap shifted base cache.
+    std::map<std::pair<Id, Id>, Id> descHeapShiftedBaseCache;
+
+    // Descriptor heap byte array type.
+    Id descHeapByteArrayType;
 
     // Track which types have explicit layouts, to avoid reusing in storage classes without layout.
     // Currently only tracks array types.
@@ -1034,8 +1453,11 @@ public:
     // map from include file name ids to their contents
     std::map<spv::Id, const std::string*> includeFiles;
 
-    // map from core id to debug id
-    std::map <spv::Id, spv::Id> debugId;
+    // maps from OpTypeXXX id to DebugTypeXXX id
+    std::unordered_map<spv::Id, spv::Id> debugTypeIdLookup;
+
+    // maps from OpFunction id to DebugFunction id
+    std::unordered_map<spv::Id, spv::Id> debugFuncIdLookup;
 
     // map from file name string id to DebugSource id
     std::unordered_map<spv::Id, spv::Id> debugSourceId;

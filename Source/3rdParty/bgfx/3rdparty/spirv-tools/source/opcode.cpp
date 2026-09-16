@@ -123,6 +123,7 @@ int32_t spvOpcodeIsSpecConstant(const spv::Op opcode) {
     case spv::Op::OpSpecConstantArchitectureINTEL:
     case spv::Op::OpSpecConstantTargetINTEL:
     case spv::Op::OpSpecConstantCapabilitiesINTEL:
+    case spv::Op::OpSpecConstantDataKHR:
       return true;
     default:
       return false;
@@ -153,6 +154,9 @@ int32_t spvOpcodeIsConstant(const spv::Op opcode) {
     case spv::Op::OpSpecConstantArchitectureINTEL:
     case spv::Op::OpSpecConstantTargetINTEL:
     case spv::Op::OpSpecConstantCapabilitiesINTEL:
+    case spv::Op::OpConstantSizeOfEXT:
+    case spv::Op::OpConstantDataKHR:
+    case spv::Op::OpSpecConstantDataKHR:
       return true;
     default:
       return false;
@@ -160,18 +164,8 @@ int32_t spvOpcodeIsConstant(const spv::Op opcode) {
 }
 
 bool spvOpcodeIsConstantOrUndef(const spv::Op opcode) {
-  return opcode == spv::Op::OpUndef || spvOpcodeIsConstant(opcode);
-}
-
-bool spvOpcodeIsScalarSpecConstant(const spv::Op opcode) {
-  switch (opcode) {
-    case spv::Op::OpSpecConstantTrue:
-    case spv::Op::OpSpecConstantFalse:
-    case spv::Op::OpSpecConstant:
-      return true;
-    default:
-      return false;
-  }
+  return opcode == spv::Op::OpUndef || opcode == spv::Op::OpPoisonKHR ||
+         spvOpcodeIsConstant(opcode);
 }
 
 int32_t spvOpcodeIsComposite(const spv::Op opcode) {
@@ -183,7 +177,7 @@ int32_t spvOpcodeIsComposite(const spv::Op opcode) {
     case spv::Op::OpTypeRuntimeArray:
     case spv::Op::OpTypeCooperativeMatrixNV:
     case spv::Op::OpTypeCooperativeMatrixKHR:
-    case spv::Op::OpTypeCooperativeVectorNV:
+    case spv::Op::OpTypeVectorIdEXT:
       return true;
     default:
       return false;
@@ -198,8 +192,10 @@ bool spvOpcodeReturnsLogicalVariablePointer(const spv::Op opcode) {
     case spv::Op::OpInBoundsAccessChain:
     case spv::Op::OpUntypedAccessChainKHR:
     case spv::Op::OpUntypedInBoundsAccessChainKHR:
+    case spv::Op::OpBufferPointerEXT:
     case spv::Op::OpFunctionParameter:
     case spv::Op::OpImageTexelPointer:
+    case spv::Op::OpUntypedImageTexelPointerEXT:
     case spv::Op::OpCopyObject:
     case spv::Op::OpAllocateNodePayloadsAMDX:
     case spv::Op::OpSelect:
@@ -224,8 +220,10 @@ int32_t spvOpcodeReturnsLogicalPointer(const spv::Op opcode) {
     case spv::Op::OpInBoundsAccessChain:
     case spv::Op::OpUntypedAccessChainKHR:
     case spv::Op::OpUntypedInBoundsAccessChainKHR:
+    case spv::Op::OpBufferPointerEXT:
     case spv::Op::OpFunctionParameter:
     case spv::Op::OpImageTexelPointer:
+    case spv::Op::OpUntypedImageTexelPointerEXT:
     case spv::Op::OpCopyObject:
     case spv::Op::OpRawAccessChainNV:
     case spv::Op::OpAllocateNodePayloadsAMDX:
@@ -262,11 +260,12 @@ int32_t spvOpcodeGeneratesType(spv::Op op) {
     case spv::Op::OpTypeAccelerationStructureNV:
     case spv::Op::OpTypeCooperativeMatrixNV:
     case spv::Op::OpTypeCooperativeMatrixKHR:
-    case spv::Op::OpTypeCooperativeVectorNV:
+    case spv::Op::OpTypeVectorIdEXT:
     // case spv::Op::OpTypeAccelerationStructureKHR: covered by
     // spv::Op::OpTypeAccelerationStructureNV
     case spv::Op::OpTypeRayQueryKHR:
     case spv::Op::OpTypeHitObjectNV:
+    case spv::Op::OpTypeHitObjectEXT:
     case spv::Op::OpTypeUntypedPointerKHR:
     case spv::Op::OpTypeNodePayloadArrayAMDX:
     case spv::Op::OpTypeTensorLayoutNV:
@@ -274,6 +273,7 @@ int32_t spvOpcodeGeneratesType(spv::Op op) {
     case spv::Op::OpTypeTensorARM:
     case spv::Op::OpTypeTaskSequenceINTEL:
     case spv::Op::OpTypeGraphARM:
+    case spv::Op::OpTypeBufferEXT:
       return true;
     default:
       // In particular, OpTypeForwardPointer does not generate a type,
@@ -289,6 +289,7 @@ bool spvOpcodeIsDecoration(const spv::Op opcode) {
     case spv::Op::OpDecorate:
     case spv::Op::OpDecorateId:
     case spv::Op::OpMemberDecorate:
+    case spv::Op::OpMemberDecorateIdEXT:
     case spv::Op::OpGroupDecorate:
     case spv::Op::OpGroupMemberDecorate:
     case spv::Op::OpDecorateStringGOOGLE:
@@ -392,6 +393,7 @@ bool spvOpcodeIsAbort(spv::Op opcode) {
     case spv::Op::OpTerminateRayKHR:
     case spv::Op::OpIgnoreIntersectionKHR:
     case spv::Op::OpEmitMeshTasksEXT:
+    case spv::Op::OpAbortKHR:
       return true;
     default:
       return false;

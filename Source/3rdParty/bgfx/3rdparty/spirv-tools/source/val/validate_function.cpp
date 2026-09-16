@@ -87,17 +87,17 @@ spv_result_t ValidateFunction(ValidationState_t& _, const Instruction* inst) {
       spv::Op::OpGetKernelLocalSizeForSubgroupCount,
       spv::Op::OpGetKernelMaxNumSubgroups,
       spv::Op::OpName,
-      spv::Op::OpCooperativeMatrixPerElementOpNV,
-      spv::Op::OpCooperativeMatrixReduceNV,
+      spv::Op::OpCooperativeMatrixPerElementOpEXT,
+      spv::Op::OpCooperativeMatrixReduceEXT,
       spv::Op::OpCooperativeMatrixLoadTensorNV,
       spv::Op::OpConditionalEntryPointINTEL,
-  };
-
+      spv::Op::OpConstantFunctionPointerINTEL};
   for (auto& pair : inst->uses()) {
     const auto* use = pair.first;
     if (std::find(acceptable.begin(), acceptable.end(), use->opcode()) ==
             acceptable.end() &&
-        !use->IsNonSemantic() && !use->IsDebugInfo()) {
+        !use->IsNonSemantic() && !use->IsDebugInfo() &&
+        !spvOpcodeIsDecoration(use->opcode())) {
       return _.diag(SPV_ERROR_INVALID_ID, use)
              << "Invalid use of function result id " << _.getIdName(inst->id())
              << ".";
@@ -170,6 +170,34 @@ spv_result_t ValidateFunctionCall(ValidationState_t& _,
            << "s type does not match Function <id> "
            << _.getIdName(return_type->id()) << "s return type.";
   }
+  if (!_.options()->relax_logical_pointer &&
+      (_.addressing_model() == spv::AddressingModel::Logical ||
+       _.addressing_model() == spv::AddressingModel::PhysicalStorageBuffer64)) {
+    if (return_type->opcode() == spv::Op::OpTypePointer ||
+        return_type->opcode() == spv::Op::OpTypeUntypedPointerKHR) {
+      const auto sc = return_type->GetOperandAs<spv::StorageClass>(1);
+      if (sc != spv::StorageClass::PhysicalStorageBuffer) {
+        if (!_.HasCapability(spv::Capability::VariablePointersStorageBuffer) &&
+            sc == spv::StorageClass::StorageBuffer) {
+          return _.diag(SPV_ERROR_INVALID_ID, inst)
+                 << "In Logical addressing, functions may only return a "
+                    "storage buffer pointer if the "
+                    "VariablePointersStorageBuffer capability is declared";
+        } else if (!_.HasCapability(spv::Capability::VariablePointers) &&
+                   sc == spv::StorageClass::Workgroup) {
+          return _.diag(SPV_ERROR_INVALID_ID, inst)
+                 << "In Logical addressing, functions may only return a "
+                    "workgroup pointer if the VariablePointers capability is "
+                    "declared";
+        } else if (sc != spv::StorageClass::StorageBuffer &&
+                   sc != spv::StorageClass::Workgroup) {
+          return _.diag(SPV_ERROR_INVALID_ID, inst)
+                 << "In Logical addressing, functions may not return a pointer "
+                    "in this storage class";
+        }
+      }
+    }
+  }
 
   const auto function_type_id = function->GetOperandAs<uint32_t>(3);
   const auto function_type = _.FindDef(function_type_id);
@@ -216,51 +244,59 @@ spv_result_t ValidateFunctionCall(ValidationState_t& _,
       }
     }
 
-    if (_.addressing_model() == spv::AddressingModel::Logical) {
+    if (_.addressing_model() == spv::AddressingModel::Logical ||
+        _.addressing_model() == spv::AddressingModel::PhysicalStorageBuffer64) {
       if ((parameter_type->opcode() == spv::Op::OpTypePointer ||
            parameter_type->opcode() == spv::Op::OpTypeUntypedPointerKHR) &&
           !_.options()->relax_logical_pointer) {
         spv::StorageClass sc =
             parameter_type->GetOperandAs<spv::StorageClass>(1u);
-        // Validate which storage classes can be pointer operands.
-        switch (sc) {
-          case spv::StorageClass::UniformConstant:
-          case spv::StorageClass::Function:
-          case spv::StorageClass::Private:
-          case spv::StorageClass::Workgroup:
-          case spv::StorageClass::AtomicCounter:
-            // These are always allowed.
-            break;
-          case spv::StorageClass::StorageBuffer:
-            if (!_.features().variable_pointers) {
+        if (sc != spv::StorageClass::PhysicalStorageBuffer) {
+          // Validate which storage classes can be pointer operands.
+          switch (sc) {
+            case spv::StorageClass::UniformConstant:
+            case spv::StorageClass::Function:
+            case spv::StorageClass::Private:
+            case spv::StorageClass::Workgroup:
+            case spv::StorageClass::AtomicCounter:
+            // SPV_EXT_tile_image
+            case spv::StorageClass::TileImageEXT:
+            // SPV_KHR_ray_tracing
+            case spv::StorageClass::ShaderRecordBufferKHR:
+              // These are always allowed.
+              break;
+            case spv::StorageClass::StorageBuffer:
+              if (!_.features().variable_pointers) {
+                return _.diag(SPV_ERROR_INVALID_ID, inst)
+                       << "StorageBuffer pointer operand "
+                       << _.getIdName(argument_id)
+                       << " requires a variable pointers capability";
+              }
+              break;
+            default:
               return _.diag(SPV_ERROR_INVALID_ID, inst)
-                     << "StorageBuffer pointer operand "
-                     << _.getIdName(argument_id)
-                     << " requires a variable pointers capability";
-            }
-            break;
-          default:
-            return _.diag(SPV_ERROR_INVALID_ID, inst)
-                   << "Invalid storage class for pointer operand "
-                   << _.getIdName(argument_id);
-        }
+                     << "Invalid storage class for pointer operand "
+                     << _.getIdName(argument_id);
+          }
 
-        // Validate memory object declaration requirements.
-        if (argument->opcode() != spv::Op::OpVariable &&
-            argument->opcode() != spv::Op::OpUntypedVariableKHR &&
-            argument->opcode() != spv::Op::OpFunctionParameter) {
-          const bool ssbo_vptr =
-              _.HasCapability(spv::Capability::VariablePointersStorageBuffer) &&
-              sc == spv::StorageClass::StorageBuffer;
-          const bool wg_vptr =
-              _.HasCapability(spv::Capability::VariablePointers) &&
-              sc == spv::StorageClass::Workgroup;
-          const bool uc_ptr = sc == spv::StorageClass::UniformConstant;
-          if (!_.options()->before_hlsl_legalization && !ssbo_vptr &&
-              !wg_vptr && !uc_ptr) {
-            return _.diag(SPV_ERROR_INVALID_ID, inst)
-                   << "Pointer operand " << _.getIdName(argument_id)
-                   << " must be a memory object declaration";
+          // Validate memory object declaration requirements.
+          if (argument->opcode() != spv::Op::OpVariable &&
+              argument->opcode() != spv::Op::OpUntypedVariableKHR &&
+              argument->opcode() != spv::Op::OpFunctionParameter) {
+            const bool ssbo_vptr =
+                _.HasCapability(
+                    spv::Capability::VariablePointersStorageBuffer) &&
+                sc == spv::StorageClass::StorageBuffer;
+            const bool wg_vptr =
+                _.HasCapability(spv::Capability::VariablePointers) &&
+                sc == spv::StorageClass::Workgroup;
+            const bool uc_ptr = sc == spv::StorageClass::UniformConstant;
+            if (!_.options()->before_hlsl_legalization && !ssbo_vptr &&
+                !wg_vptr && !uc_ptr) {
+              return _.diag(SPV_ERROR_INVALID_ID, inst)
+                     << "Pointer operand " << _.getIdName(argument_id)
+                     << " must be a memory object declaration";
+            }
           }
         }
       }
@@ -275,7 +311,7 @@ spv_result_t ValidateCooperativeMatrixPerElementOp(ValidationState_t& _,
   const auto function = _.FindDef(function_id);
   if (!function || spv::Op::OpFunction != function->opcode()) {
     return _.diag(SPV_ERROR_INVALID_ID, inst)
-           << "OpCooperativeMatrixPerElementOpNV Function <id> "
+           << "OpCooperativeMatrixPerElementOpEXT Function <id> "
            << _.getIdName(function_id) << " is not a function.";
   }
 
@@ -284,14 +320,14 @@ spv_result_t ValidateCooperativeMatrixPerElementOp(ValidationState_t& _,
   const auto matrix_type_id = matrix->type_id();
   if (!_.IsCooperativeMatrixKHRType(matrix_type_id)) {
     return _.diag(SPV_ERROR_INVALID_ID, inst)
-           << "OpCooperativeMatrixPerElementOpNV Matrix <id> "
+           << "OpCooperativeMatrixPerElementOpEXT Matrix <id> "
            << _.getIdName(matrix_id) << " is not a cooperative matrix.";
   }
 
   const auto result_type_id = inst->GetOperandAs<uint32_t>(0);
   if (matrix_type_id != result_type_id) {
     return _.diag(SPV_ERROR_INVALID_ID, inst)
-           << "OpCooperativeMatrixPerElementOpNV Result Type <id> "
+           << "OpCooperativeMatrixPerElementOpEXT Result Type <id> "
            << _.getIdName(result_type_id) << " must match matrix type <id> "
            << _.getIdName(matrix_type_id) << ".";
   }
@@ -303,7 +339,7 @@ spv_result_t ValidateCooperativeMatrixPerElementOp(ValidationState_t& _,
   auto return_type_id = function_type->GetOperandAs<uint32_t>(1);
   if (return_type_id != matrix_comp_type_id) {
     return _.diag(SPV_ERROR_INVALID_ID, inst)
-           << "OpCooperativeMatrixPerElementOpNV function return type <id> "
+           << "OpCooperativeMatrixPerElementOpEXT function return type <id> "
            << _.getIdName(return_type_id)
            << " must match matrix component type <id> "
            << _.getIdName(matrix_comp_type_id) << ".";
@@ -311,33 +347,87 @@ spv_result_t ValidateCooperativeMatrixPerElementOp(ValidationState_t& _,
 
   if (function_type->operands().size() < 5) {
     return _.diag(SPV_ERROR_INVALID_ID, inst)
-           << "OpCooperativeMatrixPerElementOpNV function type <id> "
+           << "OpCooperativeMatrixPerElementOpEXT function type <id> "
            << _.getIdName(function_type_id)
-           << " must have a least three parameters.";
+           << " must have at least three parameters.";
   }
 
   const auto param0_id = function_type->GetOperandAs<uint32_t>(2);
   const auto param1_id = function_type->GetOperandAs<uint32_t>(3);
   const auto param2_id = function_type->GetOperandAs<uint32_t>(4);
-  if (!_.IsIntScalarType(param0_id) || _.GetBitWidth(param0_id) != 32) {
+  if (!_.IsIntScalarType(param0_id, 32)) {
     return _.diag(SPV_ERROR_INVALID_ID, inst)
-           << "OpCooperativeMatrixPerElementOpNV function type first parameter "
+           << "OpCooperativeMatrixPerElementOpEXT function type first "
+              "parameter "
               "type <id> "
            << _.getIdName(param0_id) << " must be a 32-bit integer.";
   }
 
-  if (!_.IsIntScalarType(param1_id) || _.GetBitWidth(param1_id) != 32) {
+  if (!_.IsIntScalarType(param1_id, 32)) {
     return _.diag(SPV_ERROR_INVALID_ID, inst)
-           << "OpCooperativeMatrixPerElementOpNV function type second "
+           << "OpCooperativeMatrixPerElementOpEXT function type second "
               "parameter type <id> "
            << _.getIdName(param1_id) << " must be a 32-bit integer.";
   }
 
   if (param2_id != matrix_comp_type_id) {
     return _.diag(SPV_ERROR_INVALID_ID, inst)
-           << "OpCooperativeMatrixPerElementOpNV function type third parameter "
+           << "OpCooperativeMatrixPerElementOpEXT function type third "
+              "parameter "
               "type <id> "
            << _.getIdName(param2_id) << " must match matrix component type.";
+  }
+
+  const auto optional_operand_count = inst->operands().size() - 4;
+  const auto expected_function_type_operands = 5 + optional_operand_count;
+  if (function_type->operands().size() != expected_function_type_operands) {
+    return _.diag(SPV_ERROR_INVALID_ID, inst)
+           << "OpCooperativeMatrixPerElementOpEXT function type <id> "
+           << _.getIdName(function_type_id) << " must have "
+           << (3 + optional_operand_count)
+           << " parameters to match the instruction operands.";
+  }
+
+  for (uint32_t operand_index = 4; operand_index < inst->operands().size();
+       ++operand_index) {
+    const auto optional_operand_id =
+        inst->GetOperandAs<uint32_t>(operand_index);
+    const auto optional_operand = _.FindDef(optional_operand_id);
+    const auto optional_operand_type_id =
+        optional_operand ? optional_operand->type_id() : 0;
+    const auto param_id =
+        function_type->GetOperandAs<uint32_t>(operand_index + 1);
+
+    if (!_.IsCooperativeMatrixType(optional_operand_type_id)) {
+      if (param_id != optional_operand_type_id) {
+        return _.diag(SPV_ERROR_INVALID_ID, inst)
+               << "OpCooperativeMatrixPerElementOpEXT function type optional "
+                  "parameter type <id> "
+               << _.getIdName(param_id)
+               << " must match optional operand type <id> "
+               << _.getIdName(optional_operand_type_id) << ".";
+      }
+      continue;
+    }
+
+    if (optional_operand_type_id != matrix_type_id) {
+      return _.diag(SPV_ERROR_INVALID_ID, inst)
+             << "OpCooperativeMatrixPerElementOpEXT optional matrix operand "
+                "type <id> "
+             << _.getIdName(optional_operand_type_id)
+             << " must match matrix type <id> " << _.getIdName(matrix_type_id)
+             << ".";
+    }
+
+    const auto optional_matrix_comp_type_id =
+        _.FindDef(optional_operand_type_id)->GetOperandAs<uint32_t>(1);
+    if (param_id != optional_matrix_comp_type_id) {
+      return _.diag(SPV_ERROR_INVALID_ID, inst)
+             << "OpCooperativeMatrixPerElementOpEXT function type optional "
+                "parameter type <id> "
+             << _.getIdName(param_id)
+             << " must match optional matrix component type.";
+    }
   }
 
   return SPV_SUCCESS;
@@ -356,7 +446,7 @@ spv_result_t FunctionPass(ValidationState_t& _, const Instruction* inst) {
     case spv::Op::OpFunctionCall:
       if (auto error = ValidateFunctionCall(_, inst)) return error;
       break;
-    case spv::Op::OpCooperativeMatrixPerElementOpNV:
+    case spv::Op::OpCooperativeMatrixPerElementOpEXT:
       if (auto error = ValidateCooperativeMatrixPerElementOp(_, inst))
         return error;
       break;
