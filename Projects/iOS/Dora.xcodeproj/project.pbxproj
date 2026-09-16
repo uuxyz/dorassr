@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		2B98045DBC5192CAA2746ACE /* VideoToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5FF95F53797A07981EAA2508 /* VideoToolbox.framework */; };
+		C2523F999CDD680C5611D19C /* CoreMedia.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7FDE4374D731669C7B3783CD /* CoreMedia.framework */; };
 		D03D00010000000000000001 /* Model3DCache.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D03D00100000000000000001 /* Model3DCache.cpp */; };
 		D03D00010000000000000002 /* Camera3D.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D03D00100000000000000002 /* Camera3D.cpp */; };
 		D03D00010000000000000003 /* Node3D.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D03D00100000000000000003 /* Node3D.cpp */; };
@@ -1250,6 +1252,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		5FF95F53797A07981EAA2508 /* VideoToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = VideoToolbox.framework; path = System/Library/Frameworks/VideoToolbox.framework; sourceTree = SDKROOT; };
+		7FDE4374D731669C7B3783CD /* CoreMedia.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMedia.framework; path = System/Library/Frameworks/CoreMedia.framework; sourceTree = SDKROOT; };
 		D03D00100000000000000001 /* Model3DCache.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ../../Source/Cache/Model3DCache.cpp; sourceTree = SOURCE_ROOT; };
 		D03D00100000000000000002 /* Camera3D.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ../../Source/Render/Camera3D.cpp; sourceTree = SOURCE_ROOT; };
 		D03D00100000000000000003 /* Node3D.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ../../Source/Node/Node3D.cpp; sourceTree = SOURCE_ROOT; };
@@ -2714,6 +2718,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2B98045DBC5192CAA2746ACE /* VideoToolbox.framework in Frameworks */,
+				C2523F999CDD680C5611D19C /* CoreMedia.framework in Frameworks */,
 				A10E1000000000000000002B /* liblove.a in Frameworks */,
 				3C984C5E2F03B57B00DC8437 /* libtheoradec.a in Frameworks */,
 				3C1030772F5F24400029F68F /* libspirv-cross.a in Frameworks */,

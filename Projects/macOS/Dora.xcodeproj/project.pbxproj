@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		E0BFD567D99076D10FA4ED9C /* VideoToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FD8AA619FC650DB454B793BE /* VideoToolbox.framework */; };
+		7E34C4C832D7AF22A6546E7E /* CoreMedia.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 44F646EF8B40F50DB413DB18 /* CoreMedia.framework */; };
 		3C01B02E2FA2F2B900AAC148 /* libwa.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3C01B02D2FA2F2B900AAC148 /* libwa.a */; };
 		3C030CA124CABDFE0074786E /* DecisionTree.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3C030C9F24CABDFD0074786E /* DecisionTree.cpp */; };
 		3C03A9FA2EF2513100B706C8 /* libtheoradec.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3C03A9962EF250FC00B706C8 /* libtheoradec.a */; };
@@ -630,6 +632,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		FD8AA619FC650DB454B793BE /* VideoToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = VideoToolbox.framework; path = System/Library/Frameworks/VideoToolbox.framework; sourceTree = SDKROOT; };
+		44F646EF8B40F50DB413DB18 /* CoreMedia.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMedia.framework; path = System/Library/Frameworks/CoreMedia.framework; sourceTree = SDKROOT; };
 		3C01B02D2FA2F2B900AAC148 /* libwa.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libwa.a; path = ../../Source/3rdParty/Wa/Lib/macOS/libwa.a; sourceTree = "<group>"; };
 		3C030C9F24CABDFD0074786E /* DecisionTree.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = DecisionTree.cpp; sourceTree = "<group>"; };
 		3C030CA024CABDFD0074786E /* DecisionTree.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DecisionTree.h; sourceTree = "<group>"; };
@@ -2093,6 +2097,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E0BFD567D99076D10FA4ED9C /* VideoToolbox.framework in Frameworks */,
+				7E34C4C832D7AF22A6546E7E /* CoreMedia.framework in Frameworks */,
 				A10E00000000000000000027 /* liblove.a in Frameworks */,
 				3C03A9FA2EF2513100B706C8 /* libtheoradec.a in Frameworks */,
 				3C1030622F5F12E30029F68F /* libspirv-opt.a in Frameworks */,
@@ -2449,6 +2455,8 @@
 				3CE331471D96D09300F9C3F6 /* ForceFeedback.framework */,
 				3CE331441D96D01200F9C3F6 /* CoreAudio.framework */,
 				3CE331421D96D00000F9C3F6 /* CoreVideo.framework */,
+				FD8AA619FC650DB454B793BE /* VideoToolbox.framework */,
+				44F646EF8B40F50DB413DB18 /* CoreMedia.framework */,
 				3CE331401D96CFF700F9C3F6 /* Cocoa.framework */,
 			);
 			name = Frameworks;
