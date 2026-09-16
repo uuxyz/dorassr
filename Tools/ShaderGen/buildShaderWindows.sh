@@ -21,7 +21,7 @@ SHADER_PATH="$ROOT/Source/Shader"
 
 targets=(
 	"300_es android essl"
-	"130 osx glsl"
+	"330 osx glsl"
 	"spirv linux spv"
 	"metal osx mtl"
 	"s_5_0 windows dxbc"

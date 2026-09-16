@@ -160,6 +160,7 @@ file(GLOB DORA_BX_WASM_SOURCES CONFIGURE_DEPENDS "${DORA_SOURCE_ROOT}/3rdParty/b
 list(REMOVE_ITEM DORA_BX_WASM_SOURCES
 	"${DORA_SOURCE_ROOT}/3rdParty/bx/src/amalgamated.cpp")
 file(GLOB DORA_BIMG_WASM_SOURCES CONFIGURE_DEPENDS "${DORA_SOURCE_ROOT}/3rdParty/bimg/src/*.cpp")
+list(FILTER DORA_BIMG_WASM_SOURCES EXCLUDE REGEX "/image_encode\.cpp$")
 file(GLOB DORA_ASTC_WASM_SOURCES CONFIGURE_DEPENDS
 	"${DORA_SOURCE_ROOT}/3rdParty/bimg/3rdparty/astc-encoder/source/*.cpp")
 file(GLOB DORA_GLSLANG_WASM_SOURCES CONFIGURE_DEPENDS
@@ -296,7 +297,10 @@ target_compile_definitions(dora-engine PRIVATE
 	SQLITE_OMIT_LOAD_EXTENSION)
 target_compile_definitions(dora-bimg PRIVATE
 	BX_CONFIG_DEBUG=0
-	DORA_EMSCRIPTEN)
+	DORA_EMSCRIPTEN
+	BIMG_CONFIG_PARSE_AVIF=0
+	BIMG_CONFIG_PARSE_WEBP=0
+	TINYEXR_USE_MINIZ=0)
 target_compile_options(dora-engine PRIVATE
 	-fexceptions
 	-Wno-deprecated-declarations
