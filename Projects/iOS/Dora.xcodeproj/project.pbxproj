@@ -7,6 +7,16 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		305B1B2353E7F199AD0BF2CB /* VideoToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5FF95F53797A07981EAA2508 /* VideoToolbox.framework */; };
+		A23C7686BB848EB9D1FC8EA6 /* CoreMedia.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7FDE4374D731669C7B3783CD /* CoreMedia.framework */; };
+		8C3B858AE90719C2F2B90D1C /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A5B0F91E1B1AC29D75A93592 /* CoreVideo.framework */; };
+		5D08BC9B0B60615EEA0258A1 /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3CD210601E663F8B004676F1 /* Metal.framework */; };
+		4444AF0FD383D9BD73A64A13 /* VideoToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5FF95F53797A07981EAA2508 /* VideoToolbox.framework */; };
+		D86DC1330F8E9DC651D34EC7 /* CoreMedia.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7FDE4374D731669C7B3783CD /* CoreMedia.framework */; };
+		6FF3F2BC459948C9E1EF8661 /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A5B0F91E1B1AC29D75A93592 /* CoreVideo.framework */; };
+		21191266C170B6BC162E9563 /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3CD210601E663F8B004676F1 /* Metal.framework */; };
+		2B98045DBC5192CAA2746ACE /* VideoToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5FF95F53797A07981EAA2508 /* VideoToolbox.framework */; };
+		C2523F999CDD680C5611D19C /* CoreMedia.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7FDE4374D731669C7B3783CD /* CoreMedia.framework */; };
 		D03D00010000000000000001 /* Model3DCache.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D03D00100000000000000001 /* Model3DCache.cpp */; };
 		D03D00010000000000000002 /* Camera3D.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D03D00100000000000000002 /* Camera3D.cpp */; };
 		D03D00010000000000000003 /* Node3D.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D03D00100000000000000003 /* Node3D.cpp */; };
@@ -192,13 +202,11 @@
 		3C1030772F5F24400029F68F /* libspirv-cross.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3C1030722F5F243F0029F68F /* libspirv-cross.a */; };
 		3C1030782F5F24400029F68F /* libspirv-opt.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3C1030732F5F243F0029F68F /* libspirv-opt.a */; };
 		3C1030792F5F24400029F68F /* libglslang.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3C1030742F5F243F0029F68F /* libglslang.a */; };
-		3C10307A2F5F24400029F68F /* libfcpp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3C1030752F5F243F0029F68F /* libfcpp.a */; };
 		3C10307B2F5F24400029F68F /* libshaderc-lib.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3C1030762F5F243F0029F68F /* libshaderc-lib.a */; };
 		3C10307C2F5F24580029F68F /* libbgfx.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3CA780962AE770DC00B7BADA /* libbgfx.a */; };
 		3C10307D2F5F24580029F68F /* libbimg_decode.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3CA780982AE770DC00B7BADA /* libbimg_decode.a */; };
 		3C10307E2F5F24580029F68F /* libbimg.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3CA780972AE770DC00B7BADA /* libbimg.a */; };
 		3C10307F2F5F24580029F68F /* libbx.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3CA780992AE770DC00B7BADA /* libbx.a */; };
-		3C1030852F5F24590029F68F /* libfcpp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3C1030802F5F24590029F68F /* libfcpp.a */; };
 		3C1030862F5F24590029F68F /* libspirv-cross.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3C1030812F5F24590029F68F /* libspirv-cross.a */; };
 		3C1030872F5F24590029F68F /* libshaderc-lib.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3C1030822F5F24590029F68F /* libshaderc-lib.a */; };
 		3C1030882F5F24590029F68F /* libglslang.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3C1030832F5F24590029F68F /* libglslang.a */; };
@@ -1252,6 +1260,9 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		A5B0F91E1B1AC29D75A93592 /* CoreVideo.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreVideo.framework; path = System/Library/Frameworks/CoreVideo.framework; sourceTree = SDKROOT; };
+		5FF95F53797A07981EAA2508 /* VideoToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = VideoToolbox.framework; path = System/Library/Frameworks/VideoToolbox.framework; sourceTree = SDKROOT; };
+		7FDE4374D731669C7B3783CD /* CoreMedia.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMedia.framework; path = System/Library/Frameworks/CoreMedia.framework; sourceTree = SDKROOT; };
 		D03D00100000000000000001 /* Model3DCache.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ../../Source/Cache/Model3DCache.cpp; sourceTree = SOURCE_ROOT; };
 		D03D00100000000000000002 /* Camera3D.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ../../Source/Render/Camera3D.cpp; sourceTree = SOURCE_ROOT; };
 		D03D00100000000000000003 /* Node3D.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ../../Source/Node/Node3D.cpp; sourceTree = SOURCE_ROOT; };
@@ -1498,9 +1509,7 @@
 		3C1030722F5F243F0029F68F /* libspirv-cross.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = "libspirv-cross.a"; path = "../../Source/3rdParty/bgfx/build/ios/simulator/libspirv-cross.a"; sourceTree = "<group>"; };
 		3C1030732F5F243F0029F68F /* libspirv-opt.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = "libspirv-opt.a"; path = "../../Source/3rdParty/bgfx/build/ios/simulator/libspirv-opt.a"; sourceTree = "<group>"; };
 		3C1030742F5F243F0029F68F /* libglslang.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libglslang.a; path = ../../Source/3rdParty/bgfx/build/ios/simulator/libglslang.a; sourceTree = "<group>"; };
-		3C1030752F5F243F0029F68F /* libfcpp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libfcpp.a; path = ../../Source/3rdParty/bgfx/build/ios/simulator/libfcpp.a; sourceTree = "<group>"; };
 		3C1030762F5F243F0029F68F /* libshaderc-lib.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = "libshaderc-lib.a"; path = "../../Source/3rdParty/bgfx/build/ios/simulator/libshaderc-lib.a"; sourceTree = "<group>"; };
-		3C1030802F5F24590029F68F /* libfcpp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libfcpp.a; path = ../../Source/3rdParty/bgfx/build/ios/device/libfcpp.a; sourceTree = "<group>"; };
 		3C1030812F5F24590029F68F /* libspirv-cross.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = "libspirv-cross.a"; path = "../../Source/3rdParty/bgfx/build/ios/device/libspirv-cross.a"; sourceTree = "<group>"; };
 		3C1030822F5F24590029F68F /* libshaderc-lib.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = "libshaderc-lib.a"; path = "../../Source/3rdParty/bgfx/build/ios/device/libshaderc-lib.a"; sourceTree = "<group>"; };
 		3C1030832F5F24590029F68F /* libglslang.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libglslang.a; path = ../../Source/3rdParty/bgfx/build/ios/device/libglslang.a; sourceTree = "<group>"; };
@@ -2704,7 +2713,11 @@
 		42D8C7BFA8F3C2C171D10B24 /* TranslateTimeline.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = TranslateTimeline.h; sourceTree = "<group>"; };
 		CCCCD4D1A7800147D167C7AD /* Triangulator.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = Triangulator.cpp; sourceTree = "<group>"; };
 		261D3C353D83AA20EA55A46A /* Triangulator.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Triangulator.h; sourceTree = "<group>"; };
-		BBFA7B8C5E4424695BD9B54E /* Update.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = Update.cpp; sourceTree = "<group>"; };
+		BBFA7B8C5E4424695BD9B54E /* Update.cpp */ = {isa = PBXFileRefer				5D08BC9B0B60615EEA0258A1 /* Metal.framework in Frameworks */,
+				8C3B858AE90719C2F2B90D1C /* CoreVideo.framework in Frameworks */,
+				A23C7686BB848EB9D1FC8EA6 /* CoreMedia.framework in Frameworks */,
+				305B1B2353E7F199AD0BF2CB /* VideoToolbox.framework in Frameworks */,
+ence; lastKnownFileType = sourcecode.cpp.cpp; path = Update.cpp; sourceTree = "<group>"; };
 		421A70AA92A2E2AF4F0F4062 /* Update.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Update.h; sourceTree = "<group>"; };
 		3230A090AACDAAA9103B6F25 /* Version.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Version.h; sourceTree = "<group>"; };
 		E54008BB269D568E22683BC5 /* VertexAttachment.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = VertexAttachment.cpp; sourceTree = "<group>"; };
@@ -2718,12 +2731,13 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2B98045DBC5192CAA2746ACE /* VideoToolbox.framework in Frameworks */,
+				C2523F999CDD680C5611D19C /* CoreMedia.framework in Frameworks */,
 				A10E1000000000000000002B /* liblove.a in Frameworks */,
 				3C984C5E2F03B57B00DC8437 /* libtheoradec.a in Frameworks */,
 				3C1030772F5F24400029F68F /* libspirv-cross.a in Frameworks */,
 				3C1030782F5F24400029F68F /* libspirv-opt.a in Frameworks */,
 				3C1030792F5F24400029F68F /* libglslang.a in Frameworks */,
-				3C10307A2F5F24400029F68F /* libfcpp.a in Frameworks */,
 				3C10307B2F5F24400029F68F /* libshaderc-lib.a in Frameworks */,
 				3C10306E2F5F243F0029F68F /* libbgfx.a in Frameworks */,
 				3C10306F2F5F243F0029F68F /* libbimg_decode.a in Frameworks */,
@@ -2738,6 +2752,10 @@
 				3CBE0EF926087F7B003F4F45 /* CoreBluetooth.framework in Frameworks */,
 				3CBE0EFA26087F7B003F4F45 /* Foundation.framework in Frameworks */,
 				3CBE0EFB26087F7B003F4F45 /* UIKit.framework in Frameworks */,
+				21191266C170B6BC162E9563 /* Metal.framework in Frameworks */,
+				6FF3F2BC459948C9E1EF8661 /* CoreVideo.framework in Frameworks */,
+				D86DC1330F8E9DC651D34EC7 /* CoreMedia.framework in Frameworks */,
+				4444AF0FD383D9BD73A64A13 /* VideoToolbox.framework in Frameworks */,
 				3CBE0EFC26087F7B003F4F45 /* CoreGraphics.framework in Frameworks */,
 				3CBE0EFD26087F7B003F4F45 /* GameController.framework in Frameworks */,
 				3CBE0EFE26087F7B003F4F45 /* QuartzCore.framework in Frameworks */,
@@ -2753,7 +2771,6 @@
 			files = (
 				A10E1000000000000000002C /* liblove.a in Frameworks */,
 				3C984C782F03B57B00DC8437 /* libtheoradec.a in Frameworks */,
-				3C1030852F5F24590029F68F /* libfcpp.a in Frameworks */,
 				3C1030862F5F24590029F68F /* libspirv-cross.a in Frameworks */,
 				3C1030872F5F24590029F68F /* libshaderc-lib.a in Frameworks */,
 				3C1030882F5F24590029F68F /* libglslang.a in Frameworks */,
@@ -4660,14 +4677,12 @@
 			children = (
 				A10E10000000000000000029 /* liblove.a */,
 				A10E1000000000000000002A /* liblove.a */,
-				3C1030752F5F243F0029F68F /* libfcpp.a */,
 				3C1030742F5F243F0029F68F /* libglslang.a */,
 				3C1030832F5F24590029F68F /* libglslang.a */,
 				3C1030762F5F243F0029F68F /* libshaderc-lib.a */,
 				3C1030822F5F24590029F68F /* libshaderc-lib.a */,
 				3C1030722F5F243F0029F68F /* libspirv-cross.a */,
 				3C1030732F5F243F0029F68F /* libspirv-opt.a */,
-				3C1030802F5F24590029F68F /* libfcpp.a */,
 				3C1030812F5F24590029F68F /* libspirv-cross.a */,
 				3C1030842F5F24590029F68F /* libspirv-opt.a */,
 				3CE471C62DD2EF8A0036716C /* libwa.a */,

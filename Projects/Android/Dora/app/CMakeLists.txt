@@ -62,16 +62,22 @@ set_target_properties(
 	${DORA_BGFX_ROOT}/build/android/${ANDROID_ABI}/libbimg_decode.a
 )
 
-add_library(FCPP-lib STATIC IMPORTED)
+add_library(GLSLANG-lib STATIC IMPORTED)
 set_target_properties(
-	FCPP-lib PROPERTIES IMPORTED_LOCATION
-	${DORA_BGFX_ROOT}/build/android/${ANDROID_ABI}/libfcpp.a
+	GLSLANG-lib PROPERTIES IMPORTED_LOCATION
+	${DORA_BGFX_ROOT}/build/android/${ANDROID_ABI}/libglslang.a
 )
 
-add_library(GLSLO-lib STATIC IMPORTED)
+add_library(SPIRVCROSS-lib STATIC IMPORTED)
 set_target_properties(
-	GLSLO-lib PROPERTIES IMPORTED_LOCATION
-	${DORA_BGFX_ROOT}/build/android/${ANDROID_ABI}/libglsl_optimizer.a
+	SPIRVCROSS-lib PROPERTIES IMPORTED_LOCATION
+	${DORA_BGFX_ROOT}/build/android/${ANDROID_ABI}/libspirv-cross.a
+)
+
+add_library(SPIRVOPT-lib STATIC IMPORTED)
+set_target_properties(
+	SPIRVOPT-lib PROPERTIES IMPORTED_LOCATION
+	${DORA_BGFX_ROOT}/build/android/${ANDROID_ABI}/libspirv-opt.a
 )
 
 add_library(SHADERC-lib STATIC IMPORTED)
@@ -682,4 +688,4 @@ add_library(main SHARED
 	src/main/cpp/3rdParty/tic80/vendor/blip-buf/blip_wasm_host.cpp
 )
 
-target_link_libraries(main android log EGL z GLESv1_CM GLESv2 SDL2-lib LOVE-lib THEORA-lib BGFX-lib BIMGDE-lib BIMG-lib SHADERC-lib GLSLO-lib FCPP-lib BX-lib DORA-lib)
+target_link_libraries(main android log EGL z GLESv1_CM GLESv2 SDL2-lib LOVE-lib THEORA-lib BGFX-lib BIMGDE-lib BIMG-lib SHADERC-lib GLSLANG-lib SPIRVCROSS-lib SPIRVOPT-lib BX-lib DORA-lib)

@@ -10,6 +10,11 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXECUTABLE_SUFFIX ".html")
 
+# 嵌入着色器不含 wgsl 变体（shaderc 未编译进 tint）；pthread player 需显式
+# 打开线程（新 bx 默认在 Emscripten 上关闭线程）。
+add_compile_definitions(BGFX_PLATFORM_SUPPORTS_WGSL=0)
+add_compile_definitions(ENABLE_HLSL=1)
+
 get_filename_component(DORA_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." REALPATH)
 set(DORA_SOURCE_ROOT "${DORA_ROOT}/Source")
 set(DORA_WEB_BOOTSTRAP_ASSETS "${CMAKE_CURRENT_SOURCE_DIR}/runtime-assets")
@@ -369,13 +374,23 @@ if(DORA_WEB_LINK_PLAYER)
 		DORA_EMSCRIPTEN
 		BGFX_CONFIG_RENDERER_OPENGLES=30
 		BGFX_CONFIG_MAX_FRAME_BUFFERS=256
+		BIMG_CONFIG_PARSE_AVIF=0
+		BIMG_CONFIG_PARSE_WEBP=0
+		BGFX_PLATFORM_SUPPORTS_WGSL=0
 		DORA_SHADERC_WEB_RUNTIME
 		SHADERC_CONFIG_CLI=0
+		SHADERC_CONFIG_NO_MAIN=1
+		SHADERC_EMBEDDED=1
 		SHADERC_CONFIG_GLSL=1
 		SHADERC_CONFIG_HLSL=0
 		SHADERC_CONFIG_METAL=0
 		SHADERC_CONFIG_SPIRV=0
 	)
+	if(DORA_WEB_PTHREADS)
+		# pthread 版 player 依赖 Love 线程 worker；新 bx 默认在 Emscripten 上
+		# 关闭线程，需显式打开。
+		target_compile_definitions(dora-web-link-deps PRIVATE BX_CONFIG_SUPPORTS_THREADING=1)
+	endif()
 	target_compile_options(dora-web-link-deps PRIVATE
 		${DORA_WEB_THREAD_COMPILE_OPTIONS}
 		-fno-rtti
@@ -399,11 +414,12 @@ if(DORA_WEB_LINK_PLAYER)
 		"${DORA_SOURCE_ROOT}/3rdParty/bimg/3rdparty/astc-encoder/include"
 		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/include"
 		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty"
-		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/fcpp"
-		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glsl-optimizer/include"
-		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glsl-optimizer/src"
-		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glsl-optimizer/src/mesa"
-		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glsl-optimizer/src/glsl"
+		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glslang"
+		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-cross"
+		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-headers/include"
+		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-tools"
+		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-tools/include"
+		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-tools/include/generated"
 		"${DORA_SOURCE_ROOT}/3rdParty/shaderc"
 		"${DORA_SOURCE_ROOT}/3rdParty/theora/include"
 		"${DORA_SOURCE_ROOT}/3rdParty/theora/Source"

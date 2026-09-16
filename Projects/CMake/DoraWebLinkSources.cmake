@@ -14,16 +14,28 @@ list(FILTER DORA_WEB_BX_SOURCES EXCLUDE REGEX "/amalgamated\.cpp$")
 file(GLOB DORA_WEB_BIMG_SOURCES CONFIGURE_DEPENDS
 	"${DORA_SOURCE_ROOT}/3rdParty/bimg/src/*.cpp"
 	"${DORA_SOURCE_ROOT}/3rdParty/bimg/3rdparty/astc-encoder/source/*.cpp")
-file(GLOB DORA_WEB_FCPP_SOURCES CONFIGURE_DEPENDS
-	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/fcpp/*.c")
-list(FILTER DORA_WEB_FCPP_SOURCES EXCLUDE REGEX "/usecpp\\.c$")
-set_source_files_properties(${DORA_WEB_FCPP_SOURCES} PROPERTIES COMPILE_DEFINITIONS UNIX)
+# image_encode.cpp 依赖未随 vendor 保留的编码库（libsquish/nvtt/etcpak 等）
+list(FILTER DORA_WEB_BIMG_SOURCES EXCLUDE REGEX "/image_encode\.cpp$")
 
-file(GLOB_RECURSE DORA_WEB_GLSL_OPT_SOURCES CONFIGURE_DEPENDS
-	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glsl-optimizer/src/*.cpp"
-	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glsl-optimizer/src/*.c")
-list(FILTER DORA_WEB_GLSL_OPT_SOURCES EXCLUDE REGEX "/node/.*")
-list(FILTER DORA_WEB_GLSL_OPT_SOURCES EXCLUDE REGEX "/glsl/main\\.cpp$")
+# glslang + SPIRV-Tools + SPIRV-Cross：新版 shaderc 的 GLSL/SPIR-V 路径依赖
+file(GLOB DORA_WEB_GLSLANG_SOURCES CONFIGURE_DEPENDS
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glslang/glslang/GenericCodeGen/*.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glslang/glslang/MachineIndependent/*.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glslang/glslang/MachineIndependent/preprocessor/*.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glslang/glslang/OSDependent/Unix/*.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glslang/glslang/HLSL/*.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glslang/glslang/ResourceLimits/*.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glslang/SPIRV/*.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glslang/SPIRV/CInterface/*.cpp")
+file(GLOB DORA_WEB_SPIRV_TOOLS_SOURCES CONFIGURE_DEPENDS
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-tools/source/opt/*.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-tools/source/val/*.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-tools/source/*.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-tools/source/util/*.cpp")
+file(GLOB DORA_WEB_SPIRV_CROSS_SOURCES CONFIGURE_DEPENDS
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-cross/*.cpp")
+list(FILTER DORA_WEB_SPIRV_CROSS_SOURCES EXCLUDE REGEX "spirv_cross_c\.cpp$")
+list(FILTER DORA_WEB_SPIRV_CROSS_SOURCES EXCLUDE REGEX "/main\.cpp$")
 
 set(DORA_WEB_BGFX_SOURCES
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/bgfx.cpp"
@@ -34,18 +46,22 @@ set(DORA_WEB_BGFX_SOURCES
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/renderer_d3d12.cpp"
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/renderer_gl.cpp"
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/renderer_gnm.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/renderer_mtl.cpp"
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/renderer_noop.cpp"
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/renderer_nvn.cpp"
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/renderer_vk.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/renderer_webgpu.cpp"
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/shader.cpp"
-	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/shader_dxbc.cpp"
-	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/shader_spirv.cpp"
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/topology.cpp"
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/vertexlayout.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/video_d3d11.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/video_d3d12.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/video_mtl.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/video_vk.cpp"
 	"${DORA_SOURCE_ROOT}/Shader/DoraShaderc/DoraShaderc.cpp"
 	"${DORA_SOURCE_ROOT}/3rdParty/shaderc/pp.cpp"
 	"${DORA_SOURCE_ROOT}/3rdParty/shaderc/shaderc.cpp"
-	"${DORA_SOURCE_ROOT}/3rdParty/shaderc/shaderc_dxil.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/shaderc/shaderc_dxil_stub.cpp"
 	"${DORA_SOURCE_ROOT}/3rdParty/shaderc/shaderc_glsl.cpp"
 	"${DORA_SOURCE_ROOT}/3rdParty/shaderc/shaderc_hlsl.cpp"
 	"${DORA_SOURCE_ROOT}/3rdParty/shaderc/shaderc_metal.cpp"
@@ -57,6 +73,7 @@ set(DORA_WEB_LINK_SOURCES
 	"${DORA_SOURCE_ROOT}/3rdParty/theora/TheoraSources.c"
 	${DORA_WEB_BX_SOURCES}
 	${DORA_WEB_BIMG_SOURCES}
-	${DORA_WEB_FCPP_SOURCES}
-	${DORA_WEB_GLSL_OPT_SOURCES}
+	${DORA_WEB_GLSLANG_SOURCES}
+	${DORA_WEB_SPIRV_TOOLS_SOURCES}
+	${DORA_WEB_SPIRV_CROSS_SOURCES}
 	${DORA_WEB_BGFX_SOURCES})

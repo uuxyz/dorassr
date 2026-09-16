@@ -10,6 +10,11 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXECUTABLE_SUFFIX ".html")
 
+# 嵌入着色器不含 wgsl 变体（shaderc 未编译进 tint）；pthread player 需显式
+# 打开线程（新 bx 默认在 Emscripten 上关闭线程）。
+add_compile_definitions(BGFX_PLATFORM_SUPPORTS_WGSL=0)
+add_compile_definitions(ENABLE_HLSL=1)
+
 set(DORA_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../..")
 set(DORA_SOURCE_ROOT "${DORA_ROOT}/Source")
 set(DORA_BGFX_ROOT "${DORA_SOURCE_ROOT}/3rdParty/bgfx")
@@ -156,22 +161,31 @@ file(GLOB DORA_BX_WASM_SOURCES CONFIGURE_DEPENDS "${DORA_SOURCE_ROOT}/3rdParty/b
 list(REMOVE_ITEM DORA_BX_WASM_SOURCES
 	"${DORA_SOURCE_ROOT}/3rdParty/bx/src/amalgamated.cpp")
 file(GLOB DORA_BIMG_WASM_SOURCES CONFIGURE_DEPENDS "${DORA_SOURCE_ROOT}/3rdParty/bimg/src/*.cpp")
+list(FILTER DORA_BIMG_WASM_SOURCES EXCLUDE REGEX "/image_encode\.cpp$")
 file(GLOB DORA_ASTC_WASM_SOURCES CONFIGURE_DEPENDS
 	"${DORA_SOURCE_ROOT}/3rdParty/bimg/3rdparty/astc-encoder/source/*.cpp")
-file(GLOB DORA_FCPP_WASM_SOURCES CONFIGURE_DEPENDS
-	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/fcpp/*.c")
-list(FILTER DORA_FCPP_WASM_SOURCES EXCLUDE REGEX "/usecpp\.c$")
-set_source_files_properties(${DORA_FCPP_WASM_SOURCES} PROPERTIES
-	COMPILE_DEFINITIONS UNIX)
-file(GLOB_RECURSE DORA_GLSL_OPT_WASM_SOURCES CONFIGURE_DEPENDS
-	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glsl-optimizer/src/*.cpp"
-	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glsl-optimizer/src/*.c")
-list(FILTER DORA_GLSL_OPT_WASM_SOURCES EXCLUDE REGEX "/node/.*")
-list(FILTER DORA_GLSL_OPT_WASM_SOURCES EXCLUDE REGEX "/glsl/main\.cpp$")
+file(GLOB DORA_GLSLANG_WASM_SOURCES CONFIGURE_DEPENDS
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glslang/glslang/GenericCodeGen/*.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glslang/glslang/MachineIndependent/*.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glslang/glslang/MachineIndependent/preprocessor/*.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glslang/glslang/OSDependent/Unix/*.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glslang/glslang/HLSL/*.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glslang/glslang/ResourceLimits/*.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glslang/SPIRV/*.cpp")
+file(GLOB DORA_SPIRV_TOOLS_WASM_SOURCES CONFIGURE_DEPENDS
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-tools/source/opt/*.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-tools/source/val/*.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-tools/source/*.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-tools/source/util/*.cpp")
+file(GLOB DORA_SPIRV_CROSS_WASM_SOURCES CONFIGURE_DEPENDS
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-cross/*.cpp")
+list(FILTER DORA_SPIRV_CROSS_WASM_SOURCES EXCLUDE REGEX "spirv_cross_c\.cpp$")
+list(FILTER DORA_SPIRV_CROSS_WASM_SOURCES EXCLUDE REGEX "/main\.cpp$")
 list(APPEND DORA_ENGINE_SOURCES
 	${DORA_BX_WASM_SOURCES}
-	${DORA_FCPP_WASM_SOURCES}
-	${DORA_GLSL_OPT_WASM_SOURCES})
+	${DORA_GLSLANG_WASM_SOURCES}
+	${DORA_SPIRV_TOOLS_WASM_SOURCES}
+	${DORA_SPIRV_CROSS_WASM_SOURCES})
 
 set(DORA_BGFX_WASM_SOURCES
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/bgfx.cpp"
@@ -184,10 +198,10 @@ set(DORA_BGFX_WASM_SOURCES
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/renderer_gl.cpp"
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/renderer_nvn.cpp"
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/renderer_noop.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/renderer_mtl.cpp"
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/renderer_vk.cpp"
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/renderer_webgpu.cpp"
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/shader.cpp"
-	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/shader_dxbc.cpp"
-	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/shader_spirv.cpp"
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/topology.cpp"
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/src/vertexlayout.cpp"
 	"${DORA_SOURCE_ROOT}/Shader/DoraShaderc/DoraShaderc.cpp"
@@ -240,11 +254,12 @@ target_include_directories(dora-ssr PRIVATE
 	"${DORA_SOURCE_ROOT}/3rdParty/wasm3"
 	"${DORA_SOURCE_ROOT}/3rdParty/Effekseer"
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty"
-	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/fcpp"
-	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glsl-optimizer/include"
-	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glsl-optimizer/src"
-	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glsl-optimizer/src/mesa"
-	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glsl-optimizer/src/glsl"
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glslang"
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-cross"
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-headers/include"
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-tools"
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-tools/include"
+		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-tools/include/generated"
 	"${DORA_SOURCE_ROOT}/3rdParty/shaderc"
 	"${DORA_SOURCE_ROOT}/3rdParty/theora/include"
 	"${DORA_OPENMPT_ROOT}"
@@ -272,15 +287,23 @@ target_compile_definitions(dora-engine PRIVATE
 	BGFX_CONFIG_RENDERER_OPENGLES=30
 	BGFX_CONFIG_MAX_FRAME_BUFFERS=256
 	SHADERC_CONFIG_CLI=0
+	SHADERC_CONFIG_NO_MAIN=1
+	SHADERC_EMBEDDED=1
 	SHADERC_CONFIG_GLSL=1
 	SHADERC_CONFIG_HLSL=0
 	SHADERC_CONFIG_METAL=0
 	SHADERC_CONFIG_SPIRV=0
+	BIMG_CONFIG_PARSE_AVIF=0
+	BIMG_CONFIG_PARSE_WEBP=0
+	BGFX_PLATFORM_SUPPORTS_WGSL=0
 	d_m3HasWASI
 	SQLITE_OMIT_LOAD_EXTENSION)
 target_compile_definitions(dora-bimg PRIVATE
 	BX_CONFIG_DEBUG=0
-	DORA_EMSCRIPTEN)
+	DORA_EMSCRIPTEN
+	BIMG_CONFIG_PARSE_AVIF=0
+	BIMG_CONFIG_PARSE_WEBP=0
+	TINYEXR_USE_MINIZ=0)
 target_compile_options(dora-engine PRIVATE
 	-fexceptions
 	-Wno-deprecated-declarations
@@ -316,11 +339,11 @@ target_include_directories(dora-engine PRIVATE
 	"${DORA_SOURCE_ROOT}/3rdParty/wasm3"
 	"${DORA_SOURCE_ROOT}/3rdParty/Effekseer"
 	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty"
-	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/fcpp"
-	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glsl-optimizer/include"
-	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glsl-optimizer/src"
-	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glsl-optimizer/src/mesa"
-	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glsl-optimizer/src/glsl"
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glslang"
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-cross"
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-headers/include"
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-tools"
+	"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-tools/include"
 	"${DORA_SOURCE_ROOT}/3rdParty/shaderc"
 	"${DORA_SOURCE_ROOT}/3rdParty/theora/include"
 	"${DORA_OPENMPT_ROOT}"
