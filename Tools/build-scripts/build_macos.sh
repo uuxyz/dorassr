@@ -37,12 +37,12 @@ esac
 "$SCRIPT_DIR/build_lib_macos.sh" "$BUILD_MODE" "$XCODE_ARCH"
 
 cd "$SCRIPT_DIR/../.."
-if [ "$BUILD_MODE" = "release" ]; then
-	xcodebuild archive -project Projects/macOS/Dora.xcodeproj -scheme Dora -configuration Release -archivePath Projects/macOS/build/Release/dora.xcarchive -arch "$XCODE_ARCH" ONLY_ACTIVE_ARCH=NO
 
-	echo "Built APP in 'Projects/macOS/build/Release/dora.xcarchive/Products/Applications'"
-else
-	xcodebuild ARCHS="$XCODE_ARCH" ONLY_ACTIVE_ARCH=NO -project Projects/macOS/Dora.xcodeproj -target Dora -configuration "$XCODE_CONFIGURATION"
+# Xcode 工程由 CMake 生成（单一构建约定来源，见 Projects/apple/AppleApp.cmake）
+cmake -S Projects/macOS -B Projects/macOS/build-cmake -G Xcode \
+	-DCMAKE_BUILD_TYPE="$XCODE_CONFIGURATION" \
+	-DCMAKE_OSX_ARCHITECTURES="$XCODE_ARCH" \
+	-DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO
+cmake --build Projects/macOS/build-cmake --config "$XCODE_CONFIGURATION" -j 8
 
-	echo "Built APP in 'Projects/macOS/build/Debug'"
-fi
+echo "Built APP in 'Projects/macOS/build-cmake/$XCODE_CONFIGURATION'"

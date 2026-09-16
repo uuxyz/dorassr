@@ -23,6 +23,14 @@ esac
 "$SCRIPT_DIR/build_lib_ios.sh" "$BUILD_MODE"
 
 cd "$SCRIPT_DIR/../.."
-xcodebuild ARCHS=arm64 ONLY_ACTIVE_ARCH=NO -project Projects/iOS/Dora.xcodeproj -configuration "$XCODE_CONFIGURATION" -target Simulator -sdk iphonesimulator
+
+# Xcode 工程由 CMake 生成（单一构建约定来源，见 Projects/apple/AppleApp.cmake）
+cmake -S Projects/iOS -B Projects/iOS/build-cmake -G Xcode \
+	-DCMAKE_SYSTEM_NAME=iOS \
+	-DCMAKE_OSX_SYSROOT=iphonesimulator \
+	-DCMAKE_OSX_ARCHITECTURES=arm64 \
+	-DCMAKE_BUILD_TYPE="$XCODE_CONFIGURATION" \
+	-DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO
+cmake --build Projects/iOS/build-cmake --config "$XCODE_CONFIGURATION" -j 8
 
 echo "Built APP for iOS Simulator ($XCODE_CONFIGURATION)"

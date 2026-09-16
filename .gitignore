@@ -117,3 +117,7 @@ Docs/kanban
 .codex*
 Docs/design/agent-vision/validation/
 Docs/static/play/
+Projects/*/build*/
+
+Projects/macOS/build-cmake/
+Projects/iOS/build-cmake/
