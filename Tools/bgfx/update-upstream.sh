@@ -109,22 +109,15 @@ if [ -n "$KEEP" ]; then
 	FULL="$THEIRS"
 	TMPIDX=$(mktemp)
 	GIT_INDEX_FILE="$TMPIDX" git read-tree "$THEIRS"
-	# keep 条目支持子路径（如 3rdparty/stb）：精确匹配或作为目录前缀匹配
-	while read -r p; do
-		[ -n "$p" ] || continue
-		keepit=""
-		for k in $KEEP; do
-			case "$p" in
-				"$k"|"$k"/*) keepit=1; break ;;
-			esac
-		done
-		[ -n "$keepit" ] || GIT_INDEX_FILE="$TMPIDX" git rm -rf --cached -q --ignore-unmatch "$p"
-	done <<EOF
-$(git ls-tree -r --name-only "$THEIRS")
-EOF
+	for p in $(git ls-tree --name-only "$THEIRS"); do
+		case " $KEEP " in
+			*" $p "*) ;;
+			*) GIT_INDEX_FILE="$TMPIDX" git rm -rf --cached -q --ignore-unmatch "$p" ;;
+		esac
+	done
 	THEIRS=$(GIT_INDEX_FILE="$TMPIDX" git write-tree)
 	rm -f "$TMPIDX"
-	echo "[INFO] keep-list applied: $FULL -> $THEIRS"
+	echo "[INFO] keep-list '$KEEP' applied: $FULL -> $THEIRS"
 fi
 
 [ "$THEIRS" != "$BASE" ] || { echo "upstream tree unchanged."; exit 0; }
