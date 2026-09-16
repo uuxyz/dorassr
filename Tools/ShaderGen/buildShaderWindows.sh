@@ -25,7 +25,6 @@ targets=(
 	"spirv linux spv"
 	"metal osx mtl"
 	"s_5_0 windows dxbc"
-	"s_6_0 windows dxil"
 )
 
 compile() { # <dir> <file> <stage> <bin2c-name> <out-bin.h> <varyingdef> [extra]

@@ -17,7 +17,6 @@
 		3C10305B2F5F12E20029F68F /* libbimg.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3CE7D3741EADF594008EADB3 /* libbimg.a */; };
 		3C10305C2F5F12E20029F68F /* libbx.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3C0EBE2F1E2DB3FB0066450A /* libbx.a */; };
 		3C1030622F5F12E30029F68F /* libspirv-opt.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3C10305D2F5F12E30029F68F /* libspirv-opt.a */; };
-		3C1030632F5F12E30029F68F /* libfcpp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3C10305E2F5F12E30029F68F /* libfcpp.a */; };
 		3C1030642F5F12E30029F68F /* libglslang.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3C10305F2F5F12E30029F68F /* libglslang.a */; };
 		3C1030652F5F12E30029F68F /* libspirv-cross.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3C1030602F5F12E30029F68F /* libspirv-cross.a */; };
 		3C1030662F5F12E30029F68F /* libshaderc-lib.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3C1030612F5F12E30029F68F /* libshaderc-lib.a */; };
@@ -641,7 +640,6 @@
 		3C078D7C2E14CD2D00C05BA4 /* AudioSource.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = AudioSource.cpp; sourceTree = "<group>"; };
 		3C0EBE2F1E2DB3FB0066450A /* libbx.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libbx.a; path = ../../Source/3rdParty/bgfx/build/macosx/universal/libbx.a; sourceTree = "<group>"; };
 		3C10305D2F5F12E30029F68F /* libspirv-opt.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = "libspirv-opt.a"; path = "../../Source/3rdParty/bgfx/build/macosx/universal/libspirv-opt.a"; sourceTree = "<group>"; };
-		3C10305E2F5F12E30029F68F /* libfcpp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libfcpp.a; path = ../../Source/3rdParty/bgfx/build/macosx/universal/libfcpp.a; sourceTree = "<group>"; };
 		3C10305F2F5F12E30029F68F /* libglslang.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libglslang.a; path = ../../Source/3rdParty/bgfx/build/macosx/universal/libglslang.a; sourceTree = "<group>"; };
 		3C1030602F5F12E30029F68F /* libspirv-cross.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = "libspirv-cross.a"; path = "../../Source/3rdParty/bgfx/build/macosx/universal/libspirv-cross.a"; sourceTree = "<group>"; };
 		3C1030612F5F12E30029F68F /* libshaderc-lib.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = "libshaderc-lib.a"; path = "../../Source/3rdParty/bgfx/build/macosx/universal/libshaderc-lib.a"; sourceTree = "<group>"; };
@@ -2098,7 +2096,6 @@
 				A10E00000000000000000027 /* liblove.a in Frameworks */,
 				3C03A9FA2EF2513100B706C8 /* libtheoradec.a in Frameworks */,
 				3C1030622F5F12E30029F68F /* libspirv-opt.a in Frameworks */,
-				3C1030632F5F12E30029F68F /* libfcpp.a in Frameworks */,
 				3C1030642F5F12E30029F68F /* libglslang.a in Frameworks */,
 				3C1030652F5F12E30029F68F /* libspirv-cross.a in Frameworks */,
 				3C1030662F5F12E30029F68F /* libshaderc-lib.a in Frameworks */,
@@ -2430,7 +2427,6 @@
 			children = (
 				A10E00000000000000000026 /* liblove.a */,
 				3C01B02D2FA2F2B900AAC148 /* libwa.a */,
-				3C10305E2F5F12E30029F68F /* libfcpp.a */,
 				3C10305F2F5F12E30029F68F /* libglslang.a */,
 				3C1030612F5F12E30029F68F /* libshaderc-lib.a */,
 				3C1030602F5F12E30029F68F /* libspirv-cross.a */,

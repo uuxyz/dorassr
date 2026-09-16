@@ -192,13 +192,11 @@
 		3C1030772F5F24400029F68F /* libspirv-cross.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3C1030722F5F243F0029F68F /* libspirv-cross.a */; };
 		3C1030782F5F24400029F68F /* libspirv-opt.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3C1030732F5F243F0029F68F /* libspirv-opt.a */; };
 		3C1030792F5F24400029F68F /* libglslang.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3C1030742F5F243F0029F68F /* libglslang.a */; };
-		3C10307A2F5F24400029F68F /* libfcpp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3C1030752F5F243F0029F68F /* libfcpp.a */; };
 		3C10307B2F5F24400029F68F /* libshaderc-lib.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3C1030762F5F243F0029F68F /* libshaderc-lib.a */; };
 		3C10307C2F5F24580029F68F /* libbgfx.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3CA780962AE770DC00B7BADA /* libbgfx.a */; };
 		3C10307D2F5F24580029F68F /* libbimg_decode.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3CA780982AE770DC00B7BADA /* libbimg_decode.a */; };
 		3C10307E2F5F24580029F68F /* libbimg.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3CA780972AE770DC00B7BADA /* libbimg.a */; };
 		3C10307F2F5F24580029F68F /* libbx.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3CA780992AE770DC00B7BADA /* libbx.a */; };
-		3C1030852F5F24590029F68F /* libfcpp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3C1030802F5F24590029F68F /* libfcpp.a */; };
 		3C1030862F5F24590029F68F /* libspirv-cross.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3C1030812F5F24590029F68F /* libspirv-cross.a */; };
 		3C1030872F5F24590029F68F /* libshaderc-lib.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3C1030822F5F24590029F68F /* libshaderc-lib.a */; };
 		3C1030882F5F24590029F68F /* libglslang.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3C1030832F5F24590029F68F /* libglslang.a */; };
@@ -1498,9 +1496,7 @@
 		3C1030722F5F243F0029F68F /* libspirv-cross.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = "libspirv-cross.a"; path = "../../Source/3rdParty/bgfx/build/ios/simulator/libspirv-cross.a"; sourceTree = "<group>"; };
 		3C1030732F5F243F0029F68F /* libspirv-opt.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = "libspirv-opt.a"; path = "../../Source/3rdParty/bgfx/build/ios/simulator/libspirv-opt.a"; sourceTree = "<group>"; };
 		3C1030742F5F243F0029F68F /* libglslang.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libglslang.a; path = ../../Source/3rdParty/bgfx/build/ios/simulator/libglslang.a; sourceTree = "<group>"; };
-		3C1030752F5F243F0029F68F /* libfcpp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libfcpp.a; path = ../../Source/3rdParty/bgfx/build/ios/simulator/libfcpp.a; sourceTree = "<group>"; };
 		3C1030762F5F243F0029F68F /* libshaderc-lib.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = "libshaderc-lib.a"; path = "../../Source/3rdParty/bgfx/build/ios/simulator/libshaderc-lib.a"; sourceTree = "<group>"; };
-		3C1030802F5F24590029F68F /* libfcpp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libfcpp.a; path = ../../Source/3rdParty/bgfx/build/ios/device/libfcpp.a; sourceTree = "<group>"; };
 		3C1030812F5F24590029F68F /* libspirv-cross.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = "libspirv-cross.a"; path = "../../Source/3rdParty/bgfx/build/ios/device/libspirv-cross.a"; sourceTree = "<group>"; };
 		3C1030822F5F24590029F68F /* libshaderc-lib.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = "libshaderc-lib.a"; path = "../../Source/3rdParty/bgfx/build/ios/device/libshaderc-lib.a"; sourceTree = "<group>"; };
 		3C1030832F5F24590029F68F /* libglslang.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libglslang.a; path = ../../Source/3rdParty/bgfx/build/ios/device/libglslang.a; sourceTree = "<group>"; };
@@ -2723,7 +2719,6 @@
 				3C1030772F5F24400029F68F /* libspirv-cross.a in Frameworks */,
 				3C1030782F5F24400029F68F /* libspirv-opt.a in Frameworks */,
 				3C1030792F5F24400029F68F /* libglslang.a in Frameworks */,
-				3C10307A2F5F24400029F68F /* libfcpp.a in Frameworks */,
 				3C10307B2F5F24400029F68F /* libshaderc-lib.a in Frameworks */,
 				3C10306E2F5F243F0029F68F /* libbgfx.a in Frameworks */,
 				3C10306F2F5F243F0029F68F /* libbimg_decode.a in Frameworks */,
@@ -2753,7 +2748,6 @@
 			files = (
 				A10E1000000000000000002C /* liblove.a in Frameworks */,
 				3C984C782F03B57B00DC8437 /* libtheoradec.a in Frameworks */,
-				3C1030852F5F24590029F68F /* libfcpp.a in Frameworks */,
 				3C1030862F5F24590029F68F /* libspirv-cross.a in Frameworks */,
 				3C1030872F5F24590029F68F /* libshaderc-lib.a in Frameworks */,
 				3C1030882F5F24590029F68F /* libglslang.a in Frameworks */,
@@ -4660,14 +4654,12 @@
 			children = (
 				A10E10000000000000000029 /* liblove.a */,
 				A10E1000000000000000002A /* liblove.a */,
-				3C1030752F5F243F0029F68F /* libfcpp.a */,
 				3C1030742F5F243F0029F68F /* libglslang.a */,
 				3C1030832F5F24590029F68F /* libglslang.a */,
 				3C1030762F5F243F0029F68F /* libshaderc-lib.a */,
 				3C1030822F5F24590029F68F /* libshaderc-lib.a */,
 				3C1030722F5F243F0029F68F /* libspirv-cross.a */,
 				3C1030732F5F243F0029F68F /* libspirv-opt.a */,
-				3C1030802F5F24590029F68F /* libfcpp.a */,
 				3C1030812F5F24590029F68F /* libspirv-cross.a */,
 				3C1030842F5F24590029F68F /* libspirv-opt.a */,
 				3CE471C62DD2EF8A0036716C /* libwa.a */,
