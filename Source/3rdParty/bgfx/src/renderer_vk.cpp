@@ -2911,16 +2911,14 @@ VK_IMPORT_DEVICE
 			if (UINT16_MAX != denseIdx)
 			{
 				--m_numWindows;
-				if (m_numWindows > 1)
+				if (m_numWindows != denseIdx)
 				{
 					FrameBufferHandle handle = m_windows[m_numWindows];
-					m_windows[m_numWindows]  = {kInvalidHandle};
-					if (m_numWindows != denseIdx)
-					{
-						m_windows[denseIdx] = handle;
-						m_frameBuffers[handle.idx].m_denseIdx = denseIdx;
-					}
+					m_windows[denseIdx] = handle;
+					m_frameBuffers[handle.idx].m_denseIdx = denseIdx;
 				}
+
+				m_windows[m_numWindows] = {kInvalidHandle};
 			}
 		}
 
@@ -3292,6 +3290,7 @@ VK_IMPORT_DEVICE
 			||  m_mainSwapChain.height             !=  _swapChain.height
 			||  m_mainSwapChain.nwh                !=  _swapChain.nwh
 			||  m_mainSwapChain.ndt                !=  _swapChain.ndt
+			||  m_mainSwapChain.flags              !=  _swapChain.flags
 			|| (m_reset&maskFlags)   != (_reset&maskFlags)
 			||  m_backBuffer.m_swapChain.m_needToRecreateSurface
 			||  m_backBuffer.m_swapChain.m_needToRecreateSwapchain
@@ -3477,8 +3476,12 @@ VK_IMPORT_DEVICE
 						);
 				}
 
+				const bool block = !isValid(_fbh)
+					|| NULL == m_backBuffer.m_swapChain.m_nwh
+					;
+
 				int64_t start = bx::getHPCounter();
-				newFrameBuffer.acquire(m_commandBuffer, !isValid(_fbh) );
+				newFrameBuffer.acquire(m_commandBuffer, block);
 				m_presentElapsed += bx::getHPCounter() - start;
 			}
 
@@ -4143,7 +4146,14 @@ VK_IMPORT_DEVICE
 			cpci.basePipelineHandle = VK_NULL_HANDLE;
 			cpci.basePipelineIndex  = 0;
 
-			VK_CHECK(vkCreateComputePipelines(m_device, m_pipelineCache, 1, &cpci, m_allocatorCb, &pipeline) );
+			const VkResult result = vkCreateComputePipelines(m_device, m_pipelineCache, 1, &cpci, m_allocatorCb, &pipeline);
+
+			BGFX_FATAL(VK_SUCCESS == result && VK_NULL_HANDLE != pipeline
+				, Fatal::InvalidShader
+				, "Failed to create compute PSO! vkCreateComputePipelines failed %d: %s."
+				, result
+				, getName(result)
+				);
 
 			m_pipelineStateCache.add(hash, pipeline);
 
@@ -4382,14 +4392,22 @@ VK_IMPORT_DEVICE
 			VkPipelineCache cache;
 			VK_CHECK(vkCreatePipelineCache(m_device, &pcci, m_allocatorCb, &cache) );
 
-			VK_CHECK(vkCreateGraphicsPipelines(
+			const VkResult result = vkCreateGraphicsPipelines(
 				  m_device
 				, cache
 				, 1
 				, &graphicsPipeline
 				, m_allocatorCb
 				, &pipeline
-				) );
+				);
+
+			BGFX_FATAL(VK_SUCCESS == result && VK_NULL_HANDLE != pipeline
+				, Fatal::InvalidShader
+				, "Failed to create graphics PSO! vkCreateGraphicsPipelines failed %d: %s."
+				, result
+				, getName(result)
+				);
+
 			m_pipelineStateCache.add(hash, pipeline);
 
 			size_t dataSize;
@@ -6902,7 +6920,8 @@ VK_DESTROY
 		ici.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 		ici.pNext = NULL;
 		ici.flags = 0
-			| (VK_IMAGE_VIEW_TYPE_CUBE == m_type
+			| (VK_IMAGE_VIEW_TYPE_CUBE       == m_type
+			|| VK_IMAGE_VIEW_TYPE_CUBE_ARRAY == m_type
 				? VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT
 				: 0
 				)
@@ -8001,7 +8020,7 @@ VK_DESTROY
 		if (VK_IMAGE_VIEW_TYPE_CUBE       == _type
 		||  VK_IMAGE_VIEW_TYPE_CUBE_ARRAY == _type)
 		{
-			BX_ASSERT(_numLayers % 6 == 0, "");
+			BX_ASSERT(0 < _numLayers, "");
 			BX_ASSERT(false
 				|| VK_IMAGE_VIEW_TYPE_3D != m_type
 				, "3D image can't be aliased as a cube texture"
@@ -10761,6 +10780,12 @@ VK_DESTROY
 							vkCmdEndRenderPass(m_commandBuffer);
 							beginRenderPass = false;
 						}
+					}
+
+					if (viewChanged)
+					{
+						submitUniformCache(ucs, view);
+						submitBlit(bs, view);
 					}
 
 					// renderpass external subpass dependencies handle graphics -> compute and compute -> graphics
