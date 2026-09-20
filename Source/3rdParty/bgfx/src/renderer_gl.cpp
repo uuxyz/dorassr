@@ -1761,11 +1761,15 @@ namespace bgfx { namespace gl
 			case TextureFormat::ETC2:
 			case TextureFormat::ETC2A:
 			case TextureFormat::ETC2A1:
+				return emscripten_webgl_enable_extension(ctx, "WEBGL_compressed_texture_etc");
+
 			case TextureFormat::EACR11:
 			case TextureFormat::EACR11S:
 			case TextureFormat::EACRG11:
 			case TextureFormat::EACRG11S:
-				return emscripten_webgl_enable_extension(ctx, "WEBGL_compressed_texture_etc");
+				return !_srgb
+					&& emscripten_webgl_enable_extension(ctx, "WEBGL_compressed_texture_etc")
+					;
 
 			case TextureFormat::ASTC4x4:
 			case TextureFormat::ASTC5x5:
@@ -3243,6 +3247,17 @@ namespace bgfx { namespace gl
 					m_needPresent = false;
 				}
 			}
+
+			if (m_needPresent)
+			{
+				return;
+			}
+
+			if (m_timerQuerySupport
+			&&  m_gpuTimer.hasPending() )
+			{
+				GL_CHECK(glFinish() );
+			}
 		}
 
 		void createIndexBuffer(IndexBufferHandle _handle, const Memory* _mem, uint16_t _flags) override
@@ -4014,6 +4029,7 @@ namespace bgfx { namespace gl
 			||  m_mainSwapChain.height           !=  _swapChain.height
 			||  m_mainSwapChain.nwh              !=  _swapChain.nwh
 			||  m_mainSwapChain.ndt              !=  _swapChain.ndt
+			||  m_mainSwapChain.flags            !=  _swapChain.flags
 			|| (m_reset&maskFlags) != (_reset&maskFlags) )
 			{
 				uint32_t flags = _reset & (~BGFX_RESET_INTERNAL_FORCE);
@@ -4144,7 +4160,8 @@ namespace bgfx { namespace gl
 
 			if (m_srgbWriteControlSupport)
 			{
-				if (0 == m_currentFbo)
+				if (0 == m_currentFbo
+				|| !isValid(_fbh) )
 				{
 					const uint32_t surfaceFlags = isValid(_fbh)
 						? m_frameBuffers[_fbh.idx].m_desc.flags
@@ -6002,6 +6019,7 @@ namespace bgfx { namespace gl
 		m_currentSamplerHash = UINT32_MAX;
 		m_baseLevel = 0;
 		m_maxLevel  = -1;
+		m_immutableStorage = false;
 
 		const bool writeOnly    = 0 != (m_flags&BGFX_TEXTURE_RT_WRITE_ONLY);
 		const bool computeWrite = 0 != (m_flags&BGFX_TEXTURE_COMPUTE_WRITE );
@@ -6507,7 +6525,8 @@ namespace bgfx { namespace gl
 								) );
 						}
 					}
-					else if (!computeWrite)
+					else if (!computeWrite
+					     &&  !m_immutableStorage)
 					{
 						if (compressed
 						&& !convert)

@@ -74,7 +74,7 @@ bgfx 的 API 稳定性不均匀：每帧绘制路径（encoder/view/texture/prog
 
 | 主题 | 涉及 | 上游化状态 |
 | --- | --- | --- |
-| EAC 纹理格式（bgfx/bimg 全套） | 公开枚举、各后端能力表、WebGL 扩展路由、bimg 编解码 | EAC 格式已进上游（#3487），EACR11 命名迁移待升级时处理；WebGL 路由已 PR #3980 |
+| EAC 纹理格式（bgfx/bimg 全套） | 公开枚举、各后端能力表、WebGL 扩展路由、bimg 编解码 | 全部已进上游（#3487 + PR #3980/#3988）；本地补丁清零，随上游走 |
 | GL 后端修复（renderer_gl/glimports） | uniform 精度统一、链接失败日志、新增 GL 入口 | 精度问题上游已重构消失；其余待评估 |
 | 平台修复（bgfx_p/EGL/D3D/Metal） | Android 恢复前台竞态、readTexture 放宽、KMSDRM 外部 context、Metal EAC 门控 | 竞态与外部 context 上游已重构解决；readTexture 上游立场明确拒绝，引擎侧改走 blit |
 | glsl-optimizer/fcpp MSVC 构建修复 | 3rdparty 快照内的 cast 修复 | 上游不收 3rdparty 改动，长期保留 |
