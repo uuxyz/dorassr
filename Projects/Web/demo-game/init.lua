@@ -6,6 +6,13 @@ local lastLeftButton = false
 local lastControllerA = false
 local lastControllerAxis = 0
 Director.ui.touchEnabled = true
+Director.ui.swallowTouches = false
+Director.entry.touchEnabled = true
+Director.entry:slot("TapBegan", function(touch)
+	local pos = touch.location
+	local source = touch.fromMouse and "mouse" or "touch"
+	print(string.format("Dora Web scene input %s-began id=%d x=%.1f y=%.1f", source, touch.id, pos.x, pos.y))
+end)
 Director.ui.controllerEnabled = true
 Director.ui:slot("TapBegan", function(touch)
 	local pos = touch.location
@@ -293,15 +300,7 @@ thread(function()
 	assert(rayHit, "PlayRho raycast fixture failed")
 	print(string.format("Dora Web PlayRho verified y=%.3f mass=%.3f", falling.y, falling.mass))
 
-	local readbackDone = false
-	local readbackSucceeded = false
-	renderTarget:saveAsync("/tmp/dora-web-render-target.png", function(success)
-		readbackSucceeded = success
-		readbackDone = true
-	end)
-	wait(function()
-		return readbackDone
-	end)
+	local readbackSucceeded = renderTarget:saveAsync("/tmp/dora-web-render-target.png")
 	assert(readbackSucceeded, "RenderTarget readback failed")
 
 	local function runCompiledExample(sourcePath, luaPath, sourceMarker)

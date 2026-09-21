@@ -127,6 +127,7 @@ private:
 	bool _logicRunning;
 #if BX_PLATFORM_EMSCRIPTEN
 	bool _webSuspended;
+	bool _webContextLost = false;
 #endif
 	bool _fullScreen;
 	bool _alwaysOnTop;

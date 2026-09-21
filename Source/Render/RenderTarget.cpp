@@ -328,11 +328,17 @@ bool RenderTarget::readPixelsAsync(const std::function<void(uint16_t, uint16_t, 
 	bgfx::TextureRegion asyncRegion;
 	asyncRegion.init(textureHandle);
 	uint32_t frame = bgfx::read(asyncRegion, data->data());
+#ifdef DORA_WEB_READBACK_TRACE
+	Info("[DoraReadback] queued readyFrame={} currentFrame={}", frame, SharedApplication.getFrame());
+#endif
 	uint16_t width = _textureWidth;
 	uint16_t height = _textureHeight;
 	SharedDirector.getSystemScheduler()->schedule([frame, textureHandle, extraFlags, data, width, height, callback](double deltaTime) mutable {
 		DORA_UNUSED_PARAM(deltaTime);
 		if (frame <= SharedApplication.getFrame()) {
+#ifdef DORA_WEB_READBACK_TRACE
+			Info("[DoraReadback] GPU complete frame={}", SharedApplication.getFrame());
+#endif
 			if (extraFlags) {
 				bgfx::destroy(textureHandle);
 			}
@@ -454,6 +460,9 @@ void RenderTarget::saveAsync(String filename, bool flipY, const std::function<vo
 					size_t outSize = 0;
 					error = lodepng_encode(&out, &outSize, data->data(), width, height, &state);
 					lodepng_state_cleanup(&state);
+#ifdef DORA_WEB_READBACK_TRACE
+					Info("[DoraReadback] PNG encoded error={} bytes={}", error, outSize);
+#endif
 					return Values::alloc(error, out, outSize);
 				},
 				[callback, file](Own<Values> values) {
@@ -470,6 +479,9 @@ void RenderTarget::saveAsync(String filename, bool flipY, const std::function<vo
 					}
 					Slice content(r_cast<char*>(out), outSize);
 					SharedContent.saveAsync(file, content, [out, callback, file](bool success) {
+#ifdef DORA_WEB_READBACK_TRACE
+						Info("[DoraReadback] file saved success={}", success);
+#endif
 						::free(out);
 						if (!success)
 							Warn("RenderTarget failed to save PNG through Content: \"{}\".", file);

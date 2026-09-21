@@ -73,6 +73,8 @@ imgui.ini
 Assets/www/
 Assets/dora-wa/
 Tools/dora-dora/public/typescript.js
+Tools/dora-dora/public/web-player/
+Tools/dora-dora/public/web-player.tmp-*/
 
 # Ignore Linux lib files
 Projects/Linux/3rdParty/
@@ -121,3 +123,7 @@ Projects/*/build*/
 
 Projects/macOS/build-cmake/
 Projects/iOS/build-cmake/
+Projects/Windows/build/
+
+# Delivery state — worktrees and the like. Never committed.
+.akb/
