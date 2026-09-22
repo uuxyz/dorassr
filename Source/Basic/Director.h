@@ -12,6 +12,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include "Support/Common.h"
 #include "Support/Geometry.h"
 
+#include <bgfx/bgfx.h> // bgfx::ViewId
+
 union SDL_Event;
 struct NVGcontext;
 
@@ -73,6 +75,7 @@ public:
 	// Route dynamically-created game color views (such as View3D) into the
 	// active capture target without hijacking nested offscreen render targets.
 	void bindGameCaptureView(bgfx::ViewId viewId);
+
 
 	template <typename Func>
 	void pushViewProjection(const Matrix& viewProj, const Func& workHere) {
