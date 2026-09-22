@@ -164,6 +164,13 @@ set_target_properties(
 )
 
 add_definitions(-DWITH_SDL2 -DBX_CONFIG_DEBUG=${DORA_BX_CONFIG_DEBUG} -Dd_m3HasWASI -DLUA_USE_LINUX -DSPDLOG_FMT_EXTERNAL -DJPH_NO_FORCE_INLINE)
+# 打包方可注入版本（Nix/CI release）；缺省用源码内的开发版本
+if(DORA_VERSION_OVERRIDE)
+	add_definitions("-DDORA_VERSION=\"${DORA_VERSION_OVERRIDE}\"")
+endif()
+if(DORA_REVISION_OVERRIDE)
+	add_definitions("-DDORA_REVISION=\"${DORA_REVISION_OVERRIDE}\"")
+endif()
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     add_definitions(-Wno-psabi)

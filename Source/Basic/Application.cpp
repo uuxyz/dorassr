@@ -54,8 +54,14 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <unistd.h>
 #endif // BX_PLATFORM_OSX || BX_PLATFORM_ANDROID
 
+// Version/revision are overridable at build time so package builds (Nix,
+// CI releases) can stamp the real version instead of the development one.
+#ifndef DORA_VERSION
 #define DORA_VERSION "1.9.3"_slice
+#endif
+#ifndef DORA_REVISION
 #define DORA_REVISION "5"_slice
+#endif
 
 namespace {
 std::mutex receivedFileMutex;
