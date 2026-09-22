@@ -68,18 +68,20 @@ export function AgentContextUsage(props:Pick<SharedAgentComposerProps,'compact'|
 
 function ComposerContent(props:SharedAgentComposerProps){
   const copy={...defaultLabels,...props.labels};
-  const compact=props.compact??false,prompt=props.prompt,loading=props.loading||props.disabled===true,running=props.running;
+	const compact=props.compact??false,prompt=props.prompt,loading=props.loading,running=props.running,disabled=props.disabled===true;
   const stopping=props.stopping??false,canStop=props.canStop??true,maxLength=props.maxLength??12000;
   const fetchUrlEnabled=props.fetchUrlEnabled??false,executeCommandEnabled=props.executeCommandEnabled??false,planMode=props.planMode??false;
   const models=props.models??[],selectedModel=models.find(item=>String(item.id)===String(props.modelId));
-  const disabledInput=loading||running,actionDisabled=running?!canStop:loading||prompt.trim()==='',toolToggleDisabled=loading||running;
+	// A temporarily unavailable send action must not lock the draft. Users may
+	// continue typing while the workspace saves/synchronizes in the background.
+	const disabledInput=loading||running,actionDisabled=running?!canStop:disabled||loading||prompt.trim()==='',toolToggleDisabled=disabled||loading||running;
   const textAreaRef=React.useRef<HTMLTextAreaElement|null>(null),isComposingRef=React.useRef(false);
   const [modelMenuOpen,setModelMenuOpen]=React.useState(false),[modelTooltipOpen,setModelTooltipOpen]=React.useState(false),[inputFocused,setInputFocused]=React.useState(false);
   React.useLayoutEffect(()=>{const textarea=textAreaRef.current;if(!textarea)return;textarea.style.height='0px';const maxHeight=compact?160:220;textarea.style.height=`${Math.max(compact?44:64,Math.min(textarea.scrollHeight,maxHeight))}px`;textarea.style.overflowY=textarea.scrollHeight>maxHeight?'auto':'hidden';},[compact,prompt]);
   const toolButtonSx=(enabled:boolean)=>({height:compact?28:30,minWidth:0,px:1,borderRadius:1.5,backgroundColor:enabled?Color.ThemeMuted:'transparent',color:enabled?Color.Theme:Color.TextSecondary,'&:hover':{backgroundColor:enabled?`${Color.Theme}2a`:Color.SurfaceHover},'&.Mui-disabled':{backgroundColor:enabled?Color.ThemeMuted:'transparent',color:enabled?`${Color.Theme}aa`:'rgba(255,255,255,0.3)',opacity:1}});
   const submit=()=>{if(actionDisabled)return;if(running)props.onStop?.();else props.onSend();};
   return <Box data-agent-composer-compact={compact?'true':'false'} sx={{px:compact?1.25:2,pt:compact?0.5:1,pb:compact?0.75:2,backgroundColor:Color.Background,flexShrink:0}}>
-    <Box sx={{width:'100%',maxWidth:980,mx:'auto',border:`1px solid ${inputFocused?`${Color.Theme}88`:Color.Line}`,borderRadius:compact?2:3,backgroundColor:Color.BackgroundDark,overflow:'hidden',transition:'border-color 140ms ease'}}>
+    <Box sx={{width:'100%',maxWidth:980,mx:'auto',border:`1px solid ${inputFocused?`${Color.Theme}88`:Color.Line}`,borderRadius:compact?2:3,backgroundColor:Color.Background,overflow:'hidden',transition:'border-color 140ms ease'}}>
       <textarea ref={textAreaRef} aria-label={props.ariaLabel??'Agent 描述'} value={prompt} maxLength={maxLength} disabled={disabledInput} onFocus={()=>setInputFocused(true)} onBlur={()=>setInputFocused(false)} onChange={event=>props.onPromptChange(event.target.value.slice(0,maxLength))} onCompositionStart={()=>{isComposingRef.current=true;}} onCompositionEnd={event=>{isComposingRef.current=false;props.onPromptChange(event.currentTarget.value);}} onKeyDown={event=>{if(isComposingRef.current||event.nativeEvent.isComposing)return;if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submit();}}} placeholder={planMode?copy.planPromptPlaceholder:copy.promptPlaceholder} style={{display:'block',width:'100%',minHeight:compact?44:64,maxHeight:compact?160:220,padding:compact?'8px 10px 4px':'14px 16px 8px',border:'none',outline:'none',resize:'none',overflow:'hidden',backgroundColor:'transparent',color:Color.TextPrimary,font:'inherit',lineHeight:'1.65',boxSizing:'border-box'}}/>
       <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{px:compact?0.75:1,pb:compact?0.5:1,minHeight:compact?32:38,flexWrap:'wrap',rowGap:compact?0.25:0.75}}>
         <Stack direction="row" spacing={0.25} alignItems="center" sx={{minWidth:0,flexShrink:0,flexWrap:'wrap',rowGap:0.25,'& .MuiButton-root':{whiteSpace:'nowrap'}}}>

@@ -13,6 +13,8 @@ import type {AgentPromptOptions} from './agent-prompt-options';
 import {persistSessionBoundariesBeforePublish,type DurableAgentSessionSource} from './agent-session-durability';
 import {createAgentModelQueueStore,idleAgentModelQueue} from './agent-model-queue';
 
+const agentRoot='/user/studio-project';
+
 /** Owns transport and explicit stop/persist operations. close() does not imply
  * persistence; the runtime owner must await persist() before normal destruction.
  * Never install in a game Player.
@@ -36,11 +38,11 @@ export function installAgentWasmHost(module:AgentHostModule, parentWindow:Window
           if(!host)throw new Error('Agent Player preview connection unavailable');
           return host.requestPreview(artifact,times,operation);
         },signal)
-      :executeAgentLuaTool(module.FS!,binding.projectId,baselineRevision??0,request,
+	      :executeAgentLuaTool(module.FS!,binding.projectId,baselineRevision??0,request,
         (artifact,commandId,timeoutSeconds,operation)=>{
           if(!host)throw new Error('Agent Lua Player connection unavailable');
           return host.requestLua(artifact,commandId,timeoutSeconds,operation);
-        },signal):undefined);
+	        },signal):undefined);
   const lifetime = new AbortController();
   let leaseTimer:ReturnType<typeof setInterval>|undefined;
   let queueTimer:ReturnType<typeof setInterval>|undefined,queuePolling=false;
@@ -111,10 +113,11 @@ export function installAgentWasmHost(module:AgentHostModule, parentWindow:Window
       // A verified persisted baseline permits one-sided author edits after reopening.
       const existing=module.FS.readdir('/user/studio-project').filter(name=>name!=='.'&&name!=='..'&&name!=='.agent');
       const alreadyInstalled=matchesInstalledAgentProject(module.FS,snapshot);
+      const authorAlreadyInstalled=matchesInstalledAgentProject(module.FS,snapshot,false);
       if(baselineRevision!==undefined && !authorBaseline && !alreadyInstalled)throw new Error('Persisted author files changed and require reconciliation');
       if(authorBaseline){
-        const unchanged=matchesInstalledAgentProject(module.FS,authorBaseline);
-        if(snapshot.revision<authorBaseline.revision || (snapshot.revision===authorBaseline.revision && (!unchanged || !alreadyInstalled)))throw new Error('Stale author revision');
+        const unchanged=matchesInstalledAgentProject(module.FS,authorBaseline,false);
+        if(snapshot.revision<authorBaseline.revision || (snapshot.revision===authorBaseline.revision && (!unchanged || !authorAlreadyInstalled)))throw new Error('Stale author revision');
         if(!alreadyInstalled){
           if(!unchanged)throw new Error('Agent author files changed since the acknowledged baseline');
           installAgentProjectSnapshot(module.FS,snapshot);
