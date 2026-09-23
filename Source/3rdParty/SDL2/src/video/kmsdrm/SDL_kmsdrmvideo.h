@@ -1,6 +1,6 @@
 /*
   Simple DirectMedia Layer
-  Copyright (C) 1997-2024 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -25,6 +25,7 @@
 #define __SDL_KMSDRMVIDEO_H__
 
 #include "../SDL_sysvideo.h"
+#define GBM_FORMAT_XRGB8888  ((uint32_t)('X') | ((uint32_t)('R') << 8) | ((uint32_t)('2') << 16) | ((uint32_t)('4') << 24))
 
 #include <fcntl.h>
 #include <unistd.h>
@@ -67,7 +68,6 @@
 
 #ifndef GBM_FORMAT_ARGB8888
 #define GBM_FORMAT_ARGB8888  ((uint32_t)('A') | ((uint32_t)('R') << 8) | ((uint32_t)('2') << 16) | ((uint32_t)('4') << 24))
-#define GBM_FORMAT_XRGB8888  ((uint32_t)('X') | ((uint32_t)('R') << 8) | ((uint32_t)('2') << 16) | ((uint32_t)('4') << 24))
 #define GBM_BO_USE_CURSOR   (1 << 1)
 #define GBM_BO_USE_WRITE    (1 << 3)
 #define GBM_BO_USE_LINEAR   (1 << 4)
