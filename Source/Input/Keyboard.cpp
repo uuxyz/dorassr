@@ -216,7 +216,7 @@ void Keyboard::attachIME(const KeyboardHandler& handler, bool showScreenKeyboard
 	} else {
 		SharedApplication.invokeInRender([showScreenKeyboard]() {
 			if (showScreenKeyboard) {
-				SDL_StartTextInput();
+				SDL_StartTextInput(window);
 				return;
 			}
 			const char* previousHint = SDL_GetHint(SDL_HINT_ENABLE_SCREEN_KEYBOARD);
@@ -224,9 +224,9 @@ void Keyboard::attachIME(const KeyboardHandler& handler, bool showScreenKeyboard
 			const std::string previousValue = previousHint ? previousHint : "";
 			// Match SDL's initial state: accept text events without opening the
 			// mobile screen keyboard or keeping Android's DummyEdit focused.
-			SDL_StopTextInput();
+			SDL_StopTextInput(window);
 			SDL_SetHint(SDL_HINT_ENABLE_SCREEN_KEYBOARD, "0");
-			SDL_StartTextInput();
+			SDL_StartTextInput(window);
 			if (hadPreviousHint)
 				SDL_SetHint(SDL_HINT_ENABLE_SCREEN_KEYBOARD, previousValue.c_str());
 			else
@@ -243,7 +243,7 @@ void Keyboard::detachIME() {
 		Event detachEvent("DetachIME"_slice);
 		_imeHandler(&detachEvent);
 		_imeHandler = nullptr;
-		SharedApplication.invokeInRender(SDL_StopTextInput);
+		SharedApplication.invokeInRender([](SDL_Window* w){ SDL_StopTextInput(w); });
 	}
 }
 
