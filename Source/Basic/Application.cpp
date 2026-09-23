@@ -27,7 +27,6 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include "Other/utf8.h"
 
 #include <SDL3/SDL.h>
-#include <SDL3/SDL_syswm.h>
 #if BX_PLATFORM_ANDROID
 #include <SDL3/SDL_system.h>
 #endif

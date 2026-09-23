@@ -963,7 +963,7 @@ void Director::handleSDLEvent(const SDL_Event& event) {
 		case SDL_EVENT_MOUSE_WHEEL:
 			SharedTouchDispatcher.add(event);
 			break;
-		case SDL_MULTIGESTURE:
+		case SDL_EVENT_MULTIGESTURE:
 			SharedTouchDispatcher.add(event);
 			break;
 		case SDL_EVENT_KEY_DOWN:

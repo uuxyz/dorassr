@@ -517,11 +517,11 @@ std::optional<Controller::GamepadMapping> Controller::getControllerGamepadMappin
 		(void)deviceId;
 		if (device->id != controllerId) continue;
 		auto controller = s_cast<SDL_Gamepad*>(device->controller);
-		SDL_GameControllerButtonBind bind{};
+		SDL_GamepadBinding bind{};
 		if (const auto axis = gamepadAxisFromLove(gamepadInput); axis != SDL_GAMEPAD_AXIS_INVALID)
-			bind = SDL_GameControllerGetBindForAxis(controller, axis);
+			bind = SDL_GetGamepadBindForAxis(controller, axis);
 		else if (const auto button = gamepadButtonFromLove(gamepadInput); button != SDL_GAMEPAD_BUTTON_INVALID)
-			bind = SDL_GameControllerGetBindForButton(controller, button);
+			bind = SDL_GetGamepadBindForButton(controller, button);
 		else
 			return std::nullopt;
 		GamepadMapping result;

@@ -28,7 +28,6 @@ NS_DORA_END
 #if BX_PLATFORM_IOS
 
 #include <SDL3/SDL.h>
-#include <SDL3/SDL_syswm.h>
 #import "3rdParty/SDL2/src/video/uikit/SDL_uikitappdelegate.h"
 
 #import <AVFoundation/AVFoundation.h>
