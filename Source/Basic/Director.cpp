@@ -44,7 +44,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 #include "bx/timer.h"
 
-#include "SDL.h"
+#include <SDL3/SDL.h>
 
 #include "rapidjson/stringbuffer.h"
 #include "rapidjson/writer.h"
@@ -883,7 +883,7 @@ NVGcontext* Director::markNVGDirty() {
 void Director::handleSDLEvent(const SDL_Event& event) {
 	switch (event.type) {
 		// User-requested quit
-		case SDL_QUIT:
+		case SDL_EVENT_QUIT:
 			_stoped = true;
 			Event::send("AppEvent"_slice, "Quit"s);
 			cleanup();
@@ -904,28 +904,28 @@ void Director::handleSDLEvent(const SDL_Event& event) {
 #endif
 			break;
 		// The application is being terminated by the OS.
-		case SDL_APP_TERMINATING:
+		case SDL_EVENT_TERMINATING:
 			Event::send("AppEvent"_slice, "Quit"s);
 			break;
 		// The application is low on memory, free memory if possible.
-		case SDL_APP_LOWMEMORY:
+		case SDL_EVENT_LOW_MEMORY:
 			Event::send("AppEvent"_slice, "LowMemory"s);
 			break;
 		// The application is about to enter the background.
-		case SDL_APP_WILLENTERBACKGROUND:
+		case SDL_EVENT_WILL_ENTER_BACKGROUND:
 			_paused = true;
 			Event::send("AppEvent"_slice, "WillEnterBackground"s);
 			break;
-		case SDL_APP_DIDENTERBACKGROUND:
+		case SDL_EVENT_DID_ENTER_BACKGROUND:
 #if !BX_PLATFORM_ANDROID
 			bgfx::reset(0, 0);
 #endif
 			Event::send("AppEvent"_slice, "DidEnterBackground"s);
 			break;
-		case SDL_APP_WILLENTERFOREGROUND:
+		case SDL_EVENT_WILL_ENTER_FOREGROUND:
 			Event::send("AppEvent"_slice, "WillEnterForeground"s);
 			break;
-		case SDL_APP_DIDENTERFOREGROUND:
+		case SDL_EVENT_DID_ENTER_FOREGROUND:
 			_paused = false;
 			SharedView.reset();
 			Event::send("AppEvent"_slice, "DidEnterForeground"s);
@@ -933,47 +933,47 @@ void Director::handleSDLEvent(const SDL_Event& event) {
 			break;
 		case SDL_WINDOWEVENT: {
 			switch (event.window.event) {
-				case SDL_WINDOWEVENT_HIDDEN:
+				case SDL_EVENT_WINDOW_HIDDEN:
 					_paused = true;
 					break;
-				case SDL_WINDOWEVENT_SHOWN:
+				case SDL_EVENT_WINDOW_SHOWN:
 					_paused = false;
 					break;
-				case SDL_WINDOWEVENT_RESIZED:
-				case SDL_WINDOWEVENT_SIZE_CHANGED:
+				case SDL_EVENT_WINDOW_RESIZED:
+				case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
 					SharedView.reset();
 					Event::send("AppChange"_slice, "Size"s);
 					break;
-				case SDL_WINDOWEVENT_MOVED:
+				case SDL_EVENT_WINDOW_MOVED:
 					Event::send("AppChange"_slice, "Position"s);
 					break;
 			}
 			break;
 		}
-		case SDL_MOUSEBUTTONDOWN:
-		case SDL_FINGERDOWN:
+		case SDL_EVENT_MOUSE_BUTTON_DOWN:
+		case SDL_EVENT_FINGER_DOWN:
 			SharedKeyboard.handleEvent(event);
 			[[fallthrough]];
-		case SDL_MOUSEMOTION:
-		case SDL_MOUSEBUTTONUP:
-		case SDL_FINGERUP:
-		case SDL_FINGERMOTION:
+		case SDL_EVENT_MOUSE_MOTION:
+		case SDL_EVENT_MOUSE_BUTTON_UP:
+		case SDL_EVENT_FINGER_UP:
+		case SDL_EVENT_FINGER_MOTION:
 			SharedTouchDispatcher.add(event);
 			break;
-		case SDL_MOUSEWHEEL:
+		case SDL_EVENT_MOUSE_WHEEL:
 			SharedTouchDispatcher.add(event);
 			break;
 		case SDL_MULTIGESTURE:
 			SharedTouchDispatcher.add(event);
 			break;
-		case SDL_KEYDOWN:
+		case SDL_EVENT_KEY_DOWN:
 			if (event.key.keysym.scancode == SDL_SCANCODE_AC_BACK && event.key.repeat == 0) {
 				Event::send("AppEvent"_slice, "BackButton"s);
 			}
 			[[fallthrough]];
-		case SDL_KEYUP:
-		case SDL_TEXTINPUT:
-		case SDL_TEXTEDITING:
+		case SDL_EVENT_KEY_UP:
+		case SDL_EVENT_TEXT_INPUT:
+		case SDL_EVENT_TEXT_EDITING:
 			SharedKeyboard.handleEvent(event);
 			break;
 		default:

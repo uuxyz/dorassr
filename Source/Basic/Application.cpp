@@ -26,10 +26,10 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 #include "Other/utf8.h"
 
-#include "SDL.h"
-#include "SDL_syswm.h"
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_syswm.h>
 #if BX_PLATFORM_ANDROID
-#include "SDL_system.h"
+#include <SDL3/SDL_system.h>
 #endif
 #include "bx/filepath.h"
 #include "bx/timer.h"
@@ -126,7 +126,7 @@ extern "C" JNIEXPORT void JNICALL Java_org_ippclub_dorassr_MainActivity_nativeRe
 
 static bool androidFileAction(const char* name, const std::string& path) {
 	JNIEnv* env = Android_JNI_GetEnv();
-	jobject activity = r_cast<jobject>(SDL_AndroidGetActivity());
+	jobject activity = r_cast<jobject>(SDL_GetAndroidActivity());
 	if (!env || !activity) return false;
 	jclass clazz = env->GetObjectClass(activity);
 	jmethodID method = clazz ? env->GetMethodID(clazz, name, "(Ljava/lang/String;)V") : nullptr;
@@ -145,7 +145,7 @@ static bool androidFileAction(const char* name, const std::string& path) {
 
 static void setAndroidAppWebView(const std::string& path, bool visible) {
 	JNIEnv* env = Android_JNI_GetEnv();
-	jobject activity = r_cast<jobject>(SDL_AndroidGetActivity());
+	jobject activity = r_cast<jobject>(SDL_GetAndroidActivity());
 	if (!env || !activity) return;
 	jclass clazz = env->GetObjectClass(activity);
 	jmethodID method = clazz ? env->GetMethodID(clazz, "setAppWebView", "(Ljava/lang/String;Z)V") : nullptr;
@@ -884,7 +884,7 @@ void Application::setAlwaysOnTop(bool var) {
 	}
 	_alwaysOnTop = var;
 	invokeInRender([&, var]() {
-		SDL_SetWindowAlwaysOnTop(_sdlWindow, var ? SDL_TRUE : SDL_FALSE);
+		SDL_SetWindowAlwaysOnTop(_sdlWindow, var ? true : false);
 	});
 	Event::send("AppChange"_slice, "AlwaysOnTop"s);
 }
@@ -919,7 +919,7 @@ int Application::run(MainFunc mainFunc) {
 	_mainFunc = mainFunc;
 	Application::setSeed(s_cast<uint32_t>(std::time(nullptr)));
 
-	if (SDL_Init(SDL_INIT_GAMECONTROLLER) != 0) {
+	if (SDL_Init(SDL_INIT_GAMEPAD) != 0) {
 		Error("SDL failed to initialize! {}", SDL_GetError());
 		return 1;
 	}
@@ -931,7 +931,7 @@ int Application::run(MainFunc mainFunc) {
 	SDL_SetHint(SDL_HINT_IME_SHOW_UI, "1");
 	SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight Portrait PortraitUpsideDown");
 
-	uint32_t windowFlags = SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_INPUT_FOCUS | SDL_WINDOW_RESIZABLE;
+	uint32_t windowFlags = SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_INPUT_FOCUS | SDL_WINDOW_RESIZABLE;
 #if BX_PLATFORM_WINDOWS || BX_PLATFORM_OSX || BX_PLATFORM_LINUX
 	windowFlags |= SDL_WINDOW_HIDDEN;
 	windowFlags = SharedRenderSurface.prepareWindowCreation(windowFlags, _fullScreen);
@@ -952,7 +952,7 @@ int Application::run(MainFunc mainFunc) {
 	}
 
 #if BX_PLATFORM_WINDOWS || BX_PLATFORM_OSX || BX_PLATFORM_LINUX
-	int displayIndex = SDL_GetWindowDisplayIndex(_sdlWindow);
+	int displayIndex = SDL_GetDisplayForWindow(_sdlWindow);
 	SDL_Rect rect;
 	if (SDL_GetDisplayBounds(displayIndex, &rect) == 0 && (_winWidth > rect.w || _winHeight > rect.h)) {
 		_winWidth = rect.w;
@@ -1025,12 +1025,12 @@ int Application::run(MainFunc mainFunc) {
 		while (SDL_PollEvent(&event)) {
 			bool suppressKeyboardEvent = false;
 			switch (event.type) {
-				case SDL_DROPFILE:
+				case SDL_EVENT_DROP_FILE:
 					queueReceivedFile(event.drop.file ? event.drop.file : "");
 					SDL_free(event.drop.file);
 					continue;
 
-				case SDL_QUIT:
+				case SDL_EVENT_QUIT:
 					if (Singleton<DB>::isInitialized()) {
 						SharedDB.stop();
 					}
@@ -1041,42 +1041,42 @@ int Application::run(MainFunc mainFunc) {
 #endif
 					break;
 #if BX_PLATFORM_ANDROID
-				case SDL_APP_DIDENTERFOREGROUND:
+				case SDL_EVENT_DID_ENTER_FOREGROUND:
 					SharedRenderSurface.onNativeWindowChanged();
 					break;
 #endif // BX_PLATFORM_ANDROID
 				case SDL_WINDOWEVENT: {
 					switch (event.window.event) {
-						case SDL_WINDOWEVENT_RESIZED:
-						case SDL_WINDOWEVENT_SIZE_CHANGED: {
+						case SDL_EVENT_WINDOW_RESIZED:
+						case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED: {
 							updateWindowSize();
 							break;
 						}
-						case SDL_WINDOWEVENT_MOVED:
+						case SDL_EVENT_WINDOW_MOVED:
 							_winPosition = Vec2{s_cast<float>(event.window.data1), s_cast<float>(event.window.data2)};
 							break;
 					}
 					break;
 				}
-				case SDL_KEYDOWN:
-				case SDL_KEYUP:
+				case SDL_EVENT_KEY_DOWN:
+				case SDL_EVENT_KEY_UP:
 					SharedController.handleVirtualGamepadEventInRender(event);
 					suppressKeyboardEvent = SharedController.isVirtualGamepadEnabled();
 					break;
-				case SDL_TEXTINPUT:
-				case SDL_TEXTEDITING:
+				case SDL_EVENT_TEXT_INPUT:
+				case SDL_EVENT_TEXT_EDITING:
 #if BX_PLATFORM_ANDROID || BX_PLATFORM_IOS
-					if (event.type == SDL_TEXTEDITING) {
+					if (event.type == SDL_EVENT_TEXT_EDITING) {
 						event.edit.start = CodeCvt::utf8_count_characters(event.edit.text);
 					}
 #endif // BX_PLATFORM_ANDROID || BX_PLATFORM_IOS
 					suppressKeyboardEvent = SharedController.isVirtualGamepadEnabled();
 					break;
-				case SDL_CONTROLLERDEVICEADDED:
-				case SDL_CONTROLLERDEVICEREMOVED:
-				case SDL_CONTROLLERAXISMOTION:
-				case SDL_CONTROLLERBUTTONDOWN:
-				case SDL_CONTROLLERBUTTONUP: {
+				case SDL_EVENT_GAMEPAD_ADDED:
+				case SDL_EVENT_GAMEPAD_REMOVED:
+				case SDL_EVENT_GAMEPAD_AXIS_MOTION:
+				case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+				case SDL_EVENT_GAMEPAD_BUTTON_UP: {
 					bool updateControllerState = false;
 					if (Singleton<ImGuiDora>::isInitialized() && SharedImGui.shouldCaptureControllerEvent(event, &updateControllerState)) {
 						if (updateControllerState) {
@@ -1105,7 +1105,7 @@ int Application::run(MainFunc mainFunc) {
 			switch (Switch::hash(event->getName())) {
 				case "Quit"_hash: {
 					SDL_Event ev;
-					ev.quit.type = SDL_QUIT;
+					ev.quit.type = SDL_EVENT_QUIT;
 					SDL_PushEvent(&ev);
 					break;
 				}
@@ -1161,7 +1161,7 @@ void Application::updateWindowSize() {
 	SDL_GL_GetDrawableSize(_sdlWindow, &_bufferWidth, &_bufferHeight);
 #endif
 	SDL_GetWindowSize(_sdlWindow, &_winWidth, &_winHeight);
-	int displayIndex = SDL_GetWindowDisplayIndex(_sdlWindow);
+	int displayIndex = SDL_GetDisplayForWindow(_sdlWindow);
 	SDL_DisplayMode displayMode{SDL_PIXELFORMAT_UNKNOWN, 0, 0, 0, 0};
 	SDL_GetCurrentDisplayMode(displayIndex, &displayMode);
 	if (displayMode.refresh_rate > 0) {
@@ -1299,38 +1299,38 @@ void Application::runEmscriptenFrame() {
 	while (SDL_PollEvent(&event)) {
 		bool suppressKeyboardEvent = false;
 		switch (event.type) {
-			case SDL_QUIT:
+			case SDL_EVENT_QUIT:
 				if (Singleton<DB>::isInitialized()) SharedDB.stop();
 				_renderRunning = false;
 				break;
 			case SDL_WINDOWEVENT:
 				switch (event.window.event) {
-					case SDL_WINDOWEVENT_RESIZED:
-					case SDL_WINDOWEVENT_SIZE_CHANGED:
+					case SDL_EVENT_WINDOW_RESIZED:
+					case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
 						updateWindowSize();
 						break;
-					case SDL_WINDOWEVENT_MOVED:
+					case SDL_EVENT_WINDOW_MOVED:
 						_winPosition = Vec2{s_cast<float>(event.window.data1), s_cast<float>(event.window.data2)};
 						break;
-					case SDL_WINDOWEVENT_FOCUS_LOST:
+					case SDL_EVENT_WINDOW_FOCUS_LOST:
 						SharedController.releaseAllInRender();
 						break;
 				}
 				break;
-			case SDL_KEYDOWN:
-			case SDL_KEYUP:
+			case SDL_EVENT_KEY_DOWN:
+			case SDL_EVENT_KEY_UP:
 				SharedController.handleVirtualGamepadEventInRender(event);
 				suppressKeyboardEvent = SharedController.isVirtualGamepadEnabled();
 				break;
-			case SDL_TEXTINPUT:
-			case SDL_TEXTEDITING:
+			case SDL_EVENT_TEXT_INPUT:
+			case SDL_EVENT_TEXT_EDITING:
 				suppressKeyboardEvent = SharedController.isVirtualGamepadEnabled();
 				break;
-			case SDL_CONTROLLERDEVICEADDED:
-			case SDL_CONTROLLERDEVICEREMOVED:
-			case SDL_CONTROLLERAXISMOTION:
-			case SDL_CONTROLLERBUTTONDOWN:
-			case SDL_CONTROLLERBUTTONUP: {
+			case SDL_EVENT_GAMEPAD_ADDED:
+			case SDL_EVENT_GAMEPAD_REMOVED:
+			case SDL_EVENT_GAMEPAD_AXIS_MOTION:
+			case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+			case SDL_EVENT_GAMEPAD_BUTTON_UP: {
 				bool updateControllerState = false;
 				if (Singleton<ImGuiDora>::isInitialized()
 					&& SharedImGui.shouldCaptureControllerEvent(event, &updateControllerState)) {
@@ -1351,7 +1351,7 @@ void Application::runEmscriptenFrame() {
 		switch (Switch::hash(renderEvent->getName())) {
 			case "Quit"_hash: {
 				SDL_Event quitEvent{};
-				quitEvent.quit.type = SDL_QUIT;
+				quitEvent.quit.type = SDL_EVENT_QUIT;
 				SDL_PushEvent(&quitEvent);
 				break;
 			}
@@ -1369,7 +1369,7 @@ void Application::runEmscriptenFrame() {
 			case "SDLEvent"_hash: {
 				SDL_Event sdlEvent;
 				logicEvent->get(sdlEvent);
-				if (sdlEvent.type == SDL_QUIT) {
+				if (sdlEvent.type == SDL_EVENT_QUIT) {
 					_logicRunning = false;
 					quitHandler();
 				}
@@ -1469,7 +1469,7 @@ int Application::mainLogic(Application* app) {
 					SDL_Event sdlEvent;
 					event->get(sdlEvent);
 					switch (sdlEvent.type) {
-						case SDL_QUIT: {
+						case SDL_EVENT_QUIT: {
 							app->_logicRunning = false;
 							app->quitHandler();
 							// Info("singleton reference tree:\n{}", Life::getRefTree());
@@ -1617,7 +1617,7 @@ std::string Application::getClipboardText() const {
 #if BX_PLATFORM_ANDROID
 Rect Application::getSafeArea() {
 	JNIEnv* env = Android_JNI_GetEnv();
-	jobject activity = r_cast<jobject>(SDL_AndroidGetActivity());
+	jobject activity = r_cast<jobject>(SDL_GetAndroidActivity());
 	if (!env || !activity) {
 		return Rect{0.0f, 0.0f, s_cast<float>(_visualWidth), s_cast<float>(_visualHeight)};
 	}
@@ -1649,7 +1649,7 @@ Rect Application::getSafeArea() {
 
 bool Application::isReducedMotion() const noexcept {
 	JNIEnv* env = Android_JNI_GetEnv();
-	jobject activity = r_cast<jobject>(SDL_AndroidGetActivity());
+	jobject activity = r_cast<jobject>(SDL_GetAndroidActivity());
 	if (!env || !activity) return false;
 	jclass clazz = env->GetObjectClass(activity);
 	jmethodID method = clazz ? env->GetMethodID(clazz, "isReducedMotion", "()Z") : nullptr;
@@ -1665,7 +1665,7 @@ bool Application::isReducedMotion() const noexcept {
 
 void Application::vibrate(double seconds) {
 	JNIEnv* env = Android_JNI_GetEnv();
-	jobject activity = r_cast<jobject>(SDL_AndroidGetActivity());
+	jobject activity = r_cast<jobject>(SDL_GetAndroidActivity());
 	if (!env || !activity) return;
 	jclass clazz = env->GetObjectClass(activity);
 	jmethodID method = clazz ? env->GetMethodID(clazz, "vibrate", "(D)V") : nullptr;
@@ -1682,7 +1682,7 @@ void Application::vibrate(double seconds) {
 
 bool Application::hasBackgroundMusic() const {
 	JNIEnv* env = Android_JNI_GetEnv();
-	jobject activity = r_cast<jobject>(SDL_AndroidGetActivity());
+	jobject activity = r_cast<jobject>(SDL_GetAndroidActivity());
 	if (!env || !activity) return false;
 	jclass clazz = env->GetObjectClass(activity);
 	jmethodID method = clazz ? env->GetMethodID(clazz, "hasBackgroundMusic", "()Z") : nullptr;
@@ -2231,7 +2231,7 @@ std::string Dora::Application::getDeps() const noexcept {
 		"- SQLiteCpp {}\n"
 		"- fmt {}\n"
 		"- spdlog {}.{}.{}",
-		SDL_MAJOR_VERSION, SDL_MINOR_VERSION, SDL_PATCHLEVEL,
+		SDL_MAJOR_VERSION, SDL_MINOR_VERSION, SDL_MICRO_VERSION,
 		BGFX_API_VERSION,
 		LUA_VERSION_MAJOR, LUA_VERSION_MINOR, LUA_VERSION_RELEASE,
 		PLAYRHO_VERSION_MAJOR, PLAYRHO_VERSION_MINOR, PLAYRHO_VERSION_PATCH,
@@ -2262,7 +2262,7 @@ std::string Dora::Application::getDeps() const noexcept {
 		"- fmt {}\n"
 		"- xrt {}\n"
 		"- spdlog {}.{}.{}",
-		SDL_MAJOR_VERSION, SDL_MINOR_VERSION, SDL_PATCHLEVEL,
+		SDL_MAJOR_VERSION, SDL_MINOR_VERSION, SDL_MICRO_VERSION,
 		BGFX_API_VERSION,
 		LUA_VERSION_MAJOR, LUA_VERSION_MINOR, LUA_VERSION_RELEASE,
 		yue::version,

@@ -34,7 +34,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include "imgui_internal.h"
 #include "implot.h"
 
-#include "SDL.h"
+#include <SDL3/SDL.h>
 
 NS_DORA_BEGIN
 
@@ -944,35 +944,35 @@ static bool DoraIsOtherImGuiWindowFocused() {
 	return window && !DoraIsGamepadInputWindow(window);
 }
 
-static ImGuiKey DoraGetGamepadButtonKey(SDL_GameControllerButton button) {
+static ImGuiKey DoraGetGamepadButtonKey(SDL_GamepadButton button) {
 	switch (button) {
-		case SDL_CONTROLLER_BUTTON_START:
+		case SDL_GAMEPAD_BUTTON_START:
 			return ImGuiKey_GamepadStart;
-		case SDL_CONTROLLER_BUTTON_BACK:
+		case SDL_GAMEPAD_BUTTON_BACK:
 			return ImGuiKey_GamepadBack;
-		case SDL_CONTROLLER_BUTTON_X:
+		case SDL_GAMEPAD_BUTTON_WEST:
 			return ImGuiKey_GamepadFaceUp;
-		case SDL_CONTROLLER_BUTTON_B:
+		case SDL_GAMEPAD_BUTTON_EAST:
 			return ImGuiKey_GamepadFaceRight;
-		case SDL_CONTROLLER_BUTTON_Y:
+		case SDL_GAMEPAD_BUTTON_NORTH:
 			return ImGuiKey_GamepadFaceLeft;
-		case SDL_CONTROLLER_BUTTON_A:
+		case SDL_GAMEPAD_BUTTON_SOUTH:
 			return ImGuiKey_GamepadFaceDown;
-		case SDL_CONTROLLER_BUTTON_DPAD_LEFT:
+		case SDL_GAMEPAD_BUTTON_DPAD_LEFT:
 			return ImGuiKey_GamepadDpadLeft;
-		case SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
+		case SDL_GAMEPAD_BUTTON_DPAD_RIGHT:
 			return ImGuiKey_GamepadDpadRight;
-		case SDL_CONTROLLER_BUTTON_DPAD_UP:
+		case SDL_GAMEPAD_BUTTON_DPAD_UP:
 			return ImGuiKey_GamepadDpadUp;
-		case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
+		case SDL_GAMEPAD_BUTTON_DPAD_DOWN:
 			return ImGuiKey_GamepadDpadDown;
-		case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
+		case SDL_GAMEPAD_BUTTON_LEFT_SHOULDER:
 			return ImGuiKey_GamepadL1;
-		case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER:
+		case SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER:
 			return ImGuiKey_GamepadR1;
-		case SDL_CONTROLLER_BUTTON_LEFTSTICK:
+		case SDL_GAMEPAD_BUTTON_LEFT_STICK:
 			return ImGuiKey_GamepadL3;
-		case SDL_CONTROLLER_BUTTON_RIGHTSTICK:
+		case SDL_GAMEPAD_BUTTON_RIGHT_STICK:
 			return ImGuiKey_GamepadR3;
 		default:
 			return ImGuiKey_None;
@@ -1000,7 +1000,7 @@ static void DoraAddGamepadAxisEvent(ImGuiIO& io, ImGuiKey negativeKey, ImGuiKey 
 
 static bool DoraHasGameController() {
 	for (int i = 0; i < SDL_NumJoysticks(); ++i) {
-		if (SDL_IsGameController(i)) return true;
+		if (SDL_IsGamepad(i)) return true;
 	}
 	return false;
 }
@@ -1047,22 +1047,22 @@ void ImGuiDora::clearGamepadInputs(ImGuiIO& io) {
 
 void ImGuiDora::handleGamepadEvent(ImGuiIO& io, const SDL_Event& event) {
 	switch (event.type) {
-		case SDL_CONTROLLERDEVICEADDED:
+		case SDL_EVENT_GAMEPAD_ADDED:
 			io.BackendFlags |= ImGuiBackendFlags_HasGamepad;
 			break;
-		case SDL_CONTROLLERDEVICEREMOVED:
+		case SDL_EVENT_GAMEPAD_REMOVED:
 			clearGamepadInputs(io);
 			if (!DoraHasGameController()) {
 				io.BackendFlags &= ~ImGuiBackendFlags_HasGamepad;
 			}
 			break;
-		case SDL_CONTROLLERBUTTONDOWN:
-		case SDL_CONTROLLERBUTTONUP: {
+		case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+		case SDL_EVENT_GAMEPAD_BUTTON_UP: {
 			io.BackendFlags |= ImGuiBackendFlags_HasGamepad;
-			auto down = event.type == SDL_CONTROLLERBUTTONDOWN;
-			auto button = static_cast<SDL_GameControllerButton>(event.cbutton.button);
+			auto down = event.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN;
+			auto button = static_cast<SDL_GamepadButton>(event.cbutton.button);
 			bool suppressButton = false;
-			if (button == SDL_CONTROLLER_BUTTON_BACK) {
+			if (button == SDL_GAMEPAD_BUTTON_BACK) {
 				_gamepadBackDown = down;
 				if (!down && _gamepadWindowingActive) {
 					_gamepadWindowingDown = false;
@@ -1073,7 +1073,7 @@ void ImGuiDora::handleGamepadEvent(ImGuiIO& io, const SDL_Event& event) {
 				}
 			}
 			switch (button) {
-				case SDL_CONTROLLER_BUTTON_Y:
+				case SDL_GAMEPAD_BUTTON_NORTH:
 					if (!down && _gamepadWindowingActive) {
 						_gamepadWindowingDown = false;
 						_gamepadWindowingActive = false;
@@ -1093,7 +1093,7 @@ void ImGuiDora::handleGamepadEvent(ImGuiIO& io, const SDL_Event& event) {
 						io.AddKeyEvent(ImGuiKey_GamepadR1, down && _gamepadWindowingDpadDownDown);
 					}
 					break;
-				case SDL_CONTROLLER_BUTTON_DPAD_UP:
+				case SDL_GAMEPAD_BUTTON_DPAD_UP:
 					_gamepadWindowingDpadUpDown = down;
 					if (_gamepadWindowingDown) {
 						io.AddKeyEvent(ImGuiKey_GamepadL1, down);
@@ -1101,7 +1101,7 @@ void ImGuiDora::handleGamepadEvent(ImGuiIO& io, const SDL_Event& event) {
 						suppressButton = true;
 					}
 					break;
-				case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
+				case SDL_GAMEPAD_BUTTON_DPAD_DOWN:
 					_gamepadWindowingDpadDownDown = down;
 					if (_gamepadWindowingDown) {
 						io.AddKeyEvent(ImGuiKey_GamepadR1, down);
@@ -1118,25 +1118,25 @@ void ImGuiDora::handleGamepadEvent(ImGuiIO& io, const SDL_Event& event) {
 			}
 			break;
 		}
-		case SDL_CONTROLLERAXISMOTION:
+		case SDL_EVENT_GAMEPAD_AXIS_MOTION:
 			io.BackendFlags |= ImGuiBackendFlags_HasGamepad;
 			switch (event.caxis.axis) {
-				case SDL_CONTROLLER_AXIS_LEFTX:
+				case SDL_GAMEPAD_AXIS_LEFTX:
 					DoraAddGamepadAxisEvent(io, ImGuiKey_GamepadLStickLeft, ImGuiKey_GamepadLStickRight, event.caxis.value);
 					break;
-				case SDL_CONTROLLER_AXIS_LEFTY:
+				case SDL_GAMEPAD_AXIS_LEFTY:
 					DoraAddGamepadAxisEvent(io, ImGuiKey_GamepadLStickUp, ImGuiKey_GamepadLStickDown, event.caxis.value);
 					break;
-				case SDL_CONTROLLER_AXIS_RIGHTX:
+				case SDL_GAMEPAD_AXIS_RIGHTX:
 					DoraAddGamepadAxisEvent(io, ImGuiKey_GamepadRStickLeft, ImGuiKey_GamepadRStickRight, event.caxis.value);
 					break;
-				case SDL_CONTROLLER_AXIS_RIGHTY:
+				case SDL_GAMEPAD_AXIS_RIGHTY:
 					DoraAddGamepadAxisEvent(io, ImGuiKey_GamepadRStickUp, ImGuiKey_GamepadRStickDown, event.caxis.value);
 					break;
-				case SDL_CONTROLLER_AXIS_TRIGGERLEFT:
+				case SDL_GAMEPAD_AXIS_LEFT_TRIGGER:
 					DoraAddGamepadAxisEvent(io, ImGuiKey_None, ImGuiKey_GamepadL2, event.caxis.value);
 					break;
-				case SDL_CONTROLLER_AXIS_TRIGGERRIGHT:
+				case SDL_GAMEPAD_AXIS_RIGHT_TRIGGER:
 					DoraAddGamepadAxisEvent(io, ImGuiKey_None, ImGuiKey_GamepadR2, event.caxis.value);
 					break;
 				default:
@@ -1187,12 +1187,12 @@ bool ImGuiDora::init() {
 	DoraSetupTheme(SharedApplication.getThemeColor());
 
 	_keymap[SDLK_TAB] = ImGuiKey_Tab;
-	_keymap[SDLK_z] = ImGuiKey_Z;
-	_keymap[SDLK_y] = ImGuiKey_Y;
-	_keymap[SDLK_x] = ImGuiKey_X;
-	_keymap[SDLK_v] = ImGuiKey_V;
-	_keymap[SDLK_c] = ImGuiKey_C;
-	_keymap[SDLK_a] = ImGuiKey_A;
+	_keymap[SDLK_Z] = ImGuiKey_Z;
+	_keymap[SDLK_Y] = ImGuiKey_Y;
+	_keymap[SDLK_X] = ImGuiKey_X;
+	_keymap[SDLK_V] = ImGuiKey_V;
+	_keymap[SDLK_C] = ImGuiKey_C;
+	_keymap[SDLK_A] = ImGuiKey_A;
 	_keymap[SDLK_ESCAPE] = ImGuiKey_Escape;
 	_keymap[SDLK_RETURN] = ImGuiKey_Enter;
 	_keymap[SDLK_BACKSPACE] = ImGuiKey_Backspace;
@@ -1247,7 +1247,7 @@ bool ImGuiDora::init() {
 			auto& event = *std::any_cast<SDL_Event>(&_inputs.front());
 			ImGuiIO& io = ImGui::GetIO();
 			switch (event.type) {
-				case SDL_MOUSEBUTTONUP: {
+				case SDL_EVENT_MOUSE_BUTTON_UP: {
 					switch (event.button.button) {
 						case SDL_BUTTON_LEFT: _mousePressed[0] = false; break;
 						case SDL_BUTTON_RIGHT: _mousePressed[1] = false; break;
@@ -1255,33 +1255,33 @@ bool ImGuiDora::init() {
 					}
 					break;
 				}
-				case SDL_TEXTINPUT: {
+				case SDL_EVENT_TEXT_INPUT: {
 					if (event.text.text[0] != '\0') {
 						io.AddInputCharactersUTF8(event.text.text);
 					}
 					break;
 				}
-				case SDL_KEYDOWN:
-				case SDL_KEYUP: {
+				case SDL_EVENT_KEY_DOWN:
+				case SDL_EVENT_KEY_UP: {
 					SDL_Keycode code = event.key.keysym.sym;
 					int key = code & ~SDLK_SCANCODE_MASK;
 					uint16_t mod = event.key.keysym.mod;
-					io.AddKeyEvent(ImGuiMod_Shift, (mod & KMOD_SHIFT) != 0);
-					io.AddKeyEvent(ImGuiMod_Ctrl, (mod & KMOD_CTRL) != 0);
-					io.AddKeyEvent(ImGuiMod_Alt, (mod & KMOD_ALT) != 0);
-					io.AddKeyEvent(ImGuiMod_Super, (mod & KMOD_GUI) != 0);
+					io.AddKeyEvent(ImGuiMod_Shift, (mod & SDL_KMOD_SHIFT) != 0);
+					io.AddKeyEvent(ImGuiMod_Ctrl, (mod & SDL_KMOD_CTRL) != 0);
+					io.AddKeyEvent(ImGuiMod_Alt, (mod & SDL_KMOD_ALT) != 0);
+					io.AddKeyEvent(ImGuiMod_Super, (mod & SDL_KMOD_GUI) != 0);
 					if (_textEditing.empty() || code == SDLK_BACKSPACE || code == SDLK_LEFT || code == SDLK_RIGHT) {
 						if (auto it = _keymap.find(key); it != _keymap.end()) {
-							io.AddKeyEvent(static_cast<ImGuiKey>(it->second), event.type == SDL_KEYDOWN);
+							io.AddKeyEvent(static_cast<ImGuiKey>(it->second), event.type == SDL_EVENT_KEY_DOWN);
 						}
 					}
 					break;
 				}
-				case SDL_CONTROLLERDEVICEADDED:
-				case SDL_CONTROLLERDEVICEREMOVED:
-				case SDL_CONTROLLERBUTTONDOWN:
-				case SDL_CONTROLLERBUTTONUP:
-				case SDL_CONTROLLERAXISMOTION:
+				case SDL_EVENT_GAMEPAD_ADDED:
+				case SDL_EVENT_GAMEPAD_REMOVED:
+				case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+				case SDL_EVENT_GAMEPAD_BUTTON_UP:
+				case SDL_EVENT_GAMEPAD_AXIS_MOTION:
 					handleGamepadEvent(io, event);
 					break;
 			}
@@ -1346,7 +1346,7 @@ void ImGuiDora::begin() {
 		_mouseVisible = io.MouseDrawCursor;
 		SharedApplication.invokeInRender([this]() {
 			// Hide OS mouse cursor if ImGui is drawing it
-			SDL_ShowCursor(_mouseVisible ? SDL_FALSE : SDL_TRUE);
+			SDL_ShowCursor(_mouseVisible ? false : true);
 		});
 	}
 
@@ -1498,10 +1498,10 @@ void ImGuiDora::render() {
 void ImGuiDora::sendKey(int key, int count) {
 	for (int i = 0; i < count; i++) {
 		SDL_Event e = {};
-		e.type = SDL_KEYDOWN;
+		e.type = SDL_EVENT_KEY_DOWN;
 		e.key.keysym.sym = key;
 		_inputs.push_back(e);
-		e.type = SDL_KEYUP;
+		e.type = SDL_EVENT_KEY_UP;
 		_inputs.push_back(e);
 	}
 }
@@ -1509,26 +1509,26 @@ void ImGuiDora::sendKey(int key, int count) {
 bool ImGuiDora::shouldCaptureControllerEvent(const SDL_Event& event, bool* updateControllerState) {
 	if (updateControllerState) *updateControllerState = false;
 	switch (event.type) {
-		case SDL_CONTROLLERDEVICEREMOVED:
+		case SDL_EVENT_GAMEPAD_REMOVED:
 			_gamepadCaptureBackDown = false;
 			_gamepadCaptureYDown = false;
 			_gamepadCaptureWindowingActive = false;
 			_gamepadCaptureComboActive = false;
 			return false;
-		case SDL_CONTROLLERAXISMOTION:
+		case SDL_EVENT_GAMEPAD_AXIS_MOTION:
 			if (DoraIsOtherImGuiWindowFocused()) {
 				if (updateControllerState) *updateControllerState = true;
 				return true;
 			}
 			return _gamepadCaptureWindowingActive;
-		case SDL_CONTROLLERBUTTONDOWN:
-		case SDL_CONTROLLERBUTTONUP: {
+		case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+		case SDL_EVENT_GAMEPAD_BUTTON_UP: {
 			const bool gameInputFocused = DoraIsGamepadInputFocused();
 			const bool otherImGuiWindowFocused = DoraIsOtherImGuiWindowFocused();
-			auto down = event.type == SDL_CONTROLLERBUTTONDOWN;
-			auto button = static_cast<SDL_GameControllerButton>(event.cbutton.button);
+			auto down = event.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN;
+			auto button = static_cast<SDL_GamepadButton>(event.cbutton.button);
 			switch (button) {
-				case SDL_CONTROLLER_BUTTON_BACK:
+				case SDL_GAMEPAD_BUTTON_BACK:
 					_gamepadCaptureBackDown = down;
 					if (!down && _gamepadCaptureComboActive) {
 						_gamepadCaptureWindowingActive = false;
@@ -1543,7 +1543,7 @@ bool ImGuiDora::shouldCaptureControllerEvent(const SDL_Event& event, bool* updat
 						return true;
 					}
 					return false;
-				case SDL_CONTROLLER_BUTTON_Y:
+				case SDL_GAMEPAD_BUTTON_NORTH:
 					if (down) {
 						_gamepadCaptureYDown = true;
 						if (gameInputFocused && _gamepadCaptureBackDown) {
@@ -1606,7 +1606,7 @@ Texture2D* ImGuiDora::createTexture(uint8_t* data, int width, int height, bgfx::
 
 void ImGuiDora::handleEvent(const SDL_Event& event) {
 	switch (event.type) {
-		case SDL_MOUSEWHEEL: {
+		case SDL_EVENT_MOUSE_WHEEL: {
 			if (event.wheel.y > 0) {
 				_mouseWheel.y = 1;
 			} else if (event.wheel.y < 0) {
@@ -1619,7 +1619,7 @@ void ImGuiDora::handleEvent(const SDL_Event& event) {
 			}
 			break;
 		}
-		case SDL_MOUSEBUTTONDOWN: {
+		case SDL_EVENT_MOUSE_BUTTON_DOWN: {
 			switch (event.button.button) {
 				case SDL_BUTTON_LEFT: _mousePressed[0] = true; break;
 				case SDL_BUTTON_RIGHT: _mousePressed[1] = true; break;
@@ -1627,7 +1627,7 @@ void ImGuiDora::handleEvent(const SDL_Event& event) {
 			}
 			break;
 		}
-		case SDL_MOUSEBUTTONUP: {
+		case SDL_EVENT_MOUSE_BUTTON_UP: {
 			SharedDirector.getSystemScheduler()->schedule([this, event](double deltaTime) {
 				DORA_UNUSED_PARAM(deltaTime);
 				_inputs.push_back(event);
@@ -1635,7 +1635,7 @@ void ImGuiDora::handleEvent(const SDL_Event& event) {
 			});
 			break;
 		}
-		case SDL_MOUSEMOTION: {
+		case SDL_EVENT_MOUSE_MOTION: {
 			if (event.motion.state == 0 && _mousePressed[0]) {
 				break;
 			}
@@ -1646,8 +1646,8 @@ void ImGuiDora::handleEvent(const SDL_Event& event) {
 				s_cast<float>(event.motion.y) * visualSize.height / winSize.height);
 			break;
 		}
-		case SDL_KEYDOWN:
-		case SDL_KEYUP: {
+		case SDL_EVENT_KEY_DOWN:
+		case SDL_EVENT_KEY_UP: {
 			if (_textEditing.empty()) {
 				int key = event.key.keysym.sym & ~SDLK_SCANCODE_MASK;
 				if (key != SDLK_BACKSPACE || !_backSpaceIgnore) {
@@ -1656,14 +1656,14 @@ void ImGuiDora::handleEvent(const SDL_Event& event) {
 			}
 			break;
 		}
-		case SDL_CONTROLLERDEVICEADDED:
-		case SDL_CONTROLLERDEVICEREMOVED:
-		case SDL_CONTROLLERBUTTONDOWN:
-		case SDL_CONTROLLERBUTTONUP:
-		case SDL_CONTROLLERAXISMOTION:
+		case SDL_EVENT_GAMEPAD_ADDED:
+		case SDL_EVENT_GAMEPAD_REMOVED:
+		case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+		case SDL_EVENT_GAMEPAD_BUTTON_UP:
+		case SDL_EVENT_GAMEPAD_AXIS_MOTION:
 			_inputs.push_back(event);
 			break;
-		case SDL_TEXTINPUT: {
+		case SDL_EVENT_TEXT_INPUT: {
 			int size = s_cast<int>(_textEditing.size());
 			if (_lastCursor < size) {
 				sendKey(SDLK_RIGHT, size - _lastCursor);
@@ -1694,7 +1694,7 @@ void ImGuiDora::handleEvent(const SDL_Event& event) {
 				return false;
 			});
 			SDL_Event e = {};
-			e.type = SDL_TEXTINPUT;
+			e.type = SDL_EVENT_TEXT_INPUT;
 			memcpy(e.text.text, event.edit.text + start, length - start + 1);
 			_inputs.push_back(e);
 
@@ -1702,7 +1702,7 @@ void ImGuiDora::handleEvent(const SDL_Event& event) {
 			_lastCursor = 0;
 			break;
 		}
-		case SDL_TEXTEDITING: {
+		case SDL_EVENT_TEXT_EDITING: {
 			auto newText = CodeCvt::utf8_get_characters(event.edit.text);
 			if (newText.size() == _textEditing.size()) {
 				bool changed = false;
@@ -1762,7 +1762,7 @@ void ImGuiDora::handleEvent(const SDL_Event& event) {
 				return false;
 			});
 			SDL_Event e = {};
-			e.type = SDL_TEXTINPUT;
+			e.type = SDL_EVENT_TEXT_INPUT;
 			memcpy(e.text.text, event.edit.text + start, length - start + 1);
 			_inputs.push_back(e);
 			int addCount = CodeCvt::utf8_count_characters(e.text.text);
@@ -1787,10 +1787,10 @@ bool ImGuiDora::ImGuiTouchHandler::handle(const SDL_Event& event) {
 		return false;
 	}
 	switch (event.type) {
-		case SDL_MOUSEBUTTONDOWN:
-		case SDL_FINGERDOWN:
+		case SDL_EVENT_MOUSE_BUTTON_DOWN:
+		case SDL_EVENT_FINGER_DOWN:
 		case SDL_MULTIGESTURE:
-		case SDL_MOUSEWHEEL:
+		case SDL_EVENT_MOUSE_WHEEL:
 			return ImGui::IsAnyItemHovered()
 				|| ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow)
 				|| ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel);

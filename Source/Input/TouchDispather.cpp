@@ -15,7 +15,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include "Node/Node.h"
 #include "Render/View.h"
 
-#include "SDL.h"
+#include <SDL3/SDL.h>
 
 NS_DORA_BEGIN
 
@@ -138,18 +138,18 @@ bool NodeTouchHandler::handle(const SDL_Event& event) {
 	Ref<Node> targetGuard(_target.get());
 	if (!isTargetActive()) return false;
 	switch (event.type) {
-		case SDL_MOUSEBUTTONUP:
-		case SDL_FINGERUP:
+		case SDL_EVENT_MOUSE_BUTTON_UP:
+		case SDL_EVENT_FINGER_UP:
 			return up(event) && isSwallowTouches();
-		case SDL_MOUSEBUTTONDOWN:
-		case SDL_FINGERDOWN:
+		case SDL_EVENT_MOUSE_BUTTON_DOWN:
+		case SDL_EVENT_FINGER_DOWN:
 			return down(event) && isSwallowTouches();
-		case SDL_MOUSEMOTION:
+		case SDL_EVENT_MOUSE_MOTION:
 			mouseMove(event);
 			return move(event) && isSwallowTouches();
-		case SDL_FINGERMOTION:
+		case SDL_EVENT_FINGER_MOTION:
 			return move(event) && isSwallowTouches();
-		case SDL_MOUSEWHEEL:
+		case SDL_EVENT_MOUSE_WHEEL:
 			return wheel(event) && isSwallowMouseWheel();
 		case SDL_MULTIGESTURE:
 			return gesture(event) && isSwallowTouches();
@@ -259,24 +259,24 @@ Vec2 NodeTouchHandler::getPos(const Vec3& winPos) {
 Vec2 NodeTouchHandler::getViewPos(const SDL_Event& event) {
 	Vec2 pos{-1.0f, -1.0f};
 	switch (event.type) {
-		case SDL_MOUSEBUTTONUP:
-		case SDL_MOUSEBUTTONDOWN: {
+		case SDL_EVENT_MOUSE_BUTTON_UP:
+		case SDL_EVENT_MOUSE_BUTTON_DOWN: {
 			Size size = SharedApplication.getWinSize();
 			Vec2 ratio = {s_cast<float>(event.button.x) / size.width, 1.0f - s_cast<float>(event.button.y) / size.height};
 			Vec2 winPos = ratio * SharedView.getSize();
 			pos = winPos;
 			break;
 		}
-		case SDL_MOUSEMOTION: {
+		case SDL_EVENT_MOUSE_MOTION: {
 			Size size = SharedApplication.getWinSize();
 			Vec2 ratio = {s_cast<float>(event.motion.x) / size.width, 1.0f - s_cast<float>(event.motion.y) / size.height};
 			Vec2 winPos = ratio * SharedView.getSize();
 			pos = winPos;
 			break;
 		}
-		case SDL_FINGERUP:
-		case SDL_FINGERDOWN:
-		case SDL_FINGERMOTION: {
+		case SDL_EVENT_FINGER_UP:
+		case SDL_EVENT_FINGER_DOWN:
+		case SDL_EVENT_FINGER_MOTION: {
 			Size size = SharedView.getSize();
 			Vec2 ratio{event.tfinger.x, 1.0f - event.tfinger.y};
 			pos = {ratio.x * size.width, ratio.y * size.height};
@@ -295,12 +295,12 @@ bool NodeTouchHandler::down(const SDL_Event& event) {
 	if (!isTargetActive()) return false;
 	int64_t id = 0;
 	switch (event.type) {
-		case SDL_MOUSEBUTTONDOWN:
+		case SDL_EVENT_MOUSE_BUTTON_DOWN:
 			if ((Touch::getSource() & Touch::FromMouseAndTouch) == Touch::FromMouseAndTouch && event.button.which == SDL_TOUCH_MOUSEID) return false;
 			if ((Touch::getSource() & Touch::FromMouse) == 0) return false;
 			id = INT64_MAX;
 			break;
-		case SDL_FINGERDOWN:
+		case SDL_EVENT_FINGER_DOWN:
 			if ((Touch::getSource() & Touch::FromMouseAndTouch) == Touch::FromMouseAndTouch && event.tfinger.touchId == SDL_MOUSE_TOUCHID) return false;
 			if ((Touch::getSource() & Touch::FromTouch) == 0) return false;
 			id = event.tfinger.fingerId;
@@ -312,7 +312,7 @@ bool NodeTouchHandler::down(const SDL_Event& event) {
 	Vec2 pos = getPos({viewPos.x, viewPos.y, 0.0f});
 	Touch* touch = alloc(id);
 	Ref<Touch> touchGuard(touch);
-	if (event.type == SDL_MOUSEBUTTONDOWN) {
+	if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
 		touch->_fromMouse = true;
 		touch->_clickCount = event.button.clicks;
 		switch (event.button.button) {
@@ -345,12 +345,12 @@ bool NodeTouchHandler::up(const SDL_Event& event) {
 	if (!isTargetActive()) return false;
 	int64_t id = 0;
 	switch (event.type) {
-		case SDL_MOUSEBUTTONUP:
+		case SDL_EVENT_MOUSE_BUTTON_UP:
 			if ((Touch::getSource() & Touch::FromMouseAndTouch) == Touch::FromMouseAndTouch && event.button.which == SDL_TOUCH_MOUSEID) return false;
 			if ((Touch::getSource() & Touch::FromMouse) == 0) return false;
 			id = INT64_MAX;
 			break;
-		case SDL_FINGERUP:
+		case SDL_EVENT_FINGER_UP:
 			if ((Touch::getSource() & Touch::FromMouseAndTouch) == Touch::FromMouseAndTouch && event.tfinger.touchId == SDL_MOUSE_TOUCHID) return false;
 			if ((Touch::getSource() & Touch::FromTouch) == 0) return false;
 			id = event.tfinger.fingerId;
@@ -388,12 +388,12 @@ bool NodeTouchHandler::move(const SDL_Event& event) {
 	if (!isTargetActive()) return false;
 	Touch* touch = nullptr;
 	switch (event.type) {
-		case SDL_MOUSEMOTION:
+		case SDL_EVENT_MOUSE_MOTION:
 			if ((Touch::getSource() & Touch::FromMouseAndTouch) == Touch::FromMouseAndTouch && event.motion.which == SDL_TOUCH_MOUSEID) return false;
 			if ((Touch::getSource() & Touch::FromMouse) == 0) return false;
 			touch = get(INT64_MAX);
 			break;
-		case SDL_FINGERMOTION:
+		case SDL_EVENT_FINGER_MOTION:
 			if ((Touch::getSource() & Touch::FromMouseAndTouch) == Touch::FromMouseAndTouch && event.tfinger.touchId == SDL_MOUSE_TOUCHID) return false;
 			if ((Touch::getSource() & Touch::FromTouch) == 0) return false;
 			touch = get(event.tfinger.fingerId);
@@ -552,10 +552,10 @@ void UITouchHandler::clear() {
 
 bool UITouchHandler::handle(const SDL_Event& event) {
 	switch (event.type) {
-		case SDL_MOUSEBUTTONDOWN:
-		case SDL_FINGERDOWN:
+		case SDL_EVENT_MOUSE_BUTTON_DOWN:
+		case SDL_EVENT_FINGER_DOWN:
 			return _touchSwallowed;
-		case SDL_MOUSEWHEEL:
+		case SDL_EVENT_MOUSE_WHEEL:
 			return _wheelSwallowed;
 	}
 	return false;
@@ -563,23 +563,23 @@ bool UITouchHandler::handle(const SDL_Event& event) {
 
 void UITouchHandler::handleEvent(const SDL_Event& event) {
 	switch (event.type) {
-		case SDL_MOUSEWHEEL: {
+		case SDL_EVENT_MOUSE_WHEEL: {
 			_mouseWheel = Vec2{s_cast<float>(event.wheel.x), s_cast<float>(event.wheel.y)};
 			break;
 		}
-		case SDL_MOUSEBUTTONDOWN: {
+		case SDL_EVENT_MOUSE_BUTTON_DOWN: {
 			if (event.button.button == SDL_BUTTON_LEFT) _leftButtonPressed = true;
 			if (event.button.button == SDL_BUTTON_RIGHT) _rightButtonPressed = true;
 			if (event.button.button == SDL_BUTTON_MIDDLE) _middleButtonPressed = true;
 			break;
 		}
-		case SDL_MOUSEBUTTONUP: {
+		case SDL_EVENT_MOUSE_BUTTON_UP: {
 			if (event.button.button == SDL_BUTTON_LEFT) _leftButtonPressed = false;
 			if (event.button.button == SDL_BUTTON_RIGHT) _rightButtonPressed = false;
 			if (event.button.button == SDL_BUTTON_MIDDLE) _middleButtonPressed = false;
 			break;
 		}
-		case SDL_MOUSEMOTION: {
+		case SDL_EVENT_MOUSE_MOTION: {
 			Size visualSize = SharedApplication.getVisualSize();
 			Size winSize = SharedApplication.getWinSize();
 			_mouseDelta += Vec2{
@@ -599,10 +599,10 @@ void TouchDispatcher::add(const SDL_Event& event) {
 	// SDL does not guarantee that a window receives the button-up event after
 	// the pointer leaves it. Capture mouse drags at the dispatcher boundary so
 	// every NodeTouchHandler can finish its active touch and emit TapEnded.
-	if (event.type == SDL_MOUSEBUTTONDOWN) {
-		SDL_CaptureMouse(SDL_TRUE);
-	} else if (event.type == SDL_MOUSEBUTTONUP) {
-		SDL_CaptureMouse(SDL_FALSE);
+	if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
+		SDL_CaptureMouse(true);
+	} else if (event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
+		SDL_CaptureMouse(false);
 	}
 	_events.push_back(event);
 }

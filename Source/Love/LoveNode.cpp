@@ -50,7 +50,7 @@ SOFTWARE. */
 #include "ZipUtils.h"
 #include "libopenmpt/libopenmpt/libopenmpt.h"
 
-#include "SDL.h"
+#include <SDL3/SDL.h>
 
 #if defined(DORA_EMSCRIPTEN)
 #include <GLES3/gl3.h>
@@ -5186,7 +5186,7 @@ void LoveNode::clearInstanceResources()
 	for (const auto &[handle, cursor] : _mouseCursors)
 	{
 		DORA_UNUSED_PARAM(handle);
-		SDL_FreeCursor(static_cast<SDL_Cursor *>(cursor));
+		SDL_DestroyCursor(static_cast<SDL_Cursor *>(cursor));
 	}
 	_mouseCursors.clear();
 	while (!_audioRecordings.empty())
@@ -5272,7 +5272,7 @@ std::string LoveNode::getScancodeFromKey(std::string_view key) const
 std::string LoveNode::getKeyFromScancode(std::string_view scancode) const
 {
 	SDL_Scancode sdlScancode = SDL_SCANCODE_UNKNOWN;
-	for (int value = 0; value < SDL_NUM_SCANCODES; ++value)
+	for (int value = 0; value < SDL_SCANCODE_COUNT; ++value)
 	{
 		const auto candidate = static_cast<SDL_Scancode>(value);
 		if (normalizeLoveScancodeName(SDL_GetScancodeName(candidate)) == scancode)
@@ -5289,7 +5289,7 @@ std::string LoveNode::getKeyFromScancode(std::string_view scancode) const
 
 bool LoveNode::hasScreenKeyboard() const
 {
-	return SDL_HasScreenKeyboardSupport() == SDL_TRUE;
+	return SDL_HasScreenKeyboardSupport() == true;
 }
 
 void LoveNode::setMousePosition(float x, float y)
@@ -5314,13 +5314,13 @@ void LoveNode::setMouseGrabbed(bool grabbed)
 {
 	if (FocusedLoveNode != this) return;
 	if (auto *window = SharedApplication.getSDLWindow())
-		SDL_SetWindowGrab(window, grabbed ? SDL_TRUE : SDL_FALSE);
+		SDL_SetWindowGrab(window, grabbed ? true : false);
 }
 
 bool LoveNode::setMouseRelativeMode(bool relative)
 {
 	if (FocusedLoveNode != this) return true;
-	return SDL_SetRelativeMouseMode(relative ? SDL_TRUE : SDL_FALSE) == 0;
+	return SDL_SetRelativeMouseMode(relative ? true : false) == 0;
 }
 
 Love::MouseBackend::CursorHandle LoveNode::createImageCursor(int width, int height,
@@ -5345,7 +5345,7 @@ Love::MouseBackend::CursorHandle LoveNode::createImageCursor(int width, int heig
 		return 0;
 	}
 	auto *cursor = SDL_CreateColorCursor(surface, hotX, hotY);
-	SDL_FreeSurface(surface);
+	SDL_DestroySurface(surface);
 	if (!cursor)
 	{
 		error = SDL_GetError();
@@ -5361,12 +5361,12 @@ Love::MouseBackend::CursorHandle LoveNode::createSystemCursor(
 	std::string_view type, std::string &error)
 {
 	static const std::unordered_map<std::string_view, SDL_SystemCursor> SystemCursors = {
-		{"arrow", SDL_SYSTEM_CURSOR_ARROW}, {"ibeam", SDL_SYSTEM_CURSOR_IBEAM},
+		{"arrow", SDL_SYSTEM_CURSOR_DEFAULT}, {"ibeam", SDL_SYSTEM_CURSOR_TEXT},
 		{"wait", SDL_SYSTEM_CURSOR_WAIT}, {"crosshair", SDL_SYSTEM_CURSOR_CROSSHAIR},
-		{"waitarrow", SDL_SYSTEM_CURSOR_WAITARROW}, {"sizenwse", SDL_SYSTEM_CURSOR_SIZENWSE},
-		{"sizenesw", SDL_SYSTEM_CURSOR_SIZENESW}, {"sizewe", SDL_SYSTEM_CURSOR_SIZEWE},
-		{"sizens", SDL_SYSTEM_CURSOR_SIZENS}, {"sizeall", SDL_SYSTEM_CURSOR_SIZEALL},
-		{"no", SDL_SYSTEM_CURSOR_NO}, {"hand", SDL_SYSTEM_CURSOR_HAND},
+		{"waitarrow", SDL_SYSTEM_CURSOR_PROGRESS}, {"sizenwse", SDL_SYSTEM_CURSOR_NWSE_RESIZE},
+		{"sizenesw", SDL_SYSTEM_CURSOR_NESW_RESIZE}, {"sizewe", SDL_SYSTEM_CURSOR_EW_RESIZE},
+		{"sizens", SDL_SYSTEM_CURSOR_NS_RESIZE}, {"sizeall", SDL_SYSTEM_CURSOR_MOVE},
+		{"no", SDL_SYSTEM_CURSOR_NOT_ALLOWED}, {"hand", SDL_SYSTEM_CURSOR_POINTER},
 	};
 	const auto found = SystemCursors.find(type);
 	if (found == SystemCursors.end())
@@ -5392,7 +5392,7 @@ void LoveNode::releaseCursor(Love::MouseBackend::CursorHandle handle)
 	if (found == _mouseCursors.end()) return;
 	if (FocusedLoveNode == this && _runtime && _runtime->getMouseCursorRequested() == handle)
 		SDL_SetCursor(SDL_GetDefaultCursor());
-	SDL_FreeCursor(static_cast<SDL_Cursor *>(found->second));
+	SDL_DestroyCursor(static_cast<SDL_Cursor *>(found->second));
 	_mouseCursors.erase(found);
 }
 
@@ -5424,9 +5424,9 @@ void LoveNode::applyMouseSettings()
 
 void LoveNode::resetHostMouseSettings()
 {
-	SDL_SetRelativeMouseMode(SDL_FALSE);
+	SDL_SetRelativeMouseMode(false);
 	if (auto *window = SharedApplication.getSDLWindow())
-		SDL_SetWindowGrab(window, SDL_FALSE);
+		SDL_SetWindowGrab(window, false);
 	SDL_SetCursor(SDL_GetDefaultCursor());
 	SDL_ShowCursor(SDL_ENABLE);
 }
@@ -5522,7 +5522,7 @@ std::string LoveNode::getOS() const
 
 int LoveNode::getProcessorCount() const
 {
-	return std::max(1, SDL_GetCPUCount());
+	return std::max(1, SDL_GetNumLogicalCPUCores());
 }
 
 bool LoveNode::setClipboardText(std::string_view text, std::string &error)
@@ -12535,7 +12535,7 @@ Love::AudioBackend::RecordingHandle LoveNode::startRecording(std::string_view de
 
 	SDL_AudioSpec desired{};
 	desired.freq = sampleRate;
-	desired.format = bitDepth == 8 ? AUDIO_U8 : AUDIO_S16SYS;
+	desired.format = bitDepth == 8 ? SDL_AUDIO_U8 : SDL_AUDIO_S16;
 	desired.channels = static_cast<Uint8>(channels);
 	desired.samples = static_cast<Uint16>(std::clamp(maxSamples, 256, 4096));
 	desired.callback = loveRecordingCallback;

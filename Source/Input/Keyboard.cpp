@@ -15,17 +15,17 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include "Basic/Scheduler.h"
 #include "Event/Event.h"
 
-#include "SDL.h"
+#include <SDL3/SDL.h>
 
 NS_DORA_BEGIN
 
 Keyboard::Keyboard()
-	: _oldCodeStates(SDL_NUM_SCANCODES, false)
-	, _newCodeStates(SDL_NUM_SCANCODES, false)
-	, _oldKeyStates(SDL_NUM_SCANCODES, false)
-	, _newKeyStates(SDL_NUM_SCANCODES, false)
-	, _keyNames(SDL_NUM_SCANCODES)
-	, _codeNames(SDL_NUM_SCANCODES) {
+	: _oldCodeStates(SDL_SCANCODE_COUNT, false)
+	, _newCodeStates(SDL_SCANCODE_COUNT, false)
+	, _oldKeyStates(SDL_SCANCODE_COUNT, false)
+	, _newKeyStates(SDL_SCANCODE_COUNT, false)
+	, _keyNames(SDL_SCANCODE_COUNT)
+	, _codeNames(SDL_SCANCODE_COUNT) {
 }
 
 Keyboard::~Keyboard() { }
@@ -37,12 +37,12 @@ bool Keyboard::init() {
 	_keyNames[SDLK_TAB] = "Tab"s;
 	_keyNames[SDLK_SPACE] = "Space"s;
 	_keyNames[SDLK_EXCLAIM] = "!"s;
-	_keyNames[SDLK_QUOTEDBL] = "\""s;
+	_keyNames[SDLK_DBLAPOSTROPHE] = "\""s;
 	_keyNames[SDLK_HASH] = "#"s;
 	_keyNames[SDLK_PERCENT] = "%"s;
 	_keyNames[SDLK_DOLLAR] = "$"s;
 	_keyNames[SDLK_AMPERSAND] = "&"s;
-	_keyNames[SDLK_QUOTE] = "\'"s;
+	_keyNames[SDLK_APOSTROPHE] = "\'"s;
 	_keyNames[SDLK_LEFTPAREN] = "("s;
 	_keyNames[SDLK_RIGHTPAREN] = ")"s;
 	_keyNames[SDLK_ASTERISK] = "*"s;
@@ -74,38 +74,38 @@ bool Keyboard::init() {
 	_keyNames[SDLK_RIGHTBRACKET] = "]"s;
 	_keyNames[SDLK_CARET] = "^"s;
 	_keyNames[SDLK_UNDERSCORE] = "_"s;
-	_keyNames[SDLK_BACKQUOTE] = "`"s;
+	_keyNames[SDLK_GRAVE] = "`"s;
 
-	_keyNames[SDLK_a] = "A"s;
-	_keyNames[SDLK_b] = "B"s;
-	_keyNames[SDLK_c] = "C"s;
-	_keyNames[SDLK_d] = "D"s;
-	_keyNames[SDLK_e] = "E"s;
-	_keyNames[SDLK_f] = "F"s;
-	_keyNames[SDLK_g] = "G"s;
-	_keyNames[SDLK_h] = "H"s;
-	_keyNames[SDLK_i] = "I"s;
-	_keyNames[SDLK_j] = "J"s;
-	_keyNames[SDLK_k] = "K"s;
-	_keyNames[SDLK_l] = "L"s;
-	_keyNames[SDLK_m] = "M"s;
-	_keyNames[SDLK_n] = "N"s;
-	_keyNames[SDLK_o] = "O"s;
-	_keyNames[SDLK_p] = "P"s;
-	_keyNames[SDLK_q] = "Q"s;
-	_keyNames[SDLK_r] = "R"s;
-	_keyNames[SDLK_s] = "S"s;
-	_keyNames[SDLK_t] = "T"s;
-	_keyNames[SDLK_u] = "U"s;
-	_keyNames[SDLK_v] = "V"s;
-	_keyNames[SDLK_w] = "W"s;
-	_keyNames[SDLK_x] = "X"s;
-	_keyNames[SDLK_y] = "Y"s;
-	_keyNames[SDLK_z] = "Z"s;
+	_keyNames[SDLK_A] = "A"s;
+	_keyNames[SDLK_B] = "B"s;
+	_keyNames[SDLK_C] = "C"s;
+	_keyNames[SDLK_D] = "D"s;
+	_keyNames[SDLK_E] = "E"s;
+	_keyNames[SDLK_F] = "F"s;
+	_keyNames[SDLK_G] = "G"s;
+	_keyNames[SDLK_H] = "H"s;
+	_keyNames[SDLK_I] = "I"s;
+	_keyNames[SDLK_J] = "J"s;
+	_keyNames[SDLK_K] = "K"s;
+	_keyNames[SDLK_L] = "L"s;
+	_keyNames[SDLK_M] = "M"s;
+	_keyNames[SDLK_N] = "N"s;
+	_keyNames[SDLK_O] = "O"s;
+	_keyNames[SDLK_P] = "P"s;
+	_keyNames[SDLK_Q] = "Q"s;
+	_keyNames[SDLK_R] = "R"s;
+	_keyNames[SDLK_S] = "S"s;
+	_keyNames[SDLK_T] = "T"s;
+	_keyNames[SDLK_U] = "U"s;
+	_keyNames[SDLK_V] = "V"s;
+	_keyNames[SDLK_W] = "W"s;
+	_keyNames[SDLK_X] = "X"s;
+	_keyNames[SDLK_Y] = "Y"s;
+	_keyNames[SDLK_Z] = "Z"s;
 
 	_keyNames[SDLK_DELETE] = "Delete"s;
 
-	for (int i = 0; i < SDL_NUM_SCANCODES; i++) {
+	for (int i = 0; i < SDL_SCANCODE_COUNT; i++) {
 		if (!_keyNames[i].empty()) {
 			_keyMap[_keyNames[i]] = i;
 		}
@@ -169,7 +169,7 @@ bool Keyboard::init() {
 	_codeNames[SDL_SCANCODE_RALT] = "RAlt"s;
 	_codeNames[SDL_SCANCODE_RGUI] = "RGui"s;
 
-	for (int i = 0; i < SDL_NUM_SCANCODES; i++) {
+	for (int i = 0; i < SDL_SCANCODE_COUNT; i++) {
 		if (!_codeNames[i].empty()) {
 			_codeMap[_codeNames[i]] = i;
 		}
@@ -192,7 +192,7 @@ void Keyboard::clearChanges() {
 }
 
 void Keyboard::clearStates() {
-	for (int key = 0; key < SDL_NUM_SCANCODES; ++key) {
+	for (int key = 0; key < SDL_SCANCODE_COUNT; ++key) {
 		if (_newCodeStates[key] && !_codeNames[key].empty()) {
 			EventArgs<Slice> keyUp("KeyUp"_slice, _codeNames[key]);
 			handler(&keyUp);
@@ -266,7 +266,7 @@ void Keyboard::updateIMEPosHint(const Vec2& winPos) {
 
 void Keyboard::handleEvent(const SDL_Event& event) {
 	switch (event.type) {
-		case SDL_KEYDOWN: {
+		case SDL_EVENT_KEY_DOWN: {
 			if (event.key.keysym.scancode != SDL_SCANCODE_UNKNOWN) {
 				int key = event.key.keysym.scancode;
 				Slice name = _codeNames[key];
@@ -285,7 +285,7 @@ void Keyboard::handleEvent(const SDL_Event& event) {
 					handler(&keyPressed);
 				}
 			}
-			if (event.key.keysym.sym != SDLK_UNKNOWN && event.key.keysym.sym < SDL_NUM_SCANCODES) {
+			if (event.key.keysym.sym != SDLK_UNKNOWN && event.key.keysym.sym < SDL_SCANCODE_COUNT) {
 				int key = event.key.keysym.sym;
 				Slice name = _keyNames[key];
 				if (!name.empty()) {
@@ -305,7 +305,7 @@ void Keyboard::handleEvent(const SDL_Event& event) {
 			}
 			break;
 		}
-		case SDL_KEYUP: {
+		case SDL_EVENT_KEY_UP: {
 			if (event.key.keysym.scancode != SDL_SCANCODE_UNKNOWN) {
 				int key = event.key.keysym.scancode;
 				Slice name = _codeNames[key];
@@ -319,7 +319,7 @@ void Keyboard::handleEvent(const SDL_Event& event) {
 					}
 				}
 			}
-			if (event.key.keysym.sym != SDLK_UNKNOWN && event.key.keysym.sym < SDL_NUM_SCANCODES) {
+			if (event.key.keysym.sym != SDLK_UNKNOWN && event.key.keysym.sym < SDL_SCANCODE_COUNT) {
 				int key = event.key.keysym.sym;
 				Slice name = _keyNames[key];
 				if (!name.empty()) {
@@ -334,13 +334,13 @@ void Keyboard::handleEvent(const SDL_Event& event) {
 			}
 			break;
 		}
-		case SDL_TEXTINPUT: {
+		case SDL_EVENT_TEXT_INPUT: {
 			Slice text(event.text.text);
 			EventArgs<Slice> textInput("TextInput"_slice, text);
 			_imeHandler(&textInput);
 			break;
 		}
-		case SDL_TEXTEDITING: {
+		case SDL_EVENT_TEXT_EDITING: {
 			Slice text(event.edit.text);
 			EventArgs<Slice, int, int> textEditing("TextEditing"_slice, text, event.edit.start, event.edit.length);
 			_imeHandler(&textEditing);

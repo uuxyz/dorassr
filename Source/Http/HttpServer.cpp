@@ -60,7 +60,7 @@ namespace fs = std::filesystem;
 #include <unordered_map>
 #include <vector>
 
-#include "SDL.h"
+#include <SDL3/SDL.h>
 
 #if BX_PLATFORM_WINDOWS
 #include <winsock2.h>
@@ -1310,8 +1310,8 @@ bool HttpServer::start(int port) {
 						return 0;
 					}
 					auto file = std::move(acceptedPath->value());
-					auto stream = std::unique_ptr<SDL_RWops, decltype(&SDL_RWclose)>(SDL_RWFromFile(file.c_str(), "wb+"), SDL_RWclose);
-					if (!stream || SDL_RWwrite(stream.get(), part->body, 1, part->bodyLen) != part->bodyLen) {
+					auto stream = std::unique_ptr<SDL_IOStream, decltype(&SDL_CloseIO)>(SDL_IOFromFile(file.c_str(), "wb+"), SDL_CloseIO);
+					if (!stream || SDL_WriteIO(stream.get(), part->body, 1, part->bodyLen) != part->bodyLen) {
 						set_response(context->response, 500, {}, {});
 						return 0;
 					}
@@ -1586,7 +1586,7 @@ struct XrtDownloadStreamContext {
 	std::shared_ptr<HttpRequestState> request;
 	std::shared_ptr<std::function<bool(bool interrupted, uint64_t current, uint64_t total)>> progress;
 	std::shared_ptr<std::atomic<bool>> stopped;
-	SDL_RWops* output = nullptr;
+	SDL_IOStream* output = nullptr;
 	std::string url;
 	size_t written = 0;
 	bool writeFailed = false;
@@ -1597,7 +1597,7 @@ static int on_xrt_download_stream_chunk(const char* data, size_t dataLen, size_t
 	if (!context || !data || dataLen == 0) {
 		return context && context->request && context->request->cancelling.load(std::memory_order_relaxed);
 	}
-	auto written = SDL_RWwrite(context->output, data, 1, dataLen);
+	auto written = SDL_WriteIO(context->output, data, 1, dataLen);
 	if (written != dataLen) {
 		context->writeFailed = true;
 		context->request->cancelling.store(true, std::memory_order_relaxed);
@@ -1847,14 +1847,14 @@ HttpClient::RequestId HttpClient::downloadAsync(String url, String filePath, flo
 			std::vector<const char*> headerValuePtrs;
 			prepare_xrt_http_headers(headerNames, headerValues, headerNamePtrs, headerValuePtrs, {});
 			auto fullname = fileStr;
-			SDL_RWops* out = SDL_RWFromFile(fullname.c_str(), "wb+");
+			SDL_IOStream* out = SDL_IOFromFile(fullname.c_str(), "wb+");
 			if (!out) {
 				Error("invalid local file path \"{}\" to download to", fileStr);
 				unregister_http_client_request(request);
 				return;
 			}
-			auto stream = std::shared_ptr<SDL_RWops>{out, [](SDL_RWops* io) {
-														 SDL_RWclose(io);
+			auto stream = std::shared_ptr<SDL_IOStream>{out, [](SDL_IOStream* io) {
+														 SDL_CloseIO(io);
 													 }};
 			auto stopped = std::make_shared<std::atomic<bool>>(false);
 			XrtDownloadStreamContext streamContext{request, progressFunc, stopped, out, urlStr};

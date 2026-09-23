@@ -14,8 +14,8 @@
 #ifndef _NFD_SDL2_H
 #define _NFD_SDL2_H
 
-#include "SDL_error.h"
-#include "SDL_syswm.h"
+#include <SDL3/SDL_error.h>
+#include <SDL3/SDL_syswm.h>
 #include "nfd/nfd.h"
 #include <stdbool.h>
 
@@ -42,19 +42,19 @@ NFD_INLINE bool NFD_GetNativeWindowFromSDLWindow(SDL_Window* sdlWindow,
         return false;
     }
     switch (info.subsystem) {
-#if defined(SDL_VIDEO_DRIVER_WINDOWS)
+#if defined(SDL_VIDEO_DRIVER_WINDOWS /* SDL_VIDEO_DRIVER_WINDOWS has been removed in SDL3 */)
         case SDL_SYSWM_WINDOWS:
             nativeWindow->type = NFD_WINDOW_HANDLE_TYPE_WINDOWS;
             nativeWindow->handle = (void*)info.info.win.window;
             return true;
 #endif
-#if defined(SDL_VIDEO_DRIVER_COCOA)
+#if defined(SDL_VIDEO_DRIVER_COCOA /* SDL_VIDEO_DRIVER_COCOA has been removed in SDL3 */)
         case SDL_SYSWM_COCOA:
             nativeWindow->type = NFD_WINDOW_HANDLE_TYPE_COCOA;
             nativeWindow->handle = (void*)info.info.cocoa.window;
             return true;
 #endif
-#if defined(SDL_VIDEO_DRIVER_X11)
+#if defined(SDL_VIDEO_DRIVER_X11 /* SDL_VIDEO_DRIVER_X11 has been removed in SDL3 */)
         case SDL_SYSWM_X11:
             nativeWindow->type = NFD_WINDOW_HANDLE_TYPE_X11;
             nativeWindow->handle = (void*)info.info.x11.window;
