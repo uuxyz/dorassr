@@ -77,6 +77,7 @@ jobs:
         with:
           distribution: 'zulu'
           java-version: '17'
+          cache: 'gradle'
       - name: Build Android
         if: "!startsWith(github.ref, 'refs/tags/')"
         run: Tools/build-scripts/build_android.sh debug
