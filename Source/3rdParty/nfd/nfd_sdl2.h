@@ -15,7 +15,6 @@
 #define _NFD_SDL2_H
 
 #include <SDL3/SDL_error.h>
-#include <SDL3/SDL_syswm.h>
 #include "nfd/nfd.h"
 #include <stdbool.h>
 

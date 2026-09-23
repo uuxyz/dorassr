@@ -151,7 +151,6 @@ bool NodeTouchHandler::handle(const SDL_Event& event) {
 			return move(event) && isSwallowTouches();
 		case SDL_EVENT_MOUSE_WHEEL:
 			return wheel(event) && isSwallowMouseWheel();
-		case SDL_MULTIGESTURE:
 			return gesture(event) && isSwallowTouches();
 	}
 	return false;
@@ -162,7 +161,7 @@ bool NodeTouchHandler::isTargetActive() const {
 		&& _target->_flags.isOff(Node::Cleanup);
 }
 
-Touch* NodeTouchHandler::alloc(SDL_FingerID fingerId) {
+Touch* NodeTouchHandler::alloc(SDL_TouchID fingerId) {
 	auto it = _touchMap.find(fingerId);
 	if (it != _touchMap.end()) {
 		return it->second;
@@ -186,7 +185,7 @@ Touch* NodeTouchHandler::alloc(SDL_FingerID fingerId) {
 	}
 }
 
-Touch* NodeTouchHandler::get(SDL_FingerID fingerId) {
+Touch* NodeTouchHandler::get(SDL_TouchID fingerId) {
 	auto it = _touchMap.find(fingerId);
 	if (it != _touchMap.end()) {
 		return it->second;
@@ -194,7 +193,7 @@ Touch* NodeTouchHandler::get(SDL_FingerID fingerId) {
 	return nullptr;
 }
 
-void NodeTouchHandler::collect(SDL_FingerID fingerId) {
+void NodeTouchHandler::collect(SDL_TouchID fingerId) {
 	auto it = _touchMap.find(fingerId);
 	if (it != _touchMap.end()) {
 		_availableTouchIds.push(it->second->_id);

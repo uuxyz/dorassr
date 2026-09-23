@@ -1789,7 +1789,7 @@ bool ImGuiDora::ImGuiTouchHandler::handle(const SDL_Event& event) {
 	switch (event.type) {
 		case SDL_EVENT_MOUSE_BUTTON_DOWN:
 		case SDL_EVENT_FINGER_DOWN:
-		case SDL_MULTIGESTURE:
+		case SDL_EVENT_MULTIGESTURE:
 		case SDL_EVENT_MOUSE_WHEEL:
 			return ImGui::IsAnyItemHovered()
 				|| ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow)

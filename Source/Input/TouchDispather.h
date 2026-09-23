@@ -88,9 +88,9 @@ public:
 
 protected:
 	bool isTargetActive() const;
-	Touch* alloc(int64_t fingerId);
-	Touch* get(int64_t fingerId);
-	void collect(int64_t fingerId);
+	Touch* alloc(SDL_TouchID fingerId);
+	Touch* get(SDL_TouchID fingerId);
+	void collect(SDL_TouchID fingerId);
 	Vec2 getViewPos(const SDL_Event& event);
 	Vec2 getPos(const SDL_Event& event);
 	Vec2 getPos(const Vec3& winPos);
