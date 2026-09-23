@@ -7,6 +7,13 @@
 #   cmake --build build
 
 include_guard(GLOBAL)
+# ccache 加速（CI 缓存 CCACHE_DIR；存在即启用）
+find_program(CCACHE_PROGRAM ccache)
+if(CCACHE_PROGRAM)
+	set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+	set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+endif()
+
 
 function(dora_add_apple_app)
 	set(options)

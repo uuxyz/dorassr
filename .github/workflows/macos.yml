@@ -44,6 +44,19 @@ jobs:
         with:
           go-version: '1.24.3'
       - uses: dtolnay/rust-toolchain@stable
+      - name: Setup ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: macOS-ccache-${{ github.sha }}
+          restore-keys: macOS-ccache-
+          max-size: 2G
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: Source/Rust
+          prefix-key: macos
+      - name: Add ccache to PATH
+        run: echo "$(brew --prefix)/opt/ccache/bin" >> $GITHUB_PATH
       - name: macOS build
         if: "!startsWith(github.ref, 'refs/tags/')"
         run: |

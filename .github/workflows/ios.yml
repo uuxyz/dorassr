@@ -37,6 +37,19 @@ jobs:
         with:
           go-version: '1.24.3'
       - uses: dtolnay/rust-toolchain@stable
+      - name: Setup ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: iOS-ccache-${{ github.sha }}
+          restore-keys: iOS-ccache-
+          max-size: 2G
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: Source/Rust
+          prefix-key: ios
+      - name: Add ccache to PATH
+        run: echo "$(brew --prefix)/opt/ccache/bin" >> $GITHUB_PATH
       - uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: latest
