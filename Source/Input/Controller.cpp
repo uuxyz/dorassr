@@ -131,7 +131,6 @@ Controller::Controller() {
 Controller::~Controller() { }
 
 bool Controller::initInRender() {
-	SDL_SetHint(SDL_HINT_ACCELEROMETER_AS_JOYSTICK, "0");
 	auto time = SharedApplication.getCurrentTime();
 	if (SharedContent.exist("gamecontrollerdb.txt"_slice)) {
 		int64_t size = 0;
@@ -176,7 +175,10 @@ bool Controller::initInRender() {
 			});
 		}
 	}
-	for (int i = 0; i < SDL_NumJoysticks(); ++i) {
+	int joystickCount = 0;
+	int* pJoystickCount = &joystickCount;
+	{ auto ids = SDL_GetJoysticks(pJoystickCount); joystickCount = ids ? *pJoystickCount : 0; SDL_free(ids); }
+	for (int i = 0; i < joystickCount; ++i) {
 		addControllerInRender(i);
 	}
 #if DORA_VIRTUAL_GAMEPAD_SUPPORTED
@@ -215,7 +217,7 @@ void Controller::setVirtualGamepadEnabledInRender(bool enabled) {
 #if SDL_VERSION_ATLEAST(2, 24, 0)
 		SDL_VirtualJoystickDesc desc;
 		SDL_zero(desc);
-		desc.version = SDL_VIRTUAL_JOYSTICK_DESC_VERSION;
+		desc.version = 1;
 		desc.type = SDL_JOYSTICK_TYPE_GAMEPAD;
 		desc.naxes = SDL_GAMEPAD_AXIS_COUNT;
 		desc.nbuttons = SDL_GAMEPAD_BUTTON_COUNT;

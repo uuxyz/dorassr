@@ -202,7 +202,7 @@ bool Content::save(String filename, const uint8_t* content, int64_t size) {
 	if (!io) return false;
 	DEFER(SDL_CloseIO(io));
 	if (size <= 0) return true;
-	size_t written = SDL_WriteIO(io, content, 1, size);
+	size_t written = SDL_WriteIO(io, content, size);
 	bool success = written == size;
 	if (!success) {
 		Error("failed to write to file {}", fullPath);
@@ -1135,7 +1135,7 @@ bool Content::copyUnsafe(String src, String dst) {
 			if (!io) return false;
 			DEFER(SDL_CloseIO(io));
 			bool result = Content::loadByChunks((fs::path(srcPath) / file).string(), [&](uint8_t* buffer, int size) {
-				size_t written = SDL_WriteIO(io, buffer, 1, s_cast<size_t>(size));
+				size_t written = SDL_WriteIO(io, buffer, s_cast<size_t>(size));
 				if (written != s_cast<size_t>(size)) {
 					Error("failed to copy to file \"{}\"", (fs::path(dstPath) / file).string());
 					return true;
@@ -1155,7 +1155,7 @@ bool Content::copyUnsafe(String src, String dst) {
 		}
 		DEFER(SDL_CloseIO(io));
 		bool result = Content::loadByChunks(src, [&](uint8_t* buffer, int size) {
-			size_t written = SDL_WriteIO(io, buffer, 1, s_cast<size_t>(size));
+			size_t written = SDL_WriteIO(io, buffer, s_cast<size_t>(size));
 			if (written != s_cast<size_t>(size)) {
 				Error("failed to copy to file \"{}\"", dst.toString());
 				return true;
@@ -1398,7 +1398,7 @@ void Content::unzipAsync(String zipFile, String folderPath, const std::function<
 			if (io) {
 				DEFER(SDL_CloseIO(io));
 				if (!zip->getFileDataByChunks(file, [&io](uint8_t* data, size_t size) {
-						size_t written = SDL_WriteIO(io, data, 1, size);
+						size_t written = SDL_WriteIO(io, data, size);
 						if (written == size) {
 							return false;
 						}
