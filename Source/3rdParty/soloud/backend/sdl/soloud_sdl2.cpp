@@ -37,7 +37,7 @@ namespace SoLoud
 
 #else
 
-#include "SDL.h"
+#include <SDL3/SDL.h>
 #include <math.h>
 
 
@@ -66,7 +66,7 @@ namespace SoLoud
 	void soloud_sdl2_audiomixer(void *userdata, Uint8 *stream, int len)
 	{
 		SoLoud::Soloud *soloud = (SoLoud::Soloud *)userdata;
-		if (gActiveAudioSpec.format == AUDIO_F32)
+		if (gActiveAudioSpec.format == SDL_AUDIO_F32LE)
 		{
 			int samples = len / (gActiveAudioSpec.channels * sizeof(float));
 			soloud->mix((float *)stream, samples);
@@ -98,7 +98,7 @@ namespace SoLoud
 
 		SDL_AudioSpec as;
 		as.freq = aSamplerate;
-		as.format = AUDIO_F32;
+		as.format = SDL_AUDIO_F32LE;
 		as.channels = (Uint8)aChannels;
 		as.samples = (Uint16)aBuffer;
 		as.callback = soloud_sdl2_audiomixer;
@@ -107,7 +107,7 @@ namespace SoLoud
 		gAudioDeviceID = dll_SDL2_OpenAudioDevice(NULL, 0, &as, &gActiveAudioSpec, SDL_AUDIO_ALLOW_ANY_CHANGE & ~(SDL_AUDIO_ALLOW_FORMAT_CHANGE | SDL_AUDIO_ALLOW_CHANNELS_CHANGE));
 		if (gAudioDeviceID == 0)
 		{
-			as.format = AUDIO_S16;
+			as.format = SDL_AUDIO_S16LE;
 			gAudioDeviceID = dll_SDL2_OpenAudioDevice(NULL, 0, &as, &gActiveAudioSpec, SDL_AUDIO_ALLOW_ANY_CHANGE & ~(SDL_AUDIO_ALLOW_FORMAT_CHANGE | SDL_AUDIO_ALLOW_CHANNELS_CHANGE));
 			if (gAudioDeviceID == 0)
 			{

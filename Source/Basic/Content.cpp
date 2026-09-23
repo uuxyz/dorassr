@@ -42,7 +42,7 @@ namespace fs = std::filesystem;
 
 #include "miniz.h"
 
-#include "SDL.h"
+#include <SDL3/SDL.h>
 
 #include <atomic>
 #include <cstring>
@@ -198,11 +198,11 @@ bool Content::save(String filename, const uint8_t* content, int64_t size) {
 		return false;
 	}
 	auto fullPath = fullPathAndPackage.fullPath.empty() ? filename.toString() : fullPathAndPackage.fullPath;
-	SDL_RWops* io = SDL_RWFromFile(fullPath.c_str(), "wb+");
+	SDL_IOStream* io = SDL_IOFromFile(fullPath.c_str(), "wb+");
 	if (!io) return false;
-	DEFER(SDL_RWclose(io));
+	DEFER(SDL_CloseIO(io));
 	if (size <= 0) return true;
-	size_t written = SDL_RWwrite(io, content, 1, size);
+	size_t written = SDL_WriteIO(io, content, 1, size);
 	bool success = written == size;
 	if (!success) {
 		Error("failed to write to file {}", fullPath);
@@ -1131,11 +1131,11 @@ bool Content::copyUnsafe(String src, String dst) {
 		for (const std::string& file : files) {
 			// Info("now copy file {}",file);
 			auto fullPath = (fs::path(dstPath) / file).string();
-			SDL_RWops* io = SDL_RWFromFile(fullPath.c_str(), "wb+");
+			SDL_IOStream* io = SDL_IOFromFile(fullPath.c_str(), "wb+");
 			if (!io) return false;
-			DEFER(SDL_RWclose(io));
+			DEFER(SDL_CloseIO(io));
 			bool result = Content::loadByChunks((fs::path(srcPath) / file).string(), [&](uint8_t* buffer, int size) {
-				size_t written = SDL_RWwrite(io, buffer, 1, s_cast<size_t>(size));
+				size_t written = SDL_WriteIO(io, buffer, 1, s_cast<size_t>(size));
 				if (written != s_cast<size_t>(size)) {
 					Error("failed to copy to file \"{}\"", (fs::path(dstPath) / file).string());
 					return true;
@@ -1148,14 +1148,14 @@ bool Content::copyUnsafe(String src, String dst) {
 		}
 	} else {
 		auto fullPath = dst.toString();
-		SDL_RWops* io = SDL_RWFromFile(fullPath.c_str(), "wb+");
+		SDL_IOStream* io = SDL_IOFromFile(fullPath.c_str(), "wb+");
 		if (!io) {
 			Error("failed to open file: \"{}\"", dst.toString());
 			return false;
 		}
-		DEFER(SDL_RWclose(io));
+		DEFER(SDL_CloseIO(io));
 		bool result = Content::loadByChunks(src, [&](uint8_t* buffer, int size) {
-			size_t written = SDL_RWwrite(io, buffer, 1, s_cast<size_t>(size));
+			size_t written = SDL_WriteIO(io, buffer, 1, s_cast<size_t>(size));
 			if (written != s_cast<size_t>(size)) {
 				Error("failed to copy to file \"{}\"", dst.toString());
 				return true;
@@ -1394,11 +1394,11 @@ void Content::unzipAsync(String zipFile, String folderPath, const std::function<
 			if (auto parent = Path::getPath(path); !exist(parent)) {
 				createFolder(parent);
 			}
-			SDL_RWops* io = SDL_RWFromFile(path.c_str(), "wb+");
+			SDL_IOStream* io = SDL_IOFromFile(path.c_str(), "wb+");
 			if (io) {
-				DEFER(SDL_RWclose(io));
+				DEFER(SDL_CloseIO(io));
 				if (!zip->getFileDataByChunks(file, [&io](uint8_t* data, size_t size) {
-						size_t written = SDL_RWwrite(io, data, 1, size);
+						size_t written = SDL_WriteIO(io, data, 1, size);
 						if (written == size) {
 							return false;
 						}
@@ -1481,13 +1481,13 @@ std::optional<Content::FileAttr> Content::getAttr(String filename) {
 		return std::nullopt;
 	}
 	attr.size = s_cast<int64_t>(fileSize);
-	SDL_RWops* io = SDL_RWFromFile(fullPath.c_str(), "rb");
+	SDL_IOStream* io = SDL_IOFromFile(fullPath.c_str(), "rb");
 	if (!io) {
 		return std::nullopt;
 	}
-	DEFER(SDL_RWclose(io));
+	DEFER(SDL_CloseIO(io));
 	uint8_t buffer[DORA_BINARY_CHECK_SIZE];
-	size_t readSize = SDL_RWread(io, buffer, sizeof(uint8_t), DORA_BINARY_CHECK_SIZE);
+	size_t readSize = SDL_ReadIO(io, buffer, sizeof(uint8_t), DORA_BINARY_CHECK_SIZE);
 	attr.isBinary = isBinaryData(buffer, readSize);
 	return attr;
 }
@@ -1784,16 +1784,16 @@ uint8_t* Content::loadUnsafe(String filename, int64_t& size) {
 		Error("failed to load file: \"{}\", due to: can not locate full path", filename.toString());
 		return nullptr;
 	}
-	SDL_RWops* io = SDL_RWFromFile(fullPathAndPackage.fullPath.c_str(), "rb");
+	SDL_IOStream* io = SDL_IOFromFile(fullPathAndPackage.fullPath.c_str(), "rb");
 	if (!io) {
 		size = 0;
 		Error("failed to load file: \"{}\", due to: {}", filename.toString(), SDL_GetError());
 		return nullptr;
 	}
-	DEFER(SDL_RWclose(io));
-	size = SDL_RWsize(io);
+	DEFER(SDL_CloseIO(io));
+	size = SDL_GetIOSize(io);
 	uint8_t* buffer = new uint8_t[s_cast<size_t>(size)];
-	SDL_RWread(io, buffer, sizeof(uint8_t), s_cast<size_t>(size));
+	SDL_ReadIO(io, buffer, sizeof(uint8_t), s_cast<size_t>(size));
 	return buffer;
 }
 
@@ -1807,16 +1807,16 @@ std::string Content::loadUnsafe(String filename) {
 		Error("failed to load file: \"{}\", due to: can not locate full path", filename.toString());
 		return {};
 	}
-	SDL_RWops* io = SDL_RWFromFile(fullPathAndPackage.fullPath.c_str(), "rb");
+	SDL_IOStream* io = SDL_IOFromFile(fullPathAndPackage.fullPath.c_str(), "rb");
 	if (!io) {
 		Error("failed to load file: \"{}\", due to: {}", filename.toString(), SDL_GetError());
 		return {};
 	}
-	DEFER(SDL_RWclose(io));
-	size_t size = s_cast<size_t>(SDL_RWsize(io));
+	DEFER(SDL_CloseIO(io));
+	size_t size = s_cast<size_t>(SDL_GetIOSize(io));
 	std::string buffer;
 	buffer.resize(size);
-	SDL_RWread(io, buffer.data(), sizeof(uint8_t), size);
+	SDL_ReadIO(io, buffer.data(), sizeof(uint8_t), size);
 	return buffer;
 }
 
@@ -1826,15 +1826,15 @@ bool Content::loadByChunks(String filename, const std::function<bool(uint8_t*, i
 	if (fullPathAndPackage.zipFile) {
 		return fullPathAndPackage.zipFile->getFileDataByChunks(fullPathAndPackage.zipRelativePath, handler);
 	}
-	SDL_RWops* io = SDL_RWFromFile(fullPathAndPackage.fullPath.c_str(), "rb");
+	SDL_IOStream* io = SDL_IOFromFile(fullPathAndPackage.fullPath.c_str(), "rb");
 	if (!io) {
 		Error("failed to load file: \"{}\"", filename.toString());
 		return false;
 	}
-	DEFER(SDL_RWclose(io));
+	DEFER(SDL_CloseIO(io));
 	uint8_t buffer[DORA_COPY_BUFFER_SIZE];
 	int size = 0;
-	while ((size = s_cast<int>(SDL_RWread(io, buffer, sizeof(uint8_t), DORA_COPY_BUFFER_SIZE)))) {
+	while ((size = s_cast<int>(SDL_ReadIO(io, buffer, sizeof(uint8_t), DORA_COPY_BUFFER_SIZE)))) {
 		if (handler(buffer, size)) {
 			return false;
 		}

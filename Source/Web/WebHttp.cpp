@@ -35,7 +35,7 @@ SOFTWARE. */
 #include <utility>
 #include <vector>
 
-#include "SDL.h"
+#include <SDL3/SDL.h>
 
 NS_DORA_BEGIN
 
@@ -217,9 +217,9 @@ static void finalize_fetch(emscripten_fetch_t* fetch, bool success) {
 	if (request->kind == FetchKind::Download) {
 		bool written = false;
 		if (httpSuccess && fetch->data) {
-			if (auto* output = SDL_RWFromFile(request->filePath.c_str(), "wb+")) {
-				written = SDL_RWwrite(output, fetch->data, 1, fetch->numBytes) == fetch->numBytes;
-				SDL_RWclose(output);
+			if (auto* output = SDL_IOFromFile(request->filePath.c_str(), "wb+")) {
+				written = SDL_WriteIO(output, fetch->data, 1, fetch->numBytes) == fetch->numBytes;
+				SDL_CloseIO(output);
 			}
 		}
 		if (!httpSuccess || !written) {

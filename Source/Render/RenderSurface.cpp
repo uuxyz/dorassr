@@ -12,10 +12,10 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 #include "Basic/Application.h"
 
-#include "SDL.h"
-#include "SDL_syswm.h"
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_syswm.h>
 #if BX_PLATFORM_ANDROID
-#include "SDL_system.h"
+#include <SDL3/SDL_system.h>
 #endif
 
 #include <bgfx/bgfx.h>
@@ -67,7 +67,7 @@ bool RenderSurface::initPlatformData() {
 #else
 	SDL_SysWMinfo wmi;
 	SDL_VERSION(&wmi.version);
-	if (SDL_GetWindowWMInfo(_window, &wmi) == SDL_FALSE) {
+	if (SDL_GetWindowWMInfo(_window, &wmi) == false) {
 		Error("SDL failed to provide window system information! {}", SDL_GetError());
 		return false;
 	}
@@ -178,7 +178,7 @@ void RenderSurface::drain() {
 
 void RenderSurface::detach() {
 	if (_glContext) {
-		SDL_GL_DeleteContext(_glContext);
+		SDL_GL_DestroyContext(_glContext);
 		_glContext = nullptr;
 	}
 }
@@ -196,7 +196,7 @@ void RenderSurface::onNativeWindowChanged() {
 #if BX_PLATFORM_ANDROID
 	SDL_SysWMinfo wmi;
 	SDL_VERSION(&wmi.version);
-	if (SDL_GetWindowWMInfo(_window, &wmi) == SDL_TRUE && wmi.info.android.window) {
+	if (SDL_GetWindowWMInfo(_window, &wmi) == true && wmi.info.android.window) {
 		bgfx::SwapChain sc{};
 		sc.nwh = wmi.info.android.window;
 		bgfx::reset(0, &sc);

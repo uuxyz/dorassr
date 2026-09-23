@@ -13,7 +13,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include "Basic/Director.h"
 #include "Input/TouchDispather.h"
 
-#include "SDL.h"
+#include <SDL3/SDL.h>
 
 NS_DORA_BEGIN
 
@@ -26,11 +26,11 @@ Vec2 Mouse::getDelta() {
 }
 
 bool Mouse::isRelativeMode() {
-	return SDL_GetRelativeMouseMode() == SDL_TRUE;
+	return SDL_GetRelativeMouseMode() == true;
 }
 
 void Mouse::setRelativeMode(bool enabled) {
-	SDL_SetRelativeMouseMode(enabled ? SDL_TRUE : SDL_FALSE);
+	SDL_SetRelativeMouseMode(enabled ? true : false);
 }
 
 bool Mouse::isLeftButtonPressed() {

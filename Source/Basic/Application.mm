@@ -27,8 +27,8 @@ NS_DORA_END
 
 #if BX_PLATFORM_IOS
 
-#include "SDL.h"
-#include "SDL_syswm.h"
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_syswm.h>
 #import "3rdParty/SDL2/src/video/uikit/SDL_uikitappdelegate.h"
 
 #import <AVFoundation/AVFoundation.h>
@@ -230,7 +230,7 @@ void Application::updateWindowSize() {
 	_bufferWidth = _winWidth * scale;
 	_bufferHeight = _winHeight * scale;
 	SDL_DisplayMode displayMode{SDL_PIXELFORMAT_UNKNOWN, 0, 0, 0, 0};
-	SDL_GetWindowDisplayMode(_sdlWindow, &displayMode);
+	SDL_GetWindowFullscreenMode(_sdlWindow, &displayMode);
 	if (displayMode.refresh_rate > 0) {
 		_maxFPS = displayMode.refresh_rate;
 	}
