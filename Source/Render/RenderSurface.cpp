@@ -65,18 +65,17 @@ bool RenderSurface::initPlatformData() {
 	_windowHandle = const_cast<char*>("#canvas");
 	return true;
 #else
-	SDL_SysWMinfo wmi;
-	SDL_VERSION(&wmi.version);
-	if (SDL_GetWindowWMInfo(_window, &wmi) == false) {
-		Error("SDL failed to provide window system information! {}", SDL_GetError());
+	SDL_PropertiesID props = SDL_GetWindowProperties(_window);
+	if (props == 0) {
+		Error("SDL failed to provide window properties! {}", SDL_GetError());
 		return false;
 	}
 #if BX_PLATFORM_OSX
-	_windowHandle = wmi.info.cocoa.window;
+	_windowHandle = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, nullptr);
 #elif BX_PLATFORM_WINDOWS
-	_windowHandle = wmi.info.win.window;
+	_windowHandle = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr);
 #elif BX_PLATFORM_ANDROID
-	_windowHandle = wmi.info.android.window;
+	_windowHandle = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_ANDROID_WINDOW_POINTER, nullptr);
 #elif BX_PLATFORM_IOS
 	/* Implemented in RenderSurface.mm: iOS renders through a CAMetalLayer
 	   added to the window's root view. */
@@ -87,11 +86,11 @@ bool RenderSurface::initPlatformData() {
 	}
 	return true;
 #elif BX_PLATFORM_LINUX
-	if (wmi.subsystem == SDL_SYSWM_WAYLAND) {
-		_displayHandle = wmi.info.wl.display;
-		_windowHandle = r_cast<void*>(wmi.info.wl.surface);
+	if (SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_DISPLAY_POINTER, nullptr)) {
+		_displayHandle = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_DISPLAY_POINTER, nullptr);
+		_windowHandle = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_SURFACE_POINTER, nullptr);
 		_wayland = true;
-	} else if (wmi.subsystem == SDL_SYSWM_KMSDRM) {
+	} else if (SDL_GetPointerProperty(props, SDL_PROP_WINDOW_KMSDRM_GBM_DEVICE_POINTER, nullptr)) {
 		_glContext = SDL_GL_CreateContext(_window);
 		if (!_glContext) {
 			Error("SDL failed to create KMSDRM GL context! {}", SDL_GetError());
@@ -112,8 +111,8 @@ bool RenderSurface::initPlatformData() {
 			}
 		}
 	} else {
-		_displayHandle = wmi.info.x11.display;
-		_windowHandle = r_cast<void*>(wmi.info.x11.window);
+		_displayHandle = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_X11_DISPLAY_POINTER, nullptr);
+		_windowHandle = (void*)(uintptr_t)SDL_GetNumberProperty(props, SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0);
 	}
 #endif // BX_PLATFORM
 	return true;
@@ -194,11 +193,10 @@ void RenderSurface::reset(uint32_t width, uint32_t height, uint64_t flags) {
 
 void RenderSurface::onNativeWindowChanged() {
 #if BX_PLATFORM_ANDROID
-	SDL_SysWMinfo wmi;
-	SDL_VERSION(&wmi.version);
-	if (SDL_GetWindowWMInfo(_window, &wmi) == true && wmi.info.android.window) {
+	SDL_PropertiesID props = SDL_GetWindowProperties(_window);
+	if (props != 0) {
 		bgfx::SwapChain sc{};
-		sc.nwh = wmi.info.android.window;
+		sc.nwh = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_ANDROID_WINDOW_POINTER, nullptr);
 		bgfx::reset(0, &sc);
 	}
 #else
