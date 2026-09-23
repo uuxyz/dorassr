@@ -1,4 +1,4 @@
-local SDL_VERSION = "2.31.0"
+local SDL_VERSION = "2.32.0"
 local MACOS_TARGET_MINVER = "11.3"
 local IOS_TARGET_MINVER = "13.0"
 
@@ -191,7 +191,7 @@ local function apply_common_settings()
 
     add_defines(
         "SDL_BUILD_MAJOR_VERSION=2",
-        "SDL_BUILD_MINOR_VERSION=31",
+        "SDL_BUILD_MINOR_VERSION=32",
         "SDL_BUILD_MICRO_VERSION=0"
     )
 
