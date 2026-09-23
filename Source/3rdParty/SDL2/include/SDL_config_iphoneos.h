@@ -175,10 +175,10 @@
 
 /* Enable OpenGL ES */
 #if !TARGET_OS_MACCATALYST
-#define SDL_VIDEO_OPENGL_ES2 0
-#define SDL_VIDEO_OPENGL_ES 0
-#define SDL_VIDEO_RENDER_OGL_ES 0
-#define SDL_VIDEO_RENDER_OGL_ES2    0
+#undef  SDL_VIDEO_OPENGL_ES2
+#undef  SDL_VIDEO_OPENGL_ES
+#undef  SDL_VIDEO_RENDER_OGL_ES
+#undef  SDL_VIDEO_RENDER_OGL_ES2
 #endif
 
 /* Metal supported on 64-bit devices running iOS 8.0 and tvOS 9.0 and newer
