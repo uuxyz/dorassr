@@ -59,7 +59,7 @@ jobs:
             sudo mv "$chrome_source" "$chrome_source.disabled"
           done
           sudo apt-get update
-          sudo apt-get install -y cmake pkg-config patchelf pax-utils curl \
+          sudo apt-get install -y ccache cmake pkg-config patchelf pax-utils curl \
             libgl1-mesa-dev libssl-dev libdbus-1-dev libasound2-dev \
             libjack-jackd2-dev libpulse-dev libpipewire-0.3-dev \
             libsamplerate0-dev libsndio-dev libibus-1.0-dev libudev-dev \
@@ -79,6 +79,17 @@ jobs:
           go-version: '1.24.3'
 
       - uses: dtolnay/rust-toolchain@stable
+      - name: Setup ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ github.workflow }}-ccache-${{ github.sha }}
+          restore-keys: ${{ github.workflow }}-ccache-
+          max-size: 2G
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: Source/Rust
+          prefix-key: ${{ github.workflow }}
 
       - uses: xmake-io/github-action-setup-xmake@v1
         with:

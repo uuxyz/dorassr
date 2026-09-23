@@ -8,6 +8,13 @@ set(CMAKE_CXX_STANDARD 20)
 add_compile_options(-DBGFX_PLATFORM_SUPPORTS_DXBC=0)
 add_compile_options(-DBGFX_PLATFORM_SUPPORTS_WGSL=0)
 
+# ccache 加速（存在即启用；CI 用 actions/cache 缓存 CCACHE_DIR）
+find_program(CCACHE_PROGRAM ccache)
+if(CCACHE_PROGRAM)
+	set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+	set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+endif()
+
 # 新版 bx 的 SIMD 路径以 SSE4.2 为最低规格（simd_t.h 直接包含 smmintrin/nmmintrin）
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "(x86)|(X86)|(amd64)|(AMD64)")
 	add_compile_options(-msse4.2)

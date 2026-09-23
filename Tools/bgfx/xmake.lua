@@ -13,6 +13,9 @@ local IOS_TARGET_MINVER = "13.0"
 
 -- 设置项目
 set_project("bgfx-libs")
+
+-- 命中率无关紧要：ccache 缺失时该策略自动失效
+set_policy("build.ccache", true)
 set_version(PROJECT_VERSION)
 set_languages(CXX_LANGUAGE_STANDARD)
 

@@ -24,11 +24,30 @@ esac
 
 "$SCRIPT_DIR/check_build_env.sh" android lib
 
-"$SCRIPT_DIR/build_lib_sdl2.sh" android "--$BUILD_MODE"
-"$SCRIPT_DIR/build_lib_bgfx.sh" android "--$BUILD_MODE"
-"$SCRIPT_DIR/build_lib_love.sh" android "--$BUILD_MODE"
-"$SCRIPT_DIR/build_lib_theora.sh" android "--$BUILD_MODE"
-"$SCRIPT_DIR/build_lib_wa.sh" android "$BUILD_MODE"
+# 五个第三方库互不依赖，并行构建（各自独立的项目目录与日志）；
+# 任一失败即整体失败。
+LOG_DIR="$(mktemp -d)"
+"$SCRIPT_DIR/build_lib_sdl2.sh" android "--$BUILD_MODE" > "$LOG_DIR/sdl2.log" 2>&1 &
+P_SDL2=$!
+"$SCRIPT_DIR/build_lib_bgfx.sh" android "--$BUILD_MODE" > "$LOG_DIR/bgfx.log" 2>&1 &
+P_BGPUX=$!
+"$SCRIPT_DIR/build_lib_love.sh" android "--$BUILD_MODE" > "$LOG_DIR/love.log" 2>&1 &
+P_LOVE=$!
+"$SCRIPT_DIR/build_lib_theora.sh" android "--$BUILD_MODE" > "$LOG_DIR/theora.log" 2>&1 &
+P_THEORA=$!
+"$SCRIPT_DIR/build_lib_wa.sh" android "$BUILD_MODE" > "$LOG_DIR/wa.log" 2>&1 &
+P_WA=$!
+
+FAIL=0
+for pair in "$P_SDL2:sdl2" "$P_BGPUX:bgfx" "$P_LOVE:love" "$P_THEORA:theora" "$P_WA:wa"; do
+	P=${pair%%:*}; NAME=${pair##*:}
+	if ! wait "$P"; then
+		echo "=== $NAME build failed, log tail: ===" >&2
+		tail -40 "$LOG_DIR/$NAME.log" >&2
+		FAIL=1
+	fi
+done
+[ "$FAIL" -eq 0 ] || exit 1
 
 cd "$SCRIPT_DIR/../../Source/Rust"
 
@@ -56,9 +75,24 @@ build_rust_target() {
 		cargo build "${CARGO_ARGS[@]}" --target "$target"
 }
 
-build_rust_target aarch64-linux-android aarch64_linux_android aarch64-linux-android
-cp "target/aarch64-linux-android/$CARGO_PROFILE/libdora_runtime.a" lib/Android/arm64-v8a/libdora_runtime.a
-build_rust_target armv7-linux-androideabi armv7_linux_androideabi armv7a-linux-androideabi
-cp "target/armv7-linux-androideabi/$CARGO_PROFILE/libdora_runtime.a" lib/Android/armeabi-v7a/libdora_runtime.a
-build_rust_target x86_64-linux-android x86_64_linux_android x86_64-linux-android
-cp "target/x86_64-linux-android/$CARGO_PROFILE/libdora_runtime.a" lib/Android/x86_64/libdora_runtime.a
+build_rust_target() { # target env_target compiler_prefix out_dir
+	local target="$1" env_target="$2" compiler_prefix="$3" out_dir="$4"
+	env \
+		"CC_$env_target=$TOOLCHAIN_BIN/${compiler_prefix}${ANDROID_API}-clang" \
+		"CXX_$env_target=$TOOLCHAIN_BIN/${compiler_prefix}${ANDROID_API}-clang++" \
+		"AR_$env_target=$TOOLCHAIN_BIN/llvm-ar" \
+		"CARGO_TARGET_DIR=target/$out_dir" \
+		cargo build "${CARGO_ARGS[@]}" --target "$target"
+	cp "target/$out_dir/$CARGO_PROFILE/libdora_runtime.a" "lib/Android/$out_dir/libdora_runtime.a"
+}
+
+# 三个 target 的构建目录互不相交，可并行
+build_rust_target aarch64-linux-android aarch64_linux_android aarch64-linux-android arm64-v8a &
+P1=$!
+build_rust_target armv7-linux-androideabi armv7_linux_androideabi armv7a-linux-androideabi armeabi-v7a &
+P2=$!
+build_rust_target x86_64-linux-android x86_64_linux_android x86_64-linux-android x86_64 &
+P3=$!
+FAIL=0
+for P in $P1 $P2 $P3; do wait "$P" || FAIL=1; done
+[ "$FAIL" -eq 0 ] || { echo "Rust runtime build failed" >&2; exit 1; }

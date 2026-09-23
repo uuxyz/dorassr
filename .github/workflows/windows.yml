@@ -61,6 +61,11 @@ jobs:
           echo "${mingw32_bin}" >> "${GITHUB_PATH}"
           echo "CC=${mingw32_gcc}" >> "${GITHUB_ENV}"
       - uses: dtolnay/rust-toolchain@stable
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: Source/Rust
+          prefix-key: windows
       - name: Setup msbuild
         uses: microsoft/setup-msbuild@v1.0.2
       - name: Check touch input sources
