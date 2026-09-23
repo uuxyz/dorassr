@@ -64,7 +64,19 @@ stdenv.mkDerivation (finalAttrs: {
 
   dontConfigure = true;
 
+  # Leaf header-only libraries come from nixpkgs; the in-tree copies are
+  # replaced so builds cannot accidentally use the bundled versions.
+  postPatch = ''
+    rm -rf Source/3rdParty/rapidjson
+    ln -s ${rapidjson}/include/rapidjson Source/3rdParty/rapidjson
+    rm Source/3rdParty/stb/stb_rect_pack.h Source/3rdParty/stb/stb_truetype.h
+    ln -s ${stb}/include/stb/stb_rect_pack.h Source/3rdParty/stb/stb_rect_pack.h
+    ln -s ${stb}/include/stb/stb_truetype.h Source/3rdParty/stb/stb_truetype.h
+  '';
+
   nativeBuildInputs = [
+    stb
+    rapidjson
     cmake
     makeWrapper
     pkg-config
@@ -90,6 +102,8 @@ stdenv.mkDerivation (finalAttrs: {
     libpulseaudio
     systemdLibs
     zlib
+    libtheora
+    libogg
   ];
 
   # Dora depends on its SDL2 fork, customized bgfx build, curated Love subset,
@@ -132,13 +146,11 @@ stdenv.mkDerivation (finalAttrs: {
     cp build/linux/"$BGFX_ARCH"/release/liblove.a Artifacts/Linux/"$HOST_ARCH"/
     cd ../../..
 
-    echo "=== [4/6] Theora ==="
-    cd Source/3rdParty/theora
-    xmake f -p linux -a "$BGFX_ARCH" -m release -y
-    xmake build -j "$NIX_BUILD_CORES" theoradec
-    mkdir -p Lib/Linux/"$HOST_ARCH"
-    cp build/linux/"$BGFX_ARCH"/release/libtheoradec.a Lib/Linux/"$HOST_ARCH"/
-    cd ../../..
+    echo "=== [4/6] Theora (nixpkgs) ==="
+    # 头文件仍用树内 vendored（Source/3rdParty/theora/include），
+    # 静态库由 nixpkgs libtheora 提供，放到 CMake 期望的契约路径
+    mkdir -p Source/3rdParty/theora/Lib/Linux/"$HOST_ARCH"
+    ln -s ${libtheora}/lib/libtheoradec.a Source/3rdParty/theora/Lib/Linux/"$HOST_ARCH"/libtheoradec.a
 
     echo "=== [5/6] Wa ==="
     cd Source/3rdParty/Wa/Source
