@@ -1,6 +1,9 @@
 includes("../LuaSocket/xmake.lua")
 
 set_project("love")
+
+-- 命中率无关紧要：ccache 缺失时该策略自动失效
+set_policy("build.ccache", true)
 set_version("11.5")
 set_languages("cxx20")
 add_rules("mode.debug", "mode.release")
