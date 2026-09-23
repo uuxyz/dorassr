@@ -1,6 +1,6 @@
 /*
   Simple DirectMedia Layer
-  Copyright (C) 1997-2024 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -1417,19 +1417,6 @@ extern "C" {
 #define SDL_HINT_KMSDRM_REQUIRE_DRM_MASTER      "SDL_KMSDRM_REQUIRE_DRM_MASTER"
 
 /**
- * A variable controlling whether the KMSDRM backend creates a hardware
- * cursor plane.
- *
- * This hint must be set before creating a KMSDRM window.
- *
- * This variable can be set to the following values:
- *
- * - "0": Create and manage the KMSDRM hardware cursor (default)
- * - "1": Do not create a KMSDRM cursor buffer or default cursor
- */
-#define SDL_HINT_KMSDRM_DISABLE_CURSOR          "SDL_KMSDRM_DISABLE_CURSOR"
-
-/**
  * A comma separated list of devices to open as joysticks
  *
  * This variable is currently only used by the Linux joystick driver.
@@ -2296,7 +2283,7 @@ extern "C" {
 
 /**
  * A variable controlling whether the libdecor Wayland backend is preferred
- * over native decrations.
+ * over native decorations.
  *
  * When this hint is set, libdecor will be used to provide window decorations,
  * even if xdg-decoration is available. (Note that, by default, libdecor will
@@ -2619,7 +2606,7 @@ extern "C" {
  * Force SDL to use Critical Sections for mutexes on Windows.
  *
  * On Windows 7 and newer, Slim Reader/Writer Locks are available. They offer
- * better performance, allocate no kernel ressources and use less memory. SDL
+ * better performance, allocate no kernel resources and use less memory. SDL
  * will fall back to Critical Sections on older OS versions or if forced to by
  * this hint.
  *
@@ -3293,3 +3280,15 @@ extern DECLSPEC void SDLCALL SDL_ClearHints(void);
 #endif /* SDL_hints_h_ */
 
 /* vi: set ts=4 sw=4 expandtab: */
+/**
+ * A variable controlling whether the KMSDRM backend creates a hardware
+ * cursor plane.
+ *
+ * This hint must be set before creating a KMSDRM window.
+ *
+ * This variable can be set to the following values:
+ *
+ * - "0": Create and manage the KMSDRM hardware cursor (default)
+ * - "1": Do not create a KMSDRM cursor buffer or default cursor
+ */
+#define SDL_HINT_KMSDRM_DISABLE_CURSOR          "SDL_KMSDRM_DISABLE_CURSOR"

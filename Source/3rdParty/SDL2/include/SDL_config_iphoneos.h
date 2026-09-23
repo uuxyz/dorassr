@@ -1,6 +1,6 @@
 /*
   Simple DirectMedia Layer
-  Copyright (C) 1997-2024 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -172,6 +172,14 @@
 /* Supported video drivers */
 #define SDL_VIDEO_DRIVER_UIKIT  1
 #define SDL_VIDEO_DRIVER_DUMMY  1
+
+/* Enable OpenGL ES */
+#if !TARGET_OS_MACCATALYST
+#define SDL_VIDEO_OPENGL_ES2 0
+#define SDL_VIDEO_OPENGL_ES 0
+#define SDL_VIDEO_RENDER_OGL_ES 0
+#define SDL_VIDEO_RENDER_OGL_ES2    0
+#endif
 
 /* Metal supported on 64-bit devices running iOS 8.0 and tvOS 9.0 and newer
    Also supported in simulator from iOS 13.0 and tvOS 13.0
