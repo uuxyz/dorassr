@@ -10,8 +10,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 #if BX_PLATFORM_IOS
 
-#import "SDL.h"
-#import "SDL_syswm.h"
+#import <SDL3/SDL.h>
+#import <SDL3/SDL_properties.h>
 #import <QuartzCore/CAMetalLayer.h>
 #import <UIKit/UIKit.h>
 
@@ -20,10 +20,11 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 /* Global scope: the declaration in RenderSurface.cpp is not inside the
    Dora namespace. */
 void* createIOSMetalLayer(SDL_Window* window) {
-	SDL_SysWMinfo wmi;
-	SDL_VERSION(&wmi.version);
-	SDL_GetWindowWMInfo(window, &wmi);
-	CALayer* layer = wmi.info.uikit.window.rootViewController.view.layer;
+	SDL_PropertiesID props = SDL_GetWindowProperties(window);
+	UIWindow* uiWindow = (__bridge UIWindow*)SDL_GetPointerProperty(
+		props, SDL_PROP_WINDOW_UIKIT_WINDOW_POINTER, nullptr);
+	if (!uiWindow.rootViewController) return nullptr;
+	CALayer* layer = uiWindow.rootViewController.view.layer;
 	CAMetalLayer* displayLayer = [[CAMetalLayer alloc] init];
 	displayLayer.contentsScale = [UIScreen mainScreen].scale;
 	displayLayer.frame = layer.frame;
