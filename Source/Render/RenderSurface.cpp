@@ -31,7 +31,7 @@ uint32_t RenderSurface::prepareWindowCreation(uint32_t windowFlags, bool& fullsc
 #if BX_PLATFORM_LINUX
 	/* SDL_CreateWindow initializes video lazily, but KMSDRM GL attributes
 	   must be set before that window (and its EGL surface) is created. */
-	if (SDL_InitSubSystem(SDL_INIT_VIDEO) != 0) {
+	if (!SDL_InitSubSystem(SDL_INIT_VIDEO)) {
 		Error("SDL failed to initialize video! {}", SDL_GetError());
 		return windowFlags;
 	}
@@ -95,13 +95,13 @@ bool RenderSurface::initPlatformData() {
 			Error("SDL failed to create KMSDRM GL context! {}", SDL_GetError());
 			return false;
 		}
-		if (SDL_GL_MakeCurrent(_window, s_cast<SDL_GLContext>(_glContext)) != 0) {
+		if (!SDL_GL_MakeCurrent(_window, s_cast<SDL_GLContext>(_glContext))) {
 			Error("SDL failed to make KMSDRM GL context current! {}", SDL_GetError());
 			return false;
 		}
 		_contextHandle = _glContext;
 		int stencilBits = 0;
-		if (SDL_GL_GetAttribute(SDL_GL_STENCIL_SIZE, &stencilBits) != 0) {
+		if (!SDL_GL_GetAttribute(SDL_GL_STENCIL_SIZE, &stencilBits)) {
 			Warn("SDL failed to query KMSDRM stencil buffer! {}", SDL_GetError());
 		} else {
 			Println("KMSDRM stencil buffer: {} bits", stencilBits);

@@ -918,7 +918,7 @@ int Application::run(MainFunc mainFunc) {
 	_mainFunc = mainFunc;
 	Application::setSeed(s_cast<uint32_t>(std::time(nullptr)));
 
-	if (SDL_Init(SDL_INIT_GAMEPAD) != 0) {
+	if (!SDL_Init(SDL_INIT_GAMEPAD)) {
 		Error("SDL failed to initialize! {}", SDL_GetError());
 		return 1;
 	}
@@ -949,7 +949,7 @@ int Application::run(MainFunc mainFunc) {
 #if BX_PLATFORM_WINDOWS || BX_PLATFORM_OSX || BX_PLATFORM_LINUX
 	int displayIndex = SDL_GetDisplayForWindow(_sdlWindow);
 	SDL_Rect rect;
-	if (SDL_GetDisplayBounds(displayIndex, &rect) == 0 && (_winWidth > rect.w || _winHeight > rect.h)) {
+	if (SDL_GetDisplayBounds(displayIndex, &rect) && (_winWidth > rect.w || _winHeight > rect.h)) {
 		_winWidth = rect.w;
 		_winHeight = rect.h;
 		SDL_SetWindowSize(_sdlWindow, _winWidth, _winHeight);
@@ -1576,7 +1576,7 @@ std::thread::id Application::getLogicThread() const noexcept {
 
 void Application::openURL(String url) {
 	invokeInRender([url = url.toString()]() {
-		if (SDL_OpenURL(url.c_str()) != 0) {
+		if (!SDL_OpenURL(url.c_str())) {
 			Error("failed to open url due to: {}", SDL_GetError());
 		}
 	});
@@ -1585,7 +1585,7 @@ void Application::openURL(String url) {
 void Application::setClipboardText(String text) {
 	auto value = text.toString();
 	invokeInRender([value = std::move(value)]() {
-		if (SDL_SetClipboardText(value.c_str()) != 0) {
+		if (!SDL_SetClipboardText(value.c_str())) {
 			Error("failed to set clipboard text due to: {}", SDL_GetError());
 		}
 	});

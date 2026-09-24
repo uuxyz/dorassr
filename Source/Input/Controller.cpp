@@ -360,7 +360,7 @@ bool Controller::isControllerButtonPressed(int controllerId, int button) const {
 		if (device.second->id != controllerId) continue;
 		auto joystick = SDL_GetGamepadJoystick(s_cast<SDL_Gamepad*>(device.second->controller));
 		return button >= 0 && button < SDL_GetNumJoystickButtons(joystick)
-			&& SDL_GetJoystickButton(joystick, button) != 0;
+			&& SDL_GetJoystickButton(joystick, button);
 	}
 	return false;
 }
