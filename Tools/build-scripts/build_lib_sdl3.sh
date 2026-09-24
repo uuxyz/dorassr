@@ -72,6 +72,7 @@ common_cmake_opts=(
 	-DSDL_TESTS=OFF
 	-DSDL_EXAMPLES=OFF
 	-DSDL_DISABLE_INSTALL_DOCS=ON
+	-DSDL_ANDROID_JAR=OFF
 )
 
 build_macos() {
