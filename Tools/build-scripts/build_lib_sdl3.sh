@@ -62,18 +62,20 @@ clean_build() {
 	rm -rf "$1"
 }
 
-# 通用配置：静态库 + PIC，与旧 SDL2 产物形态保持一致
+# 通用配置：PIC；shared/static 按平台决定（Android 用共享库，
+# 与旧 SDL2 产物形态保持一致，其余平台静态链接）
 common_cmake_opts=(
 	-DCMAKE_BUILD_TYPE="$CMAKE_MODE"
 	-DCMAKE_POSITION_INDEPENDENT_CODE=ON
-	-DSDL_SHARED=OFF
-	-DSDL_STATIC=ON
 	-DSDL_TEST_LIBRARY=OFF
 	-DSDL_TESTS=OFF
 	-DSDL_EXAMPLES=OFF
 	-DSDL_DISABLE_INSTALL_DOCS=ON
 	-DSDL_ANDROID_JAR=OFF
 )
+
+static_cmake_opts=(-DSDL_SHARED=OFF -DSDL_STATIC=ON)
+shared_cmake_opts=(-DSDL_SHARED=ON -DSDL_STATIC=OFF)
 
 build_macos() {
 	local archs
@@ -90,7 +92,7 @@ build_macos() {
 		clean_build "$build_dir"
 		cmake -S . -B "$build_dir" \
 			-DCMAKE_OSX_ARCHITECTURES="$arch" \
-			"${common_cmake_opts[@]}"
+			"${common_cmake_opts[@]}" "${static_cmake_opts[@]}"
 		cmake --build "$build_dir" -j 8
 		libs+=("$build_dir/libSDL3.a")
 	done
@@ -115,7 +117,7 @@ build_ios() {
 		-DCMAKE_SYSTEM_NAME=iOS \
 		-DCMAKE_OSX_SYSROOT=iphoneos \
 		-DCMAKE_OSX_ARCHITECTURES=arm64 \
-		"${common_cmake_opts[@]}"
+		"${common_cmake_opts[@]}" "${static_cmake_opts[@]}"
 	cmake --build "$device_dir" -j 8
 
 	local sim_dir="build/cmake-ios-sim-$BUILD_MODE"
@@ -124,7 +126,7 @@ build_ios() {
 		-DCMAKE_SYSTEM_NAME=iOS \
 		-DCMAKE_OSX_SYSROOT=iphonesimulator \
 		-DCMAKE_OSX_ARCHITECTURES="x86_64;arm64" \
-		"${common_cmake_opts[@]}"
+		"${common_cmake_opts[@]}" "${static_cmake_opts[@]}"
 	cmake --build "$sim_dir" -j 8
 
 	mkdir -p Lib/iOS Lib/iOS-Simulator
@@ -156,7 +158,7 @@ build_android() {
 			-DCMAKE_TOOLCHAIN_FILE="$toolchain" \
 			-DANDROID_ABI="$abi" \
 			-DANDROID_PLATFORM=android-21 \
-			"${common_cmake_opts[@]}"
+			"${common_cmake_opts[@]}" "${shared_cmake_opts[@]}"
 		cmake --build "$build_dir" -j 8
 		mkdir -p "Lib/Android/$abi"
 		local so
@@ -195,7 +197,7 @@ build_linux() {
 	clean_build "$build_dir"
 	cmake -S . -B "$build_dir" \
 		-DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-		"${common_cmake_opts[@]}"
+		"${common_cmake_opts[@]}" "${static_cmake_opts[@]}"
 	cmake --build "$build_dir" -j 8
 	cmake --install "$build_dir" --prefix "/usr/local" --config "$CMAKE_MODE"
 

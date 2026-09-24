@@ -178,8 +178,7 @@ function(dora_add_apple_app)
 			"-framework CoreMedia" "-framework VideoToolbox" "-framework AudioToolbox"
 			"-framework CoreAudio" "-framework CoreHaptics" "-framework CoreBluetooth"
 			"-framework CoreMotion" "-framework GameController" "-framework AVFoundation"
-			"-framework UniformTypeIdentifiers" "-framework OpenGLES"
-			"-e _SDL_main")
+			"-framework UniformTypeIdentifiers" "-framework OpenGLES")
 	endif()
 endfunction()
 
