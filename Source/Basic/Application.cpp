@@ -1147,8 +1147,6 @@ void Application::updateWindowSize() {
 		_fullScreen = fullscreenStatus.isFullscreen;
 	}
 	_maxFPS = 60;
-#elif BX_PLATFORM_OSX
-	SDL_Metal_GetDrawableSize(_sdlWindow, &_bufferWidth, &_bufferHeight);
 #else
 	SDL_GetWindowSizeInPixels(_sdlWindow, &_bufferWidth, &_bufferHeight);
 #endif

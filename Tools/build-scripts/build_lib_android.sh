@@ -43,7 +43,8 @@ for pair in "$P_SDL3:sdl3" "$P_BGPUX:bgfx" "$P_LOVE:love" "$P_THEORA:theora" "$P
 	P=${pair%%:*}; NAME=${pair##*:}
 	if ! wait "$P"; then
 		echo "=== $NAME build failed, log tail: ===" >&2
-		tail -40 "$LOG_DIR/$NAME.log" >&2
+		grep -n -B3 -A3 -iE "error|failed" "$LOG_DIR/$NAME.log" >&2 | tail -120 || true
+		tail -120 "$LOG_DIR/$NAME.log" >&2
 		FAIL=1
 	fi
 done

@@ -28,7 +28,7 @@ NS_DORA_END
 #if BX_PLATFORM_IOS
 
 #include <SDL3/SDL.h>
-#import "3rdParty/SDL2/src/video/uikit/SDL_uikitappdelegate.h"
+#import "3rdParty/SDL3/src/video/uikit/SDL_uikitappdelegate.h"
 
 #import <AVFoundation/AVFoundation.h>
 #import <AudioToolbox/AudioServices.h>
