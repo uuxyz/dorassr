@@ -2089,9 +2089,12 @@ extern "C" EMSCRIPTEN_KEEPALIVE void dora_web_capture_game(int requestId) {
 }
 #endif
 
-// Entry functions needed by SDL2
+// Entry functions needed by SDL
 #if BX_PLATFORM_OSX || BX_PLATFORM_ANDROID || BX_PLATFORM_IOS || BX_PLATFORM_LINUX || BX_PLATFORM_EMSCRIPTEN
 #ifndef DORA_AS_LIB
+#if BX_PLATFORM_IOS
+#include <SDL3/SDL_main.h>
+#endif
 int main(int argc, char* argv[]) {
 #if !BX_PLATFORM_EMSCRIPTEN
 	if (Dora::isCliRequested(argc, argv)) {
