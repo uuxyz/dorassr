@@ -10,6 +10,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 #include "Support/Geometry.h"
 #include "Support/Value.h"
+#include <SDL3/SDL.h>
 
 union SDL_Event;
 
@@ -99,7 +100,6 @@ protected:
 	bool move(const SDL_Event& event);
 	void mouseMove(const SDL_Event& event);
 	bool wheel(const SDL_Event& event);
-	bool gesture(const SDL_Event& event);
 
 private:
 	WRef<Node> _target;

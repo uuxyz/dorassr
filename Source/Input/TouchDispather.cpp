@@ -22,12 +22,13 @@ NS_DORA_BEGIN
 /* Touch */
 
 uint32_t Touch::_source =
-#if BX_PLATFORM_EMSCRIPTEN
-	Touch::FromMouseAndTouch;
-#elif BX_PLATFORM_OSX
+#if BX_PLATFORM_OSX
 	Touch::FromMouse;
 #else
-	Touch::FromTouch;
+	/* SDL3 的 MOUSE_TOUCH_EVENTS 会为每次鼠标点击合成一套 FINGER 事件。
+	   桌面平台必须接受鼠标路径并过滤合成触摸（与 Emscripten 同策略），
+       否则触摸路径与鼠标路径被同一次点击同时触发、互相重置。 */
+	Touch::FromMouseAndTouch;
 #endif
 
 Touch::Touch(int id)
@@ -103,6 +104,84 @@ int Touch::getClickCount() const noexcept {
 	return _clickCount;
 }
 
+struct GestureState {
+	SDL_TouchID touchId = 0;
+	int fingerCount = 0;       /* 0 means "needs re-baseline" */
+	Vec2 centroid{0.0f, 0.0f}; /* normalized, y=0 top (SDL convention) */
+	float prevDistance = 0.0f;
+	float prevAngle = 0.0f;
+	float dDist = 0.0f;        /* pinch delta in normalized units */
+	float dTheta = 0.0f;       /* rotation delta in radians */
+	bool active = false;       /* a fresh delta is ready for this event */
+};
+
+static GestureState s_gesture;
+
+static void updateGestureState(const SDL_Event& event) {
+	s_gesture.active = false;
+	switch (event.type) {
+		case SDL_EVENT_FINGER_DOWN:
+		case SDL_EVENT_FINGER_UP:
+			/* The finger layout changed: invalidate so the next motion
+			   event re-baselines with the new finger set. */
+			if (s_gesture.touchId == event.tfinger.touchID) s_gesture.fingerCount = 0;
+			return;
+		case SDL_EVENT_FINGER_MOTION:
+			break;
+		default:
+			return;
+	}
+	if ((Touch::getSource() & Touch::FromTouch) == 0) return;
+	if (event.tfinger.touchID == SDL_MOUSE_TOUCHID) return;
+	const SDL_TouchID touchId = event.tfinger.touchID;
+	int fingerCount = 0;
+	SDL_Finger** fingers = SDL_GetTouchFingers(touchId, &fingerCount);
+	if (!fingers) return;
+	if (fingerCount < 2) {
+		SDL_free(fingers);
+		s_gesture.touchId = 0;
+		s_gesture.fingerCount = 0;
+		return;
+	}
+	Vec2 centroid{0.0f, 0.0f};
+	for (int i = 0; i < fingerCount; ++i) {
+		centroid.x += fingers[i]->x;
+		centroid.y += fingers[i]->y;
+	}
+	centroid /= s_cast<float>(fingerCount);
+	float distance = 0.0f;
+	float angle = 0.0f;
+	int pairs = 0;
+	for (int i = 0; i < fingerCount; ++i) {
+		for (int j = i + 1; j < fingerCount; ++j) {
+			const Vec2 a{fingers[i]->x, fingers[i]->y};
+			const Vec2 b{fingers[j]->x, fingers[j]->y};
+			distance += (b - a).length();
+			angle += std::atan2(b.y - a.y, b.x - a.x);
+			++pairs;
+		}
+	}
+	SDL_free(fingers);
+	distance /= s_cast<float>(pairs);
+	angle /= s_cast<float>(pairs);
+	if (s_gesture.touchId != touchId || s_gesture.fingerCount != fingerCount) {
+		/* New device or finger count changed: baseline only, no delta. */
+		s_gesture.touchId = touchId;
+		s_gesture.fingerCount = fingerCount;
+		s_gesture.centroid = centroid;
+		s_gesture.prevDistance = distance;
+		s_gesture.prevAngle = angle;
+		return;
+	}
+	s_gesture.centroid = centroid;
+	/* 批内累加：一帧可能排队多个 motion 事件，dispatch 时合并为一次增量 */
+	s_gesture.dDist += distance - s_gesture.prevDistance;
+	s_gesture.dTheta += angle - s_gesture.prevAngle;
+	s_gesture.prevDistance = distance;
+	s_gesture.prevAngle = angle;
+	s_gesture.active = true;
+}
+
 /* TouchHandler */
 
 TouchHandler::TouchHandler()
@@ -147,11 +226,13 @@ bool NodeTouchHandler::handle(const SDL_Event& event) {
 		case SDL_EVENT_MOUSE_MOTION:
 			mouseMove(event);
 			return move(event) && isSwallowTouches();
-		case SDL_EVENT_FINGER_MOTION:
-			return move(event) && isSwallowTouches();
+		case SDL_EVENT_FINGER_MOTION: {
+			const bool handled = move(event) && isSwallowTouches();
+			gesture();
+			return handled;
+		}
 		case SDL_EVENT_MOUSE_WHEEL:
 			return wheel(event) && isSwallowMouseWheel();
-			return gesture(event) && isSwallowTouches();
 	}
 	return false;
 }
@@ -305,9 +386,9 @@ bool NodeTouchHandler::down(const SDL_Event& event) {
 			id = INT64_MAX;
 			break;
 		case SDL_EVENT_FINGER_DOWN:
-			if ((Touch::getSource() & Touch::FromMouseAndTouch) == Touch::FromMouseAndTouch && event.tfinger.touchId == SDL_MOUSE_TOUCHID) return false;
+			if ((Touch::getSource() & Touch::FromMouseAndTouch) == Touch::FromMouseAndTouch && event.tfinger.touchID == SDL_MOUSE_TOUCHID) return false;
 			if ((Touch::getSource() & Touch::FromTouch) == 0) return false;
-			id = event.tfinger.fingerId;
+			id = event.tfinger.fingerID;
 			break;
 		default:
 			return false;
@@ -355,9 +436,9 @@ bool NodeTouchHandler::up(const SDL_Event& event) {
 			id = INT64_MAX;
 			break;
 		case SDL_EVENT_FINGER_UP:
-			if ((Touch::getSource() & Touch::FromMouseAndTouch) == Touch::FromMouseAndTouch && event.tfinger.touchId == SDL_MOUSE_TOUCHID) return false;
+			if ((Touch::getSource() & Touch::FromMouseAndTouch) == Touch::FromMouseAndTouch && event.tfinger.touchID == SDL_MOUSE_TOUCHID) return false;
 			if ((Touch::getSource() & Touch::FromTouch) == 0) return false;
-			id = event.tfinger.fingerId;
+			id = event.tfinger.fingerID;
 			break;
 		default:
 			return false;
@@ -388,6 +469,20 @@ bool NodeTouchHandler::up(const SDL_Event& event) {
 	return false;
 }
 
+bool NodeTouchHandler::gesture() {
+	if (!isTargetActive()) return false;
+	if (!s_gesture.active) return false;
+	Vec2 ratio{s_gesture.centroid.x, 1.0f - s_gesture.centroid.y};
+	Vec2 winPos = ratio * SharedView.getSize();
+	Vec2 pos = getPos({winPos.x, winPos.y, 0.0f});
+	if (_target->getSize() == Size::zero || Rect(Vec2::zero, _target->getSize()).containsPoint(pos)) {
+		_target->emit("Gesture"_slice, pos, s_gesture.fingerCount, s_gesture.dDist,
+			ktm::degrees(s_gesture.dTheta));
+		return true;
+	}
+	return false;
+}
+
 bool NodeTouchHandler::move(const SDL_Event& event) {
 	if (!isTargetActive()) return false;
 	Touch* touch = nullptr;
@@ -398,9 +493,9 @@ bool NodeTouchHandler::move(const SDL_Event& event) {
 			touch = get(INT64_MAX);
 			break;
 		case SDL_EVENT_FINGER_MOTION:
-			if ((Touch::getSource() & Touch::FromMouseAndTouch) == Touch::FromMouseAndTouch && event.tfinger.touchId == SDL_MOUSE_TOUCHID) return false;
+			if ((Touch::getSource() & Touch::FromMouseAndTouch) == Touch::FromMouseAndTouch && event.tfinger.touchID == SDL_MOUSE_TOUCHID) return false;
 			if ((Touch::getSource() & Touch::FromTouch) == 0) return false;
-			touch = get(event.tfinger.fingerId);
+			touch = get(event.tfinger.fingerID);
 			break;
 		default:
 			return false;
@@ -463,7 +558,7 @@ void NodeTouchHandler::mouseMove(const SDL_Event& event) {
 
 bool NodeTouchHandler::wheel(const SDL_Event& event) {
 	if (!isTargetActive()) return false;
-	int x, y;
+	float x, y;
 	SDL_GetMouseState(&x, &y);
 	Size size = SharedApplication.getWinSize();
 	Vec2 ratio = {s_cast<float>(x) / size.width, 1.0f - s_cast<float>(y) / size.height};
@@ -476,17 +571,6 @@ bool NodeTouchHandler::wheel(const SDL_Event& event) {
 	return false;
 }
 
-bool NodeTouchHandler::gesture(const SDL_Event& event) {
-	if (!isTargetActive()) return false;
-	Vec2 ratio{event.mgesture.x, 1.0f - event.mgesture.y};
-	Vec2 pos = ratio * SharedView.getSize();
-	pos = getPos({pos.x, pos.y, 0.0f});
-	if (_target->getSize() == Size::zero || Rect(Vec2::zero, _target->getSize()).containsPoint(pos)) {
-		_target->emit("Gesture"_slice, pos, event.mgesture.numFingers, event.mgesture.dDist, ktm::degrees(event.mgesture.dTheta));
-		return true;
-	}
-	return false;
-}
 
 /* UITouchHandler */
 
@@ -597,6 +681,11 @@ void UITouchHandler::handleEvent(const SDL_Event& event) {
 	}
 }
 
+/* SDL3 removed the multigesture event. Rebuild the same "Gesture" payload
+   (centroid position, finger count, normalized pinch delta, rotation delta
+   in degrees) from raw finger events. Prepare a batch once, then let each
+   NodeTouchHandler read that batch's snapshot. */
+
 /* TouchDispatcher */
 
 void TouchDispatcher::add(const SDL_Event& event) {
@@ -607,6 +696,48 @@ void TouchDispatcher::add(const SDL_Event& event) {
 		SDL_CaptureMouse(true);
 	} else if (event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
 		SDL_CaptureMouse(false);
+	}
+	/* Opt-in raw event trace. SDL3 timestamps are nanoseconds. */
+	static const bool traceInput = std::getenv("DORA_INPUT_TRACE") != nullptr;
+	if (traceInput) {
+		const char* name = nullptr;
+		switch (event.type) {
+			case SDL_EVENT_FINGER_DOWN: name = "FINGER_DOWN"; break;
+			case SDL_EVENT_FINGER_UP: name = "FINGER_UP"; break;
+			case SDL_EVENT_FINGER_MOTION: name = "FINGER_MOTION"; break;
+			case SDL_EVENT_FINGER_CANCELED: name = "FINGER_CANCELED"; break;
+			case SDL_EVENT_MOUSE_BUTTON_DOWN: name = "MOUSE_DOWN"; break;
+			case SDL_EVENT_MOUSE_BUTTON_UP: name = "MOUSE_UP"; break;
+			case SDL_EVENT_MOUSE_MOTION: name = "MOUSE_MOTION"; break;
+			default: break;
+		}
+		if (name) {
+			static uint64_t seq = 0;
+			++seq;
+			const Uint64 now = SDL_GetTicksNS();
+			const Uint64 ageMs = event.common.timestamp && now >= event.common.timestamp
+				? (now - event.common.timestamp) / SDL_NS_PER_MS : 0;
+			if (event.type == SDL_EVENT_FINGER_DOWN || event.type == SDL_EVENT_FINGER_UP ||
+				event.type == SDL_EVENT_FINGER_MOTION || event.type == SDL_EVENT_FINGER_CANCELED) {
+				std::fprintf(stdout,
+					"[InputTrace #%llu][age=%llums] %s touchID=%llu fingerID=%llu pos=(%.4f,%.4f)\n",
+					static_cast<unsigned long long>(seq), static_cast<unsigned long long>(ageMs),
+					name, static_cast<unsigned long long>(event.tfinger.touchID),
+					static_cast<unsigned long long>(event.tfinger.fingerID),
+					static_cast<double>(event.tfinger.x), static_cast<double>(event.tfinger.y));
+			} else if (event.type == SDL_EVENT_MOUSE_MOTION) {
+				std::fprintf(stdout,
+					"[InputTrace #%llu][age=%llums] %s which=%u pos=(%.2f,%.2f)\n",
+					static_cast<unsigned long long>(seq), static_cast<unsigned long long>(ageMs),
+					name, event.motion.which, static_cast<double>(event.motion.x), static_cast<double>(event.motion.y));
+			} else {
+				std::fprintf(stdout,
+					"[InputTrace #%llu][age=%llums] %s which=%u button=%u pos=(%.2f,%.2f)\n",
+					static_cast<unsigned long long>(seq), static_cast<unsigned long long>(ageMs),
+					name, event.button.which, event.button.button,
+					static_cast<double>(event.button.x), static_cast<double>(event.button.y));
+			}
+		}
 	}
 	_events.push_back(event);
 }
@@ -620,6 +751,14 @@ bool TouchDispatcher::hasEvents() {
 }
 
 void TouchDispatcher::dispatch() {
+	if (!_gesturePrepared) {
+		/* The application has already filtered stale pointer events before
+		   forwarding them to either the dispatcher or Mouse state. */
+		for (auto& e : _events) {
+			updateGestureState(*std::any_cast<SDL_Event>(&e));
+		}
+		_gesturePrepared = true;
+	}
 	if (!_events.empty() && !_handlers.empty()) {
 		for (auto it = _handlers.rbegin(); it != _handlers.rend(); ++it) {
 			auto handler = it->lock();
@@ -644,7 +783,13 @@ void TouchDispatcher::clearHandlers() {
 }
 
 void TouchDispatcher::clearEvents() {
+	/* Unhandled pointer events belong to this frame. Do not replay them into
+	   nodes created by a later scene (for example, after IDE project loading). */
 	_events.clear();
+	_gesturePrepared = false;
+	s_gesture.active = false;
+	s_gesture.dDist = 0.0f;
+	s_gesture.dTheta = 0.0f;
 }
 
 NS_DORA_END

@@ -864,7 +864,7 @@ void Application::setFullScreen(bool var) {
 	}
 	_fullScreen = var;
 	invokeInRender([&, var]() {
-		SDL_SetWindowFullscreen(_sdlWindow, var ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
+		SDL_SetWindowFullscreen(_sdlWindow, var);
 	});
 	Event::send("AppChange"_slice, "FullScreen"s);
 }
@@ -940,7 +940,6 @@ int Application::run(MainFunc mainFunc) {
 #endif // BX_PLATFORM
 
 	_sdlWindow = SDL_CreateWindow("Dora SSR",
-		SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
 		_winWidth, _winHeight, windowFlags);
 	if (!_sdlWindow) {
 		Error("SDL failed to create window! {}", SDL_GetError());
@@ -1022,8 +1021,8 @@ int Application::run(MainFunc mainFunc) {
 			bool suppressKeyboardEvent = false;
 			switch (event.type) {
 				case SDL_EVENT_DROP_FILE:
-					queueReceivedFile(event.drop.file ? event.drop.file : "");
-					SDL_free(event.drop.file);
+					queueReceivedFile(event.drop.data);
+					SDL_free(c_cast<char*>(event.drop.data));
 					continue;
 
 				case SDL_EVENT_QUIT:
@@ -1041,19 +1040,13 @@ int Application::run(MainFunc mainFunc) {
 					SharedRenderSurface.onNativeWindowChanged();
 					break;
 #endif // BX_PLATFORM_ANDROID
-				case SDL_WINDOWEVENT: {
-					switch (event.window.event) {
-						case SDL_EVENT_WINDOW_RESIZED:
-						case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED: {
-							updateWindowSize();
-							break;
-						}
-						case SDL_EVENT_WINDOW_MOVED:
-							_winPosition = Vec2{s_cast<float>(event.window.data1), s_cast<float>(event.window.data2)};
-							break;
-					}
+				case SDL_EVENT_WINDOW_RESIZED:
+				case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
+					updateWindowSize();
 					break;
-				}
+				case SDL_EVENT_WINDOW_MOVED:
+					_winPosition = Vec2{s_cast<float>(event.window.data1), s_cast<float>(event.window.data2)};
+					break;
 				case SDL_EVENT_KEY_DOWN:
 				case SDL_EVENT_KEY_UP:
 					SharedController.handleVirtualGamepadEventInRender(event);
@@ -1142,7 +1135,7 @@ void Application::updateDeltaTime() {
 #if BX_PLATFORM_ANDROID || BX_PLATFORM_OSX || BX_PLATFORM_WINDOWS || BX_PLATFORM_LINUX || BX_PLATFORM_EMSCRIPTEN
 void Application::updateWindowSize() {
 #if BX_PLATFORM_EMSCRIPTEN
-	SDL_GL_GetDrawableSize(_sdlWindow, &_bufferWidth, &_bufferHeight);
+	SDL_GetWindowSizeInPixels(_sdlWindow, &_bufferWidth, &_bufferHeight);
 	SDL_GetWindowSize(_sdlWindow, &_winWidth, &_winHeight);
 	_visualWidth = _winWidth;
 	_visualHeight = _winHeight;
@@ -1154,14 +1147,12 @@ void Application::updateWindowSize() {
 #elif BX_PLATFORM_OSX
 	SDL_Metal_GetDrawableSize(_sdlWindow, &_bufferWidth, &_bufferHeight);
 #else
-	SDL_GL_GetDrawableSize(_sdlWindow, &_bufferWidth, &_bufferHeight);
+	SDL_GetWindowSizeInPixels(_sdlWindow, &_bufferWidth, &_bufferHeight);
 #endif
 	SDL_GetWindowSize(_sdlWindow, &_winWidth, &_winHeight);
-	int displayIndex = SDL_GetDisplayForWindow(_sdlWindow);
-	SDL_DisplayMode displayMode{SDL_PIXELFORMAT_UNKNOWN, 0, 0, 0, 0};
-	SDL_GetCurrentDisplayMode(displayIndex, &displayMode);
-	if (displayMode.refresh_rate > 0) {
-		_maxFPS = displayMode.refresh_rate;
+	const SDL_DisplayMode* displayMode = SDL_GetCurrentDisplayMode(SDL_GetDisplayForWindow(_sdlWindow));
+	if (displayMode && displayMode->refresh_rate > 0) {
+		_maxFPS = s_cast<int>(displayMode->refresh_rate);
 	}
 #if BX_PLATFORM_WINDOWS
 	float hdpi = DEFAULT_WIN_DPI, vdpi = DEFAULT_WIN_DPI;

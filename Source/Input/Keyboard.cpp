@@ -215,6 +215,7 @@ void Keyboard::attachIME(const KeyboardHandler& handler, bool showScreenKeyboard
 		_imeHandler(&detachEvent);
 	} else {
 		SharedApplication.invokeInRender([showScreenKeyboard]() {
+			SDL_Window* window = SharedApplication.getSDLWindow();
 			if (showScreenKeyboard) {
 				SDL_StartTextInput(window);
 				return;
@@ -243,7 +244,7 @@ void Keyboard::detachIME() {
 		Event detachEvent("DetachIME"_slice);
 		_imeHandler(&detachEvent);
 		_imeHandler = nullptr;
-		SharedApplication.invokeInRender([](SDL_Window* w){ SDL_StopTextInput(w); });
+		SharedApplication.invokeInRender([]() { SDL_StopTextInput(SharedApplication.getSDLWindow()); });
 	}
 }
 
@@ -260,24 +261,24 @@ void Keyboard::updateIMEPosHint(const Vec2& winPos) {
 #endif
 	SDL_Rect rc = {s_cast<int>(winPos.x), s_cast<int>(winPos.y) + offsetY, 0, 0};
 	SharedApplication.invokeInRender([rc]() {
-		SDL_SetTextInputRect(c_cast<SDL_Rect*>(&rc));
+		SDL_SetTextInputArea(SharedApplication.getSDLWindow(), &rc, 0);
 	});
 }
 
 void Keyboard::handleEvent(const SDL_Event& event) {
 	switch (event.type) {
 		case SDL_EVENT_KEY_DOWN: {
-			if (event.key.keysym.scancode != SDL_SCANCODE_UNKNOWN) {
-				int key = event.key.keysym.scancode;
+			if (event.key.scancode != SDL_SCANCODE_UNKNOWN) {
+				int key = event.key.scancode;
 				Slice name = _codeNames[key];
 				if (!name.empty()) {
 					bool oldDown = _newCodeStates[key];
 					_newCodeStates[key] = true;
-					if (!oldDown && event.key.repeat == 0) {
-						_changedKeys.push_back(event.key.keysym.sym);
+					if (!oldDown && !event.key.repeat) {
+						_changedKeys.push_back(event.key.key);
 						EventArgs<Slice> keyDown("KeyDown"_slice, name);
 						handler(&keyDown);
-					} else if (event.key.repeat != 0) {
+					} else if (event.key.repeat) {
 						EventArgs<Slice> keyRepeat("KeyRepeat"_slice, name);
 						handler(&keyRepeat);
 					}
@@ -285,17 +286,17 @@ void Keyboard::handleEvent(const SDL_Event& event) {
 					handler(&keyPressed);
 				}
 			}
-			if (event.key.keysym.sym != SDLK_UNKNOWN && event.key.keysym.sym < SDL_SCANCODE_COUNT) {
-				int key = event.key.keysym.sym;
+			if (event.key.key != SDLK_UNKNOWN && event.key.key < SDL_SCANCODE_COUNT) {
+				int key = event.key.key;
 				Slice name = _keyNames[key];
 				if (!name.empty()) {
 					bool oldDown = _newKeyStates[key];
 					_newKeyStates[key] = true;
-					if (!oldDown && event.key.repeat == 0) {
-						_changedKeys.push_back(event.key.keysym.sym);
+					if (!oldDown && !event.key.repeat) {
+						_changedKeys.push_back(event.key.key);
 						EventArgs<Slice> keyDown("KeyDown"_slice, name);
 						handler(&keyDown);
-					} else if (event.key.repeat != 0) {
+					} else if (event.key.repeat) {
 						EventArgs<Slice> keyRepeat("KeyRepeat"_slice, name);
 						handler(&keyRepeat);
 					}
@@ -306,27 +307,27 @@ void Keyboard::handleEvent(const SDL_Event& event) {
 			break;
 		}
 		case SDL_EVENT_KEY_UP: {
-			if (event.key.keysym.scancode != SDL_SCANCODE_UNKNOWN) {
-				int key = event.key.keysym.scancode;
+			if (event.key.scancode != SDL_SCANCODE_UNKNOWN) {
+				int key = event.key.scancode;
 				Slice name = _codeNames[key];
 				if (!name.empty()) {
 					bool oldDown = _newCodeStates[key];
 					_newCodeStates[key] = false;
 					if (oldDown) {
-						_changedKeys.push_back(event.key.keysym.sym);
+						_changedKeys.push_back(event.key.key);
 						EventArgs<Slice> keyUp("KeyUp"_slice, name);
 						handler(&keyUp);
 					}
 				}
 			}
-			if (event.key.keysym.sym != SDLK_UNKNOWN && event.key.keysym.sym < SDL_SCANCODE_COUNT) {
-				int key = event.key.keysym.sym;
+			if (event.key.key != SDLK_UNKNOWN && event.key.key < SDL_SCANCODE_COUNT) {
+				int key = event.key.key;
 				Slice name = _keyNames[key];
 				if (!name.empty()) {
 					bool oldDown = _newKeyStates[key];
 					_newKeyStates[key] = false;
 					if (oldDown) {
-						_changedKeys.push_back(event.key.keysym.sym);
+						_changedKeys.push_back(event.key.key);
 						EventArgs<Slice> keyUp("KeyUp"_slice, name);
 						handler(&keyUp);
 					}

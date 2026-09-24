@@ -176,10 +176,12 @@ bool Controller::initInRender() {
 		}
 	}
 	int joystickCount = 0;
-	int* pJoystickCount = &joystickCount;
-	{ auto ids = SDL_GetJoysticks(pJoystickCount); joystickCount = ids ? *pJoystickCount : 0; SDL_free(ids); }
-	for (int i = 0; i < joystickCount; ++i) {
-		addControllerInRender(i);
+	SDL_JoystickID* ids = SDL_GetJoysticks(&joystickCount);
+	if (ids) {
+		for (int i = 0; i < joystickCount; ++i) {
+			addControllerInRender(s_cast<int>(ids[i]));
+		}
+		SDL_free(ids);
 	}
 #if DORA_VIRTUAL_GAMEPAD_SUPPORTED
 	if (isVirtualGamepadEnabledFromEnvironment()) {
@@ -214,20 +216,16 @@ void Controller::setVirtualGamepadEnabledInRender(bool enabled) {
 #if DORA_VIRTUAL_GAMEPAD_SUPPORTED
 	if (enabled == isVirtualGamepadEnabled()) return;
 	if (enabled && !_devVirtualJoystick) {
-#if SDL_VERSION_ATLEAST(2, 24, 0)
-		SDL_VirtualJoystickDesc desc;
-		SDL_zero(desc);
-		desc.version = 1;
-		desc.type = SDL_JOYSTICK_TYPE_GAMEPAD;
-		desc.naxes = SDL_GAMEPAD_AXIS_COUNT;
-		desc.nbuttons = SDL_GAMEPAD_BUTTON_COUNT;
-		desc.button_mask = makeControllerButtonMask();
-		desc.axis_mask = makeControllerAxisMask();
-		desc.name = "Dora Virtual Gamepad";
-		_devVirtualDeviceIndex = SDL_AttachVirtualJoystick(&desc);
-#else
-		_devVirtualDeviceIndex = SDL_JoystickAttachVirtual(SDL_JOYSTICK_TYPE_GAMEPAD, SDL_GAMEPAD_AXIS_COUNT, SDL_GAMEPAD_BUTTON_COUNT, 0);
-#endif
+	SDL_VirtualJoystickDesc desc;
+	SDL_zero(desc);
+	desc.version = 1;
+	desc.type = SDL_JOYSTICK_TYPE_GAMEPAD;
+	desc.naxes = SDL_GAMEPAD_AXIS_COUNT;
+	desc.nbuttons = SDL_GAMEPAD_BUTTON_COUNT;
+	desc.button_mask = makeControllerButtonMask();
+	desc.axis_mask = makeControllerAxisMask();
+	desc.name = "Dora Virtual Gamepad";
+	_devVirtualDeviceIndex = s_cast<int>(SDL_AttachVirtualJoystick(&desc));
 		if (_devVirtualDeviceIndex >= 0) {
 			addControllerInRender(_devVirtualDeviceIndex);
 			Info("enabled Dora virtual gamepad. Keyboard mapping: Arrow keys/WASD=D-pad, J=A, K=B, U=X, I=Y/context, Tab/Ctrl=Back, Q=L1, E=R1, Enter=Start.");
@@ -321,7 +319,7 @@ Controller::DeviceInfo Controller::getControllerInfo(int controllerId) const {
 		auto controller = s_cast<SDL_Gamepad*>(device.second->controller);
 		auto joystick = SDL_GetGamepadJoystick(controller);
 		char guid[33] = {};
-		SDL_JoystickGetGUIDString(SDL_GetJoystickGUID(joystick), guid, sizeof(guid));
+		SDL_GUIDToString(SDL_GetJoystickGUID(joystick), guid, sizeof(guid));
 		info.guid = guid;
 		info.instanceId = SDL_GetJoystickID(joystick);
 		info.vendorId = SDL_GetGamepadVendor(controller);
@@ -330,7 +328,7 @@ Controller::DeviceInfo Controller::getControllerInfo(int controllerId) const {
 		info.axisCount = SDL_GetNumJoystickAxes(joystick);
 		info.buttonCount = SDL_GetNumJoystickButtons(joystick);
 		info.hatCount = SDL_GetNumJoystickHats(joystick);
-		info.vibrationSupported = SDL_GameControllerHasRumble(controller) == true;
+		info.vibrationSupported = SDL_RumbleGamepad(controller, 0, 0, 0);
 		return info;
 	}
 	return info;
@@ -371,7 +369,7 @@ bool Controller::setControllerVibration(int controllerId, float left, float righ
 	for (const auto& device : _deviceMap) {
 		if (device.second->id != controllerId) continue;
 		auto controller = s_cast<SDL_Gamepad*>(device.second->controller);
-		if (SDL_GameControllerHasRumble(controller) != true) return false;
+		if (!SDL_RumbleGamepad(controller, 0, 0, 0)) return false;
 		const Uint16 low = s_cast<Uint16>(Math::clamp(left, 0.0f, 1.0f) * 65535.0f);
 		const Uint16 high = s_cast<Uint16>(Math::clamp(right, 0.0f, 1.0f) * 65535.0f);
 		const Uint32 milliseconds = duration < 0.0
@@ -424,7 +422,7 @@ bool Controller::setGamepadMapping(std::string_view guid, std::string_view gamep
 			(void)deviceId;
 			auto joystick = SDL_GetGamepadJoystick(s_cast<SDL_Gamepad*>(device->controller));
 			char currentGuid[33] = {};
-			SDL_JoystickGetGUIDString(SDL_GetJoystickGUID(joystick), currentGuid, sizeof(currentGuid));
+			SDL_GUIDToString(SDL_GetJoystickGUID(joystick), currentGuid, sizeof(currentGuid));
 			if (guid == currentGuid) {
 				name = device->name;
 				break;
@@ -519,30 +517,42 @@ std::optional<Controller::GamepadMapping> Controller::getControllerGamepadMappin
 		(void)deviceId;
 		if (device->id != controllerId) continue;
 		auto controller = s_cast<SDL_Gamepad*>(device->controller);
-		SDL_GamepadBinding bind{};
-		if (const auto axis = gamepadAxisFromLove(gamepadInput); axis != SDL_GAMEPAD_AXIS_INVALID)
-			bind = SDL_GetGamepadBindForAxis(controller, axis);
-		else if (const auto button = gamepadButtonFromLove(gamepadInput); button != SDL_GAMEPAD_BUTTON_INVALID)
-			bind = SDL_GetGamepadBindForButton(controller, button);
-		else
+		const int axis = gamepadAxisFromLove(gamepadInput);
+		const int button = (axis == SDL_GAMEPAD_AXIS_INVALID) ? gamepadButtonFromLove(gamepadInput) : SDL_GAMEPAD_BUTTON_INVALID;
+		if (axis == SDL_GAMEPAD_AXIS_INVALID && button == SDL_GAMEPAD_BUTTON_INVALID)
 			return std::nullopt;
+		int bindCount = 0;
+		SDL_GamepadBinding** bindings = SDL_GetGamepadBindings(controller, &bindCount);
+		if (!bindings) return std::nullopt;
 		GamepadMapping result;
-		switch (bind.bindType) {
-			case SDL_GAMEPAD_BINDTYPE_AXIS:
-				result.inputType = "axis";
-				result.index = bind.value.axis;
-				break;
-			case SDL_GAMEPAD_BINDTYPE_BUTTON:
-				result.inputType = "button";
-				result.index = bind.value.button;
-				break;
-			case SDL_GAMEPAD_BINDTYPE_HAT:
-				result.inputType = "hat";
-				result.index = bind.value.hat.hat;
-				result.hat = loveHatFromMask(bind.value.hat.hat_mask);
-				break;
-			default: return std::nullopt;
+		bool found = false;
+		for (int i = 0; i < bindCount && !found; ++i) {
+			const SDL_GamepadBinding& bind = *bindings[i];
+			if (axis != SDL_GAMEPAD_AXIS_INVALID) {
+				if (bind.output_type != SDL_GAMEPAD_BINDTYPE_AXIS || bind.output.axis.axis != axis) continue;
+			} else {
+				if (bind.output_type != SDL_GAMEPAD_BINDTYPE_BUTTON || bind.output.button != button) continue;
+			}
+			switch (bind.input_type) {
+				case SDL_GAMEPAD_BINDTYPE_AXIS:
+					result.inputType = "axis";
+					result.index = bind.input.axis.axis;
+					break;
+				case SDL_GAMEPAD_BINDTYPE_BUTTON:
+					result.inputType = "button";
+					result.index = bind.input.button;
+					break;
+				case SDL_GAMEPAD_BINDTYPE_HAT:
+					result.inputType = "hat";
+					result.index = bind.input.hat.hat;
+					result.hat = loveHatFromMask(bind.input.hat.hat_mask);
+					break;
+				default: continue;
+			}
+			found = true;
 		}
+		SDL_free(bindings);
+		if (!found) return std::nullopt;
 		return result;
 	}
 	return std::nullopt;
@@ -600,13 +610,13 @@ void Controller::addControllerInRender(int deviceIndex) {
 #if DORA_VIRTUAL_GAMEPAD_SUPPORTED
 	if (deviceIndex == _devVirtualDeviceIndex && _devVirtualController) return;
 #endif // DORA_VIRTUAL_GAMEPAD_SUPPORTED
-	auto joystickId = s_cast<DeviceID>(SDL_JoystickGetDeviceInstanceID(deviceIndex));
-	if (joystickId < 0) return;
-	auto controller = SDL_OpenGamepad(deviceIndex);
+	/* SDL3: 参数直接是 SDL_JoystickID（实例 ID），不再使用设备索引 */
+	const SDL_JoystickID joystickId = s_cast<SDL_JoystickID>(deviceIndex);
+	auto controller = SDL_OpenGamepad(joystickId);
 	if (controller) {
 		const std::string controllerName = SDL_GetGamepadName(controller) ? SDL_GetGamepadName(controller) : "Dora Controller";
 		char controllerGuidBuffer[33] = {};
-		SDL_JoystickGetGUIDString(SDL_GetJoystickGUID(SDL_GetGamepadJoystick(controller)),
+		SDL_GUIDToString(SDL_GetJoystickGUID(SDL_GetGamepadJoystick(controller)),
 			controllerGuidBuffer, sizeof(controllerGuidBuffer));
 		const std::string controllerGuid = controllerGuidBuffer;
 #if DORA_VIRTUAL_GAMEPAD_SUPPORTED
@@ -639,8 +649,8 @@ void Controller::handleVirtualGamepadEventInRender(const SDL_Event& event) {
 	if (!isVirtualGamepadEnabled() || !_devVirtualJoystick) return;
 	if (event.type != SDL_EVENT_KEY_DOWN && event.type != SDL_EVENT_KEY_UP) return;
 	if (event.type == SDL_EVENT_KEY_DOWN && event.key.repeat) return;
-	auto pressed = event.key.state == SDL_PRESSED ? 1 : 0;
-	switch (event.key.keysym.scancode) {
+	auto pressed = event.key.down ? 1 : 0;
+	switch (event.key.scancode) {
 		case SDL_SCANCODE_LEFT:
 		case SDL_SCANCODE_A:
 			SDL_SetJoystickVirtualButton(s_cast<SDL_Joystick*>(_devVirtualJoystick), SDL_GAMEPAD_BUTTON_DPAD_LEFT, pressed);
@@ -698,10 +708,10 @@ void Controller::handleVirtualGamepadEventInRender(const SDL_Event& event) {
 void Controller::handleShortcutsInRender(const SDL_Event& event) {
 	if (event.type != SDL_EVENT_GAMEPAD_BUTTON_DOWN && event.type != SDL_EVENT_GAMEPAD_BUTTON_UP) return;
 	uint8_t mask = 0;
-	if (event.cbutton.button == SDL_GAMEPAD_BUTTON_BACK) mask = 1;
-	else if (event.cbutton.button == SDL_GAMEPAD_BUTTON_START) mask = 2;
+	if (event.gbutton.button == SDL_GAMEPAD_BUTTON_BACK) mask = 1;
+	else if (event.gbutton.button == SDL_GAMEPAD_BUTTON_START) mask = 2;
 	else return;
-	const auto joystickId = s_cast<DeviceID>(event.cbutton.which);
+	const auto joystickId = s_cast<DeviceID>(event.gbutton.which);
 	const bool down = event.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN;
 	// Shell shortcuts must retain their own edges even when ImGui captures
 	// ordinary controller input. Track each controller independently.
@@ -738,9 +748,9 @@ void Controller::handleEventInRender(const SDL_Event& event, bool emitEvents) {
 			break;
 		}
 		case SDL_EVENT_GAMEPAD_AXIS_MOTION: {
-			auto joystickId = s_cast<DeviceID>(event.caxis.which);
-			std::string axisName = SDL_GetGamepadStringForAxis(s_cast<SDL_GamepadAxis>(event.caxis.axis));
-			float value = s_cast<float>(event.caxis.value) / SDL_JOYSTICK_AXIS_MAX;
+			auto joystickId = s_cast<DeviceID>(event.gaxis.which);
+			std::string axisName = SDL_GetGamepadStringForAxis(s_cast<SDL_GamepadAxis>(event.gaxis.axis));
+			float value = s_cast<float>(event.gaxis.value) / SDL_JOYSTICK_AXIS_MAX;
 			SharedApplication.invokeInLogic([axisName, joystickId, value, emitEvents, this]() {
 				if (auto it = _deviceMap.find(joystickId); it != _deviceMap.end()) {
 					if (!emitEvents) {
@@ -756,9 +766,9 @@ void Controller::handleEventInRender(const SDL_Event& event, bool emitEvents) {
 		}
 		case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
 		case SDL_EVENT_GAMEPAD_BUTTON_UP: {
-			auto joystickId = s_cast<DeviceID>(event.cbutton.which);
-			std::string buttonName = SDL_GetGamepadStringForButton(s_cast<SDL_GamepadButton>(event.cbutton.button));
-			bool isDown = event.cbutton.state > 0;
+			auto joystickId = s_cast<DeviceID>(event.gbutton.which);
+			std::string buttonName = SDL_GetGamepadStringForButton(s_cast<SDL_GamepadButton>(event.gbutton.button));
+			bool isDown = event.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN;
 			SharedApplication.invokeInLogic([buttonName, joystickId, isDown, emitEvents, this]() {
 				if (auto it = _deviceMap.find(joystickId); it != _deviceMap.end()) {
 					if (!emitEvents) {
@@ -801,7 +811,7 @@ void Controller::handleEventInRender(const SDL_Event& event, bool emitEvents) {
 		case SDL_EVENT_JOYSTICK_BUTTON_UP: {
 			auto joystickId = s_cast<DeviceID>(event.jbutton.which);
 			const int buttonIndex = event.jbutton.button;
-			const bool isDown = event.jbutton.state == SDL_PRESSED;
+			const bool isDown = event.jbutton.down;
 			if (!emitEvents) break;
 			SharedApplication.invokeInLogic([joystickId, buttonIndex, isDown, this]() {
 				if (auto it = _deviceMap.find(joystickId); it != _deviceMap.end()) {

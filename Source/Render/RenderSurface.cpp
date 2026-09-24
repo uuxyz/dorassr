@@ -95,7 +95,7 @@ bool RenderSurface::initPlatformData() {
 			Error("SDL failed to create KMSDRM GL context! {}", SDL_GetError());
 			return false;
 		}
-		if (SDL_GL_MakeCurrent(_window, _glContext) != 0) {
+		if (SDL_GL_MakeCurrent(_window, s_cast<SDL_GLContext>(_glContext)) != 0) {
 			Error("SDL failed to make KMSDRM GL context current! {}", SDL_GetError());
 			return false;
 		}
@@ -176,7 +176,7 @@ void RenderSurface::drain() {
 
 void RenderSurface::detach() {
 	if (_glContext) {
-		SDL_GL_DestroyContext(_glContext);
+		SDL_GL_DestroyContext(s_cast<SDL_GLContext>(_glContext));
 		_glContext = nullptr;
 	}
 }
