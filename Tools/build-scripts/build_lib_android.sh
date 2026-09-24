@@ -65,17 +65,6 @@ TOOLCHAIN_DIRS=("$NDK_PATH/toolchains/llvm/prebuilt/"*)
 TOOLCHAIN_BIN="${TOOLCHAIN_DIRS[0]}/bin"
 ANDROID_API="${ANDROID_API:-28}"
 
-build_rust_target() {
-	local target="$1"
-	local env_target="$2"
-	local compiler_prefix="$3"
-	env \
-		"CC_$env_target=$TOOLCHAIN_BIN/${compiler_prefix}${ANDROID_API}-clang" \
-		"CXX_$env_target=$TOOLCHAIN_BIN/${compiler_prefix}${ANDROID_API}-clang++" \
-		"AR_$env_target=$TOOLCHAIN_BIN/llvm-ar" \
-		cargo build "${CARGO_ARGS[@]}" --target "$target"
-}
-
 build_rust_target() { # target env_target compiler_prefix out_dir
 	local target="$1" env_target="$2" compiler_prefix="$3" out_dir="$4"
 	env \
@@ -84,7 +73,8 @@ build_rust_target() { # target env_target compiler_prefix out_dir
 		"AR_$env_target=$TOOLCHAIN_BIN/llvm-ar" \
 		"CARGO_TARGET_DIR=target/$out_dir" \
 		cargo build "${CARGO_ARGS[@]}" --target "$target"
-	cp "target/$out_dir/$CARGO_PROFILE/libdora_runtime.a" "lib/Android/$out_dir/libdora_runtime.a"
+	# CARGO_TARGET_DIR + --target 并用时产物位于 TARGET_DIR/TRIPLE/PROFILE/
+	cp "target/$out_dir/$target/$CARGO_PROFILE/libdora_runtime.a" "lib/Android/$out_dir/libdora_runtime.a"
 }
 
 # 三个 target 的构建目录互不相交，可并行
