@@ -228,10 +228,9 @@ void Application::updateWindowSize() {
 	CGFloat scale = [UIScreen mainScreen].scale;
 	_bufferWidth = _winWidth * scale;
 	_bufferHeight = _winHeight * scale;
-	SDL_DisplayMode displayMode{SDL_PIXELFORMAT_UNKNOWN, 0, 0, 0, 0};
-	SDL_GetWindowFullscreenMode(_sdlWindow, &displayMode);
-	if (displayMode.refresh_rate > 0) {
-		_maxFPS = displayMode.refresh_rate;
+	const SDL_DisplayMode* displayMode = SDL_GetWindowFullscreenMode(_sdlWindow);
+	if (displayMode && displayMode->refresh_rate > 0) {
+		_maxFPS = s_cast<int>(displayMode->refresh_rate);
 	}
 	_visualWidth = _winWidth;
 	_visualHeight = _winHeight;
