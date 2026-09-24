@@ -24,7 +24,7 @@ esac
 
 "$SCRIPT_DIR/check_build_env.sh" linux lib
 
-"$SCRIPT_DIR/build_lib_sdl2.sh" linux "--$BUILD_MODE"
+# Linux 使用系统 SDL3（pkg-config 发现），不再构建 vendored SDL2
 "$SCRIPT_DIR/build_lib_bgfx.sh" linux "--$BUILD_MODE"
 "$SCRIPT_DIR/build_lib_love.sh" linux "--$BUILD_MODE"
 "$SCRIPT_DIR/build_lib_theora.sh" linux "--$BUILD_MODE"

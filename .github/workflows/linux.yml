@@ -47,6 +47,16 @@ jobs:
           libx11-dev libxext-dev libxcursor-dev libxi-dev libxfixes-dev libxrandr-dev libxrender-dev libxss-dev \
           libdrm-dev libgbm-dev libegl1-mesa-dev libwayland-dev libwayland-bin wayland-protocols \
           libxkbcommon-dev libdecor-0-dev
+    - name: Install SDL3
+      run: |
+        if apt-cache show libsdl3-dev >/dev/null 2>&1; then
+          sudo apt-get install -y libsdl3-dev
+        else
+          git clone --depth 1 --branch release-3.4.14 https://github.com/libsdl-org/SDL.git /tmp/SDL3
+          cmake -S /tmp/SDL3 -B /tmp/SDL3/build -DCMAKE_BUILD_TYPE=Release -DSDL_SHARED=ON -DSDL_STATIC=OFF -DSDL_TEST_LIBRARY=OFF
+          cmake --build /tmp/SDL3/build -j"$(nproc)"
+          sudo cmake --install /tmp/SDL3/build
+        fi
     - name: Generate Lua bindings
       run: |
         sudo apt-get install lua5.1
