@@ -81,7 +81,7 @@ NS_DORA_BEGIN
 
 struct LoveRecordingResource
 {
-	SDL_AudioDeviceID device = 0;
+	SDL_AudioStream* stream = nullptr;
 	std::size_t maxBytes = 0;
 	int bytesPerFrame = 0;
 	mutable std::mutex mutex;
@@ -96,17 +96,22 @@ std::atomic<std::uint64_t> LoveMountSequence = 1;
 std::atomic<std::uint64_t> LoveShaderTraceSequence = 1;
 std::atomic_bool LoveShaderTraceClaimed = false;
 
-void SDLCALL loveRecordingCallback(void *userdata, Uint8 *stream, int length)
+void SDLCALL loveRecordingCallback(void *userdata, SDL_AudioStream *stream,
+	int additional_amount, int /*total_amount*/)
 {
 	auto *recording = static_cast<LoveRecordingResource *>(userdata);
-	if (!recording || !stream || length <= 0) return;
+	if (!recording || !stream || additional_amount <= 0) return;
 	std::lock_guard<std::mutex> lock(recording->mutex);
 	const std::size_t available = recording->pcm.size() < recording->maxBytes
 		? recording->maxBytes - recording->pcm.size() : 0;
-	std::size_t count = std::min<std::size_t>(available, static_cast<std::size_t>(length));
+	std::size_t count = std::min<std::size_t>(available, static_cast<std::size_t>(additional_amount));
 	if (recording->bytesPerFrame > 0)
 		count -= count % static_cast<std::size_t>(recording->bytesPerFrame);
-	recording->pcm.insert(recording->pcm.end(), stream, stream + count);
+	if (count == 0) return;
+	std::vector<std::uint8_t> buffer(count);
+	const int received = SDL_GetAudioStreamData(stream, buffer.data(), s_cast<int>(count));
+	if (received <= 0) return;
+	recording->pcm.insert(recording->pcm.end(), buffer.begin(), buffer.begin() + received);
 }
 
 Vec2 transformLovePoint(const Vec2 &point, const Love::GraphicsBackend::Transform2D &transform,
@@ -5264,7 +5269,7 @@ std::string LoveNode::getScancodeFromKey(std::string_view key) const
 	const std::string sdlName = loveKeySDLName(key);
 	const SDL_Keycode keycode = SDL_GetKeyFromName(sdlName.c_str());
 	if (keycode == SDLK_UNKNOWN) return "unknown";
-	const SDL_Scancode scancode = SDL_GetScancodeFromKey(keycode);
+	const SDL_Scancode scancode = SDL_GetScancodeFromKey(keycode, nullptr);
 	if (scancode == SDL_SCANCODE_UNKNOWN) return "unknown";
 	return normalizeLoveScancodeName(SDL_GetScancodeName(scancode));
 }
@@ -5282,7 +5287,7 @@ std::string LoveNode::getKeyFromScancode(std::string_view scancode) const
 		}
 	}
 	if (sdlScancode == SDL_SCANCODE_UNKNOWN) return "unknown";
-	const SDL_Keycode keycode = SDL_GetKeyFromScancode(sdlScancode);
+	const SDL_Keycode keycode = SDL_GetKeyFromScancode(sdlScancode, SDL_KMOD_NONE, false);
 	if (keycode == SDLK_UNKNOWN) return "unknown";
 	return toLoveKeyName(SDL_GetKeyName(keycode));
 }
@@ -5307,20 +5312,20 @@ void LoveNode::setMousePosition(float x, float y)
 void LoveNode::setMouseVisible(bool visible)
 {
 	if (FocusedLoveNode == this)
-		SDL_ShowCursor(visible ? SDL_ENABLE : SDL_DISABLE);
+		visible ? SDL_ShowCursor() : SDL_HideCursor();
 }
 
 void LoveNode::setMouseGrabbed(bool grabbed)
 {
 	if (FocusedLoveNode != this) return;
 	if (auto *window = SharedApplication.getSDLWindow())
-		SDL_SetWindowGrab(window, grabbed ? true : false);
+		SDL_SetWindowMouseGrab(window, grabbed);
 }
 
 bool LoveNode::setMouseRelativeMode(bool relative)
 {
 	if (FocusedLoveNode != this) return true;
-	return SDL_SetRelativeMouseMode(relative ? true : false) == 0;
+	return SDL_SetWindowRelativeMouseMode(SharedApplication.getSDLWindow(), relative);
 }
 
 Love::MouseBackend::CursorHandle LoveNode::createImageCursor(int width, int height,
@@ -5331,14 +5336,8 @@ Love::MouseBackend::CursorHandle LoveNode::createImageCursor(int width, int heig
 		error = "invalid RGBA8 cursor image";
 		return 0;
 	}
-	Uint32 redMask, greenMask, blueMask, alphaMask;
-#if SDL_BYTEORDER == SDL_BIG_ENDIAN
-	redMask = 0xff000000; greenMask = 0x00ff0000; blueMask = 0x0000ff00; alphaMask = 0x000000ff;
-#else
-	redMask = 0x000000ff; greenMask = 0x0000ff00; blueMask = 0x00ff0000; alphaMask = 0xff000000;
-#endif
-	auto *surface = SDL_CreateRGBSurfaceFrom(const_cast<std::uint8_t *>(rgba8.data()),
-		width, height, 32, width * 4, redMask, greenMask, blueMask, alphaMask);
+	auto *surface = SDL_CreateSurfaceFrom(width, height,
+		SDL_PIXELFORMAT_RGBA32, const_cast<std::uint8_t *>(rgba8.data()), width * 4);
 	if (!surface)
 	{
 		error = SDL_GetError();
@@ -5424,11 +5423,10 @@ void LoveNode::applyMouseSettings()
 
 void LoveNode::resetHostMouseSettings()
 {
-	SDL_SetRelativeMouseMode(false);
 	if (auto *window = SharedApplication.getSDLWindow())
-		SDL_SetWindowGrab(window, false);
+		SDL_SetWindowRelativeMouseMode(window, false);
 	SDL_SetCursor(SDL_GetDefaultCursor());
-	SDL_ShowCursor(SDL_ENABLE);
+	SDL_ShowCursor();
 }
 
 Love::JoystickBackend::DeviceInfo LoveNode::getJoystickInfo(int id) const
@@ -12499,14 +12497,16 @@ bool LoveNode::setSourceEffect(Love::AudioBackend::SourceHandle source, std::str
 std::vector<std::string> LoveNode::getRecordingDeviceNames() const
 {
 	std::vector<std::string> names;
-	const int count = SDL_GetNumAudioDevices(1);
-	if (count <= 0) return names;
+	int count = 0;
+	SDL_AudioDeviceID *devices = SDL_GetAudioRecordingDevices(&count);
+	if (!devices || count <= 0) { SDL_free(devices); return names; }
 	names.reserve(static_cast<std::size_t>(count));
 	for (int index = 0; index < count; ++index)
 	{
-		if (const char *name = SDL_GetAudioDeviceName(index, 1); name && *name)
+		if (const char *name = SDL_GetAudioDeviceName(devices[index]); name && *name)
 			names.emplace_back(name);
 	}
+	SDL_free(devices);
 	return names;
 }
 
@@ -12537,24 +12537,38 @@ Love::AudioBackend::RecordingHandle LoveNode::startRecording(std::string_view de
 	desired.freq = sampleRate;
 	desired.format = bitDepth == 8 ? SDL_AUDIO_U8 : SDL_AUDIO_S16;
 	desired.channels = static_cast<Uint8>(channels);
-	desired.samples = static_cast<Uint16>(std::clamp(maxSamples, 256, 4096));
-	desired.callback = loveRecordingCallback;
-	desired.userdata = recording.get();
-	SDL_AudioSpec obtained{};
 	const std::string name(deviceName);
-	const SDL_AudioDeviceID device = SDL_OpenAudioDevice(name.empty() ? nullptr : name.c_str(),
-		1, &desired, &obtained, 0);
-	if (device == 0)
+	SDL_AudioDeviceID device = SDL_AUDIO_DEVICE_DEFAULT_RECORDING;
+	if (!name.empty())
+	{
+		int deviceCount = 0;
+		SDL_AudioDeviceID* devices = SDL_GetAudioRecordingDevices(&deviceCount);
+		if (devices)
+		{
+			for (int index = 0; index < deviceCount; ++index)
+			{
+				if (const char* deviceName = SDL_GetAudioDeviceName(devices[index]);
+					deviceName && name == deviceName)
+				{
+					device = devices[index];
+					break;
+				}
+			}
+			SDL_free(devices);
+		}
+	}
+	recording->stream = SDL_OpenAudioDeviceStream(device, &desired,
+		loveRecordingCallback, recording.get());
+	if (recording->stream == nullptr)
 	{
 		// Love reports device-open failure as start() == false. Permission denial,
 		// an unplugged device, and exclusive ownership all use this path.
 		error.clear();
 		return 0;
 	}
-	recording->device = device;
+	SDL_ResumeAudioStreamDevice(recording->stream);
 	const auto handle = _nextAudioRecordingHandle++;
 	_audioRecordings.emplace(handle, std::move(recording));
-	SDL_PauseAudioDevice(device, 0);
 	error.clear();
 	return handle;
 }
@@ -12563,11 +12577,11 @@ void LoveNode::stopRecording(Love::AudioBackend::RecordingHandle recording)
 {
 	const auto found = _audioRecordings.find(recording);
 	if (found == _audioRecordings.end()) return;
-	const SDL_AudioDeviceID device = found->second->device;
-	if (device != 0)
+	if (found->second->stream != nullptr)
 	{
-		SDL_PauseAudioDevice(device, 1);
-		SDL_CloseAudioDevice(device);
+		SDL_PauseAudioStreamDevice(found->second->stream);
+		SDL_DestroyAudioStream(found->second->stream);
+		found->second->stream = nullptr;
 	}
 	_audioRecordings.erase(found);
 }

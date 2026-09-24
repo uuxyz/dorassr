@@ -35,36 +35,38 @@ extern "C" {
  * error and simply pass a value-initialized nfdwindowhandle_t to NFDe if this function fails. */
 NFD_INLINE bool NFD_GetNativeWindowFromSDLWindow(SDL_Window* sdlWindow,
                                                  nfdwindowhandle_t* nativeWindow) {
-    SDL_SysWMinfo info;
-    SDL_VERSION(&info.version);
-    if (!SDL_GetWindowWMInfo(sdlWindow, &info)) {
-        return false;
+    SDL_PropertiesID props = SDL_GetWindowProperties(sdlWindow);
+    void* handle = nullptr;
+#if defined(SDL_VIDEO_DRIVER_WINDOWS)
+    if (!handle)
+        handle = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr);
+    if (handle) {
+        nativeWindow->type = NFD_WINDOW_HANDLE_TYPE_WINDOWS;
+        nativeWindow->handle = handle;
+        return true;
     }
-    switch (info.subsystem) {
-#if defined(SDL_VIDEO_DRIVER_WINDOWS /* SDL_VIDEO_DRIVER_WINDOWS has been removed in SDL3 */)
-        case SDL_SYSWM_WINDOWS:
-            nativeWindow->type = NFD_WINDOW_HANDLE_TYPE_WINDOWS;
-            nativeWindow->handle = (void*)info.info.win.window;
-            return true;
 #endif
-#if defined(SDL_VIDEO_DRIVER_COCOA /* SDL_VIDEO_DRIVER_COCOA has been removed in SDL3 */)
-        case SDL_SYSWM_COCOA:
-            nativeWindow->type = NFD_WINDOW_HANDLE_TYPE_COCOA;
-            nativeWindow->handle = (void*)info.info.cocoa.window;
-            return true;
-#endif
-#if defined(SDL_VIDEO_DRIVER_X11 /* SDL_VIDEO_DRIVER_X11 has been removed in SDL3 */)
-        case SDL_SYSWM_X11:
-            nativeWindow->type = NFD_WINDOW_HANDLE_TYPE_X11;
-            nativeWindow->handle = (void*)info.info.x11.window;
-            return true;
-#endif
-        default:
-            // Silence the warning in case we are not using a supported backend.
-            (void)nativeWindow;
-            SDL_SetError("Unsupported native window type.");
-            return false;
+#if defined(SDL_VIDEO_DRIVER_COCOA)
+    if (!handle)
+        handle = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, nullptr);
+    if (handle) {
+        nativeWindow->type = NFD_WINDOW_HANDLE_TYPE_COCOA;
+        nativeWindow->handle = handle;
+        return true;
     }
+#endif
+#if defined(SDL_VIDEO_DRIVER_X11)
+    if (!handle)
+        handle = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_X11_WINDOW_POINTER, nullptr);
+    if (handle) {
+        nativeWindow->type = NFD_WINDOW_HANDLE_TYPE_X11;
+        nativeWindow->handle = handle;
+        return true;
+    }
+#endif
+    (void)nativeWindow;
+    SDL_SetError("Unsupported native window type.");
+    return false;
 }
 
 #undef NFD_INLINE

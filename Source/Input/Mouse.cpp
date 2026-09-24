@@ -10,6 +10,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 #include "Input/Mouse.h"
 
+#include "Basic/Application.h"
+
 #include "Basic/Director.h"
 #include "Input/TouchDispather.h"
 
@@ -26,11 +28,11 @@ Vec2 Mouse::getDelta() {
 }
 
 bool Mouse::isRelativeMode() {
-	return SDL_GetRelativeMouseMode() == true;
+	return SDL_GetWindowRelativeMouseMode(SharedApplication.getSDLWindow());
 }
 
 void Mouse::setRelativeMode(bool enabled) {
-	SDL_SetRelativeMouseMode(enabled ? true : false);
+	SDL_SetWindowRelativeMouseMode(SharedApplication.getSDLWindow(), enabled);
 }
 
 bool Mouse::isLeftButtonPressed() {

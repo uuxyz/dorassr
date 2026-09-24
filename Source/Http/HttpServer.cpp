@@ -1311,7 +1311,7 @@ bool HttpServer::start(int port) {
 					}
 					auto file = std::move(acceptedPath->value());
 					auto stream = std::unique_ptr<SDL_IOStream, decltype(&SDL_CloseIO)>(SDL_IOFromFile(file.c_str(), "wb+"), SDL_CloseIO);
-					if (!stream || SDL_WriteIO(stream.get(), part->body, 1, part->bodyLen) != part->bodyLen) {
+					if (!stream || SDL_WriteIO(stream.get(), part->body, part->bodyLen) != part->bodyLen) {
 						set_response(context->response, 500, {}, {});
 						return 0;
 					}
@@ -1597,7 +1597,7 @@ static int on_xrt_download_stream_chunk(const char* data, size_t dataLen, size_t
 	if (!context || !data || dataLen == 0) {
 		return context && context->request && context->request->cancelling.load(std::memory_order_relaxed);
 	}
-	auto written = SDL_WriteIO(context->output, data, 1, dataLen);
+	auto written = SDL_WriteIO(context->output, data, dataLen);
 	if (written != dataLen) {
 		context->writeFailed = true;
 		context->request->cancelling.store(true, std::memory_order_relaxed);

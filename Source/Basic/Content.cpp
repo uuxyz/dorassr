@@ -1487,7 +1487,7 @@ std::optional<Content::FileAttr> Content::getAttr(String filename) {
 	}
 	DEFER(SDL_CloseIO(io));
 	uint8_t buffer[DORA_BINARY_CHECK_SIZE];
-	size_t readSize = SDL_ReadIO(io, buffer, sizeof(uint8_t), DORA_BINARY_CHECK_SIZE);
+	size_t readSize = SDL_ReadIO(io, buffer, DORA_BINARY_CHECK_SIZE);
 	attr.isBinary = isBinaryData(buffer, readSize);
 	return attr;
 }
@@ -1793,7 +1793,7 @@ uint8_t* Content::loadUnsafe(String filename, int64_t& size) {
 	DEFER(SDL_CloseIO(io));
 	size = SDL_GetIOSize(io);
 	uint8_t* buffer = new uint8_t[s_cast<size_t>(size)];
-	SDL_ReadIO(io, buffer, sizeof(uint8_t), s_cast<size_t>(size));
+	SDL_ReadIO(io, buffer, s_cast<size_t>(size));
 	return buffer;
 }
 
@@ -1816,7 +1816,7 @@ std::string Content::loadUnsafe(String filename) {
 	size_t size = s_cast<size_t>(SDL_GetIOSize(io));
 	std::string buffer;
 	buffer.resize(size);
-	SDL_ReadIO(io, buffer.data(), sizeof(uint8_t), size);
+	SDL_ReadIO(io, buffer.data(), size);
 	return buffer;
 }
 
@@ -1834,7 +1834,7 @@ bool Content::loadByChunks(String filename, const std::function<bool(uint8_t*, i
 	DEFER(SDL_CloseIO(io));
 	uint8_t buffer[DORA_COPY_BUFFER_SIZE];
 	int size = 0;
-	while ((size = s_cast<int>(SDL_ReadIO(io, buffer, sizeof(uint8_t), DORA_COPY_BUFFER_SIZE)))) {
+	while ((size = s_cast<int>(SDL_ReadIO(io, buffer, DORA_COPY_BUFFER_SIZE)))) {
 		if (handler(buffer, size)) {
 			return false;
 		}

@@ -931,25 +931,20 @@ void Director::handleSDLEvent(const SDL_Event& event) {
 			Event::send("AppEvent"_slice, "DidEnterForeground"s);
 			Event::send("AppChange"_slice, "Size"s);
 			break;
-		case SDL_WINDOWEVENT: {
-			switch (event.window.event) {
-				case SDL_EVENT_WINDOW_HIDDEN:
-					_paused = true;
-					break;
-				case SDL_EVENT_WINDOW_SHOWN:
-					_paused = false;
-					break;
-				case SDL_EVENT_WINDOW_RESIZED:
-				case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
-					SharedView.reset();
-					Event::send("AppChange"_slice, "Size"s);
-					break;
-				case SDL_EVENT_WINDOW_MOVED:
-					Event::send("AppChange"_slice, "Position"s);
-					break;
-			}
+		case SDL_EVENT_WINDOW_HIDDEN:
+			_paused = true;
 			break;
-		}
+		case SDL_EVENT_WINDOW_SHOWN:
+			_paused = false;
+			break;
+		case SDL_EVENT_WINDOW_RESIZED:
+		case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
+			SharedView.reset();
+			Event::send("AppChange"_slice, "Size"s);
+			break;
+		case SDL_EVENT_WINDOW_MOVED:
+			Event::send("AppChange"_slice, "Position"s);
+			break;
 		case SDL_EVENT_MOUSE_BUTTON_DOWN:
 		case SDL_EVENT_FINGER_DOWN:
 			SharedKeyboard.handleEvent(event);
@@ -963,11 +958,8 @@ void Director::handleSDLEvent(const SDL_Event& event) {
 		case SDL_EVENT_MOUSE_WHEEL:
 			SharedTouchDispatcher.add(event);
 			break;
-		case SDL_EVENT_MULTIGESTURE:
-			SharedTouchDispatcher.add(event);
-			break;
 		case SDL_EVENT_KEY_DOWN:
-			if (event.key.keysym.scancode == SDL_SCANCODE_AC_BACK && event.key.repeat == 0) {
+			if (event.key.scancode == SDL_SCANCODE_AC_BACK && !event.key.repeat) {
 				Event::send("AppEvent"_slice, "BackButton"s);
 			}
 			[[fallthrough]];

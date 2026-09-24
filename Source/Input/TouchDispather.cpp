@@ -151,7 +151,6 @@ bool NodeTouchHandler::handle(const SDL_Event& event) {
 			return move(event) && isSwallowTouches();
 		case SDL_EVENT_MOUSE_WHEEL:
 			return wheel(event) && isSwallowMouseWheel();
-			return gesture(event) && isSwallowTouches();
 	}
 	return false;
 }
@@ -300,9 +299,9 @@ bool NodeTouchHandler::down(const SDL_Event& event) {
 			id = INT64_MAX;
 			break;
 		case SDL_EVENT_FINGER_DOWN:
-			if ((Touch::getSource() & Touch::FromMouseAndTouch) == Touch::FromMouseAndTouch && event.tfinger.touchId == SDL_MOUSE_TOUCHID) return false;
+			if ((Touch::getSource() & Touch::FromMouseAndTouch) == Touch::FromMouseAndTouch && event.tfinger.touchID == SDL_MOUSE_TOUCHID) return false;
 			if ((Touch::getSource() & Touch::FromTouch) == 0) return false;
-			id = event.tfinger.fingerId;
+			id = event.tfinger.fingerID;
 			break;
 		default:
 			return false;
@@ -350,9 +349,9 @@ bool NodeTouchHandler::up(const SDL_Event& event) {
 			id = INT64_MAX;
 			break;
 		case SDL_EVENT_FINGER_UP:
-			if ((Touch::getSource() & Touch::FromMouseAndTouch) == Touch::FromMouseAndTouch && event.tfinger.touchId == SDL_MOUSE_TOUCHID) return false;
+			if ((Touch::getSource() & Touch::FromMouseAndTouch) == Touch::FromMouseAndTouch && event.tfinger.touchID == SDL_MOUSE_TOUCHID) return false;
 			if ((Touch::getSource() & Touch::FromTouch) == 0) return false;
-			id = event.tfinger.fingerId;
+			id = event.tfinger.fingerID;
 			break;
 		default:
 			return false;
@@ -393,9 +392,9 @@ bool NodeTouchHandler::move(const SDL_Event& event) {
 			touch = get(INT64_MAX);
 			break;
 		case SDL_EVENT_FINGER_MOTION:
-			if ((Touch::getSource() & Touch::FromMouseAndTouch) == Touch::FromMouseAndTouch && event.tfinger.touchId == SDL_MOUSE_TOUCHID) return false;
+			if ((Touch::getSource() & Touch::FromMouseAndTouch) == Touch::FromMouseAndTouch && event.tfinger.touchID == SDL_MOUSE_TOUCHID) return false;
 			if ((Touch::getSource() & Touch::FromTouch) == 0) return false;
-			touch = get(event.tfinger.fingerId);
+			touch = get(event.tfinger.fingerID);
 			break;
 		default:
 			return false;
@@ -458,7 +457,7 @@ void NodeTouchHandler::mouseMove(const SDL_Event& event) {
 
 bool NodeTouchHandler::wheel(const SDL_Event& event) {
 	if (!isTargetActive()) return false;
-	int x, y;
+	float x, y;
 	SDL_GetMouseState(&x, &y);
 	Size size = SharedApplication.getWinSize();
 	Vec2 ratio = {s_cast<float>(x) / size.width, 1.0f - s_cast<float>(y) / size.height};
@@ -466,18 +465,6 @@ bool NodeTouchHandler::wheel(const SDL_Event& event) {
 	Vec2 pos = getPos({winPos.x, winPos.y, 0.0f});
 	if (_target->getSize() != Size::zero && Rect(Vec2::zero, _target->getSize()).containsPoint(pos)) {
 		_target->emit("MouseWheel"_slice, Vec2{s_cast<float>(event.wheel.x), s_cast<float>(event.wheel.y)});
-		return true;
-	}
-	return false;
-}
-
-bool NodeTouchHandler::gesture(const SDL_Event& event) {
-	if (!isTargetActive()) return false;
-	Vec2 ratio{event.mgesture.x, 1.0f - event.mgesture.y};
-	Vec2 pos = ratio * SharedView.getSize();
-	pos = getPos({pos.x, pos.y, 0.0f});
-	if (_target->getSize() == Size::zero || Rect(Vec2::zero, _target->getSize()).containsPoint(pos)) {
-		_target->emit("Gesture"_slice, pos, event.mgesture.numFingers, event.mgesture.dDist, bx::toDeg(event.mgesture.dTheta));
 		return true;
 	}
 	return false;
