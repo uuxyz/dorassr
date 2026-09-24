@@ -694,9 +694,12 @@ Application::Application()
 	, _winPosition{-1.0f, -1.0f} {
 	_lastTime = bx::getHPCounter() / _frequency;
 #if !BX_PLATFORM_LINUX
-	auto locale = SDL_GetPreferredLocales();
-	_locale = locale->language;
-	SDL_free(locale);
+	{
+		int localeCount = 0;
+		SDL_Locale** locales = SDL_GetPreferredLocales(&localeCount);
+		_locale = (locales && localeCount > 0 && locales[0]->language) ? locales[0]->language : "en";
+		SDL_free(locales);
+	}
 #else
 	_locale = "en"s;
 #endif
@@ -1290,19 +1293,15 @@ void Application::runEmscriptenFrame() {
 				if (Singleton<DB>::isInitialized()) SharedDB.stop();
 				_renderRunning = false;
 				break;
-			case SDL_WINDOWEVENT:
-				switch (event.window.event) {
-					case SDL_EVENT_WINDOW_RESIZED:
-					case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
-						updateWindowSize();
-						break;
-					case SDL_EVENT_WINDOW_MOVED:
-						_winPosition = Vec2{s_cast<float>(event.window.data1), s_cast<float>(event.window.data2)};
-						break;
-					case SDL_EVENT_WINDOW_FOCUS_LOST:
-						SharedController.releaseAllInRender();
-						break;
-				}
+			case SDL_EVENT_WINDOW_RESIZED:
+			case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
+				updateWindowSize();
+				break;
+			case SDL_EVENT_WINDOW_MOVED:
+				_winPosition = Vec2{s_cast<float>(event.window.data1), s_cast<float>(event.window.data2)};
+				break;
+			case SDL_EVENT_WINDOW_FOCUS_LOST:
+				SharedController.releaseAllInRender();
 				break;
 			case SDL_EVENT_KEY_DOWN:
 			case SDL_EVENT_KEY_UP:
