@@ -168,7 +168,9 @@ function(dora_add_apple_app)
 			"-framework MetalKit" "-framework CoreVideo" "-framework CoreMedia"
 			"-framework VideoToolbox" "-framework AudioToolbox" "-framework AudioUnit"
 			"-framework CoreAudio" "-framework CoreFoundation" "-framework CoreHaptics"
-			"-framework GameController" "-framework ForceFeedback")
+			"-framework GameController" "-framework ForceFeedback"
+			"-framework AVFoundation" "-framework UniformTypeIdentifiers"
+			"-framework CoreBluetooth")
 	else()
 		target_link_libraries(${app} PRIVATE
 			"-framework UIKit" "-framework Foundation" "-framework CoreGraphics"
@@ -176,6 +178,7 @@ function(dora_add_apple_app)
 			"-framework CoreMedia" "-framework VideoToolbox" "-framework AudioToolbox"
 			"-framework CoreAudio" "-framework CoreHaptics" "-framework CoreBluetooth"
 			"-framework CoreMotion" "-framework GameController" "-framework AVFoundation"
+			"-framework UniformTypeIdentifiers"
 			"-e _SDL_main")
 	endif()
 endfunction()
