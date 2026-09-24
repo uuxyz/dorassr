@@ -218,7 +218,7 @@ static void finalize_fetch(emscripten_fetch_t* fetch, bool success) {
 		bool written = false;
 		if (httpSuccess && fetch->data) {
 			if (auto* output = SDL_IOFromFile(request->filePath.c_str(), "wb+")) {
-				written = SDL_WriteIO(output, fetch->data, 1, fetch->numBytes) == fetch->numBytes;
+				written = SDL_WriteIO(output, fetch->data, fetch->numBytes) == fetch->numBytes;
 				SDL_CloseIO(output);
 			}
 		}
