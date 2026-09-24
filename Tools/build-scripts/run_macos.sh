@@ -34,7 +34,7 @@ ensure_dependencies() {
 	local missing=0
 	local dependency
 	local required_dependencies=(
-		"$ROOT_DIR/Source/3rdParty/SDL2/Lib/macOS/libSDL2.a"
+		"$ROOT_DIR/Source/3rdParty/SDL3/Lib/macOS/libSDL3.a"
 		"$ROOT_DIR/Source/3rdParty/bgfx/build/macosx/universal/libbgfx.a"
 		"$ROOT_DIR/Source/3rdParty/bgfx/build/macosx/universal/libbimg.a"
 		"$ROOT_DIR/Source/3rdParty/bgfx/build/macosx/universal/libbimg_decode.a"

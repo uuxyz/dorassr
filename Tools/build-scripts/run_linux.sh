@@ -63,7 +63,7 @@ ensure_dependencies() {
 	local dependency
 	local bgfx_dir="$ROOT_DIR/Source/3rdParty/bgfx/build/linux/$BGFX_ARCH/debug"
 	local required_dependencies=(
-		"$ROOT_DIR/Source/3rdParty/SDL2/Lib/Linux/$RUNTIME_ARCH/libSDL2.a"
+		"$ROOT_DIR/Source/3rdParty/SDL3/Lib/Linux/$RUNTIME_ARCH/libSDL3.a"
 		"$bgfx_dir/libbgfx.a"
 		"$bgfx_dir/libbimg.a"
 		"$bgfx_dir/libbimg_decode.a"

@@ -41,7 +41,7 @@ esac
 
 "$SCRIPT_DIR/check_build_env.sh" macos lib
 
-"$SCRIPT_DIR/build_lib_sdl2.sh" macos "--$BUILD_MODE" "$TARGET_ARCH"
+"$SCRIPT_DIR/build_lib_sdl3.sh" macos "--$BUILD_MODE" "$TARGET_ARCH"
 "$SCRIPT_DIR/build_lib_bgfx.sh" macos "--$BUILD_MODE" "$TARGET_ARCH"
 "$SCRIPT_DIR/build_lib_love.sh" macos "--$BUILD_MODE" "$TARGET_ARCH"
 "$SCRIPT_DIR/build_lib_theora.sh" macos "--$BUILD_MODE" "$TARGET_ARCH"

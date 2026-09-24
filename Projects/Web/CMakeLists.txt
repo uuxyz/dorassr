@@ -17,6 +17,22 @@ add_compile_definitions(ENABLE_HLSL=1)
 
 get_filename_component(DORA_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." REALPATH)
 set(DORA_SOURCE_ROOT "${DORA_ROOT}/Source")
+
+# 预编译的 SDL3 静态库（由 Tools/build-scripts/build_web.sh 以 emcmake 构建）。
+# pthread player 链接 pthread 变体，其余目标链接普通变体。
+set(DORA_SDL3_ROOT "${DORA_SOURCE_ROOT}/3rdParty/SDL3")
+set(DORA_SDL3_LIB "${DORA_SDL3_ROOT}/build/emscripten/libSDL3.a"
+	CACHE FILEPATH "SDL3 static library (Emscripten, non-pthreads)")
+set(DORA_SDL3_LIB_PTHREAD "${DORA_SDL3_ROOT}/build/emscripten-pthread/libSDL3.a"
+	CACHE FILEPATH "SDL3 static library (Emscripten, pthreads)")
+if(EXISTS "${DORA_SDL3_LIB}")
+	add_library(SDL3-web STATIC IMPORTED)
+	set_target_properties(SDL3-web PROPERTIES IMPORTED_LOCATION "${DORA_SDL3_LIB}")
+endif()
+if(EXISTS "${DORA_SDL3_LIB_PTHREAD}")
+	add_library(SDL3-web-pthread STATIC IMPORTED)
+	set_target_properties(SDL3-web-pthread PROPERTIES IMPORTED_LOCATION "${DORA_SDL3_LIB_PTHREAD}")
+endif()
 set(DORA_WEB_BOOTSTRAP_ASSETS "${CMAKE_CURRENT_SOURCE_DIR}/runtime-assets")
 set(DORA_WEB_EMBEDDED_BGFX_DIR "${CMAKE_BINARY_DIR}/bgfx-embedded")
 file(MAKE_DIRECTORY "${DORA_WEB_EMBEDDED_BGFX_DIR}/generated")
@@ -314,7 +330,7 @@ if(DORA_WEB_BUILD_ENGINE)
 	)
 	target_include_directories(dora-web-engine PRIVATE
 		"${DORA_WEB_EMBEDDED_BGFX_DIR}"
-		"${DORA_SOURCE_ROOT}/3rdParty/SDL2/include"
+		"${DORA_SDL3_ROOT}/include"
 		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/include"
 		"${DORA_SOURCE_ROOT}/3rdParty/bimg/include"
 		"${DORA_SOURCE_ROOT}/3rdParty/bx/include"
@@ -493,6 +509,9 @@ if(DORA_WEB_LINK_PLAYER)
 	if(DORA_WEB_FEATURE_MODEL_3D OR DORA_WEB_FEATURE_MUSIC)
 		target_link_libraries(dora-web-player PRIVATE "${DORA_RUST_RUNTIME}")
 	endif()
+	if(TARGET SDL3-web)
+		target_link_libraries(dora-web-player PRIVATE SDL3-web)
+	endif()
 	if(DORA_WEB_FEATURE_LOVE)
 		target_link_libraries(dora-web-player PRIVATE dora-web-love-support)
 	endif()
@@ -505,7 +524,6 @@ if(DORA_WEB_LINK_PLAYER)
 		"--ignore-dynamic-linking"
 		"-fwasm-exceptions"
 		"-sSUPPORT_LONGJMP=wasm"
-		"-sUSE_SDL=2"
 		"-sUSE_WEBGL2=1"
 		"-sFULL_ES3=1"
 		"-sALLOW_MEMORY_GROWTH=1"
@@ -546,6 +564,9 @@ if(DORA_WEB_LINK_PLAYER)
 	set_property(TARGET dora-web-player APPEND PROPERTY LINK_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/web-audio.js")
 	if(DORA_WEB_BUILD_LOVE_PROBE)
 		set(DORA_WEB_LOVE_PROBE_LIBRARIES dora-web-love-support)
+		if(TARGET SDL3-web)
+			list(APPEND DORA_WEB_LOVE_PROBE_LIBRARIES SDL3-web)
+		endif()
 		if(DORA_WEB_FEATURE_MODEL_3D)
 			list(APPEND DORA_WEB_LOVE_PROBE_LIBRARIES "${DORA_RUST_RUNTIME}")
 		endif()
@@ -568,8 +589,7 @@ if(DORA_WEB_LINK_PLAYER)
 			"--no-entry"
 			"-fwasm-exceptions"
 			"-sSUPPORT_LONGJMP=wasm"
-			"-sUSE_SDL=2"
-			"-sUSE_WEBGL2=1"
+				"-sUSE_WEBGL2=1"
 			"-sFULL_ES3=1"
 			"-sALLOW_MEMORY_GROWTH=1"
 			"-sSTACK_SIZE=8MB"
@@ -606,8 +626,7 @@ if(DORA_WEB_LINK_PLAYER)
 			"--ignore-dynamic-linking"
 			"-fwasm-exceptions"
 			"-sSUPPORT_LONGJMP=wasm"
-			"-sUSE_SDL=2"
-			"-sUSE_WEBGL2=1"
+				"-sUSE_WEBGL2=1"
 			"-sFULL_ES3=1"
 			"-sALLOW_MEMORY_GROWTH=1"
 			"-sSTACK_SIZE=8MB"
@@ -652,8 +671,7 @@ if(DORA_WEB_LINK_PLAYER)
 			"--ignore-dynamic-linking"
 			"-fwasm-exceptions"
 			"-sSUPPORT_LONGJMP=wasm"
-			"-sUSE_SDL=2"
-			"-sUSE_WEBGL2=1"
+				"-sUSE_WEBGL2=1"
 			"-sFULL_ES3=1"
 			"-sALLOW_MEMORY_GROWTH=1"
 			"-sSTACK_SIZE=8MB"
@@ -725,8 +743,7 @@ if(DORA_WEB_LINK_PLAYER)
 			"--ignore-dynamic-linking"
 			"-fwasm-exceptions"
 			"-sSUPPORT_LONGJMP=wasm"
-			"-sUSE_SDL=2"
-			"-sUSE_WEBGL2=1"
+				"-sUSE_WEBGL2=1"
 			"-sFULL_ES3=1"
 			"-sALLOW_MEMORY_GROWTH=1"
 			"-sSTACK_SIZE=8MB"
@@ -761,6 +778,9 @@ if(DORA_WEB_LINK_PLAYER)
 				$<TARGET_OBJECTS:dora-web-love-compile-probe>
 				$<TARGET_OBJECTS:dora-web-love-node-compile-probe>)
 			target_link_libraries(dora-web-love-pthread-player PRIVATE ${DORA_WEB_LOVE_PROBE_LIBRARIES})
+		if(TARGET SDL3-web-pthread)
+			target_link_libraries(dora-web-love-pthread-player PRIVATE SDL3-web-pthread)
+		endif()
 			target_compile_definitions(dora-web-love-pthread-player PRIVATE
 				${DORA_WEB_ENGINE_DEFINITIONS}
 				DORA_WEB_LOVE_PROBE)
@@ -770,8 +790,7 @@ if(DORA_WEB_LINK_PLAYER)
 				"--ignore-dynamic-linking"
 				"-fwasm-exceptions"
 				"-sSUPPORT_LONGJMP=wasm"
-				"-sUSE_SDL=2"
-				"-sUSE_WEBGL2=1"
+						"-sUSE_WEBGL2=1"
 				"-sFULL_ES3=1"
 				"-sALLOW_MEMORY_GROWTH=1"
 				"-sSTACK_SIZE=8MB"
@@ -837,8 +856,7 @@ if(DORA_WEB_LINK_PLAYER)
 				"--ignore-dynamic-linking"
 				"-fwasm-exceptions"
 				"-sSUPPORT_LONGJMP=wasm"
-				"-sUSE_SDL=2"
-				"-sUSE_WEBGL2=1"
+						"-sUSE_WEBGL2=1"
 				"-sFULL_ES3=1"
 				"-sALLOW_MEMORY_GROWTH=1"
 				"-sSTACK_SIZE=8MB"

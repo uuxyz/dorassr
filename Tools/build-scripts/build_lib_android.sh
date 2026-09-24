@@ -27,8 +27,8 @@ esac
 # 五个第三方库互不依赖，并行构建（各自独立的项目目录与日志）；
 # 任一失败即整体失败。
 LOG_DIR="$(mktemp -d)"
-"$SCRIPT_DIR/build_lib_sdl2.sh" android "--$BUILD_MODE" > "$LOG_DIR/sdl2.log" 2>&1 &
-P_SDL2=$!
+"$SCRIPT_DIR/build_lib_sdl3.sh" android "--$BUILD_MODE" > "$LOG_DIR/sdl3.log" 2>&1 &
+P_SDL3=$!
 "$SCRIPT_DIR/build_lib_bgfx.sh" android "--$BUILD_MODE" > "$LOG_DIR/bgfx.log" 2>&1 &
 P_BGPUX=$!
 "$SCRIPT_DIR/build_lib_love.sh" android "--$BUILD_MODE" > "$LOG_DIR/love.log" 2>&1 &
@@ -39,7 +39,7 @@ P_THEORA=$!
 P_WA=$!
 
 FAIL=0
-for pair in "$P_SDL2:sdl2" "$P_BGPUX:bgfx" "$P_LOVE:love" "$P_THEORA:theora" "$P_WA:wa"; do
+for pair in "$P_SDL3:sdl3" "$P_BGPUX:bgfx" "$P_LOVE:love" "$P_THEORA:theora" "$P_WA:wa"; do
 	P=${pair%%:*}; NAME=${pair##*:}
 	if ! wait "$P"; then
 		echo "=== $NAME build failed, log tail: ===" >&2
