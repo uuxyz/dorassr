@@ -101,6 +101,23 @@ fi
 if [[ -n "${DORA_WEB_LOVE_COMPLEX_PACKAGE:-}" ]]; then
 	CMAKE_ARGS+=("-DDORA_WEB_LOVE_COMPLEX_PACKAGE=$DORA_WEB_LOVE_COMPLEX_PACKAGE")
 fi
+# 构建预编译 SDL3 静态库（普通 + pthread 变体），Projects/Web/CMakeLists.txt 按目标链接
+SDL3_SRC="$ROOT_DIR/Source/3rdParty/SDL3"
+SDL3_CMAKE_OPTS=(-DCMAKE_BUILD_TYPE=Release -DSDL_SHARED=OFF -DSDL_STATIC=ON
+	-DSDL_TEST_LIBRARY=OFF -DSDL_TESTS=OFF -DSDL_EXAMPLES=OFF)
+build_sdl3_emscripten() {
+	local build_dir="$1"
+	shift
+	if [[ ! -f "$build_dir/libSDL3.a" ]]; then
+		emcmake cmake -S "$SDL3_SRC" -B "$build_dir" "$@" "${SDL3_CMAKE_OPTS[@]}"
+		cmake --build "$build_dir" -j "$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
+	fi
+}
+build_sdl3_emscripten "$SDL3_SRC/build/emscripten"
+if [[ "$BUILD_PTHREADS" == "1" ]]; then
+	build_sdl3_emscripten "$SDL3_SRC/build/emscripten-pthread" 		-DCMAKE_C_FLAGS="-pthread" -DCMAKE_CXX_FLAGS="-pthread"
+fi
+
 emcmake cmake "${CMAKE_ARGS[@]}"
 
 BUILD_TARGETS=(dora-web-build-probe)

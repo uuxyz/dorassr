@@ -24,7 +24,7 @@ esac
 
 "$SCRIPT_DIR/check_build_env.sh" ios lib
 
-"$SCRIPT_DIR/build_lib_sdl2.sh" ios "--$BUILD_MODE"
+"$SCRIPT_DIR/build_lib_sdl3.sh" ios "--$BUILD_MODE"
 "$SCRIPT_DIR/build_lib_bgfx.sh" ios "--$BUILD_MODE"
 "$SCRIPT_DIR/build_lib_love.sh" ios "--$BUILD_MODE"
 "$SCRIPT_DIR/build_lib_theora.sh" ios "--$BUILD_MODE"

@@ -65,7 +65,7 @@ target("dora")
 		path.join(DORA_SOURCE_ROOT, "3rdParty/bgfx/include"),
 		path.join(DORA_SOURCE_ROOT, "3rdParty/bx/include"),
 		path.join(DORA_SOURCE_ROOT, "3rdParty/bimg/include"),
-		path.join(DORA_SOURCE_ROOT, "3rdParty/SDL2/include"),
+		path.join(DORA_SOURCE_ROOT, "3rdParty/SDL3/include"),
 		path.join(DORA_SOURCE_ROOT, "3rdParty/Lua"),
 		path.join(DORA_SOURCE_ROOT, "3rdParty/Zip"),
 		path.join(DORA_SOURCE_ROOT, "3rdParty/soloud"),
@@ -88,7 +88,7 @@ target("dora")
 
 	-- 预编译第三方库（build_lib_windows.bat 的产物）
 	add_files(
-		path.join(DORA_SOURCE_ROOT, "3rdParty/SDL2/Lib/Windows", SDL_MODE, "SDL2.lib"),
+		path.join(DORA_SOURCE_ROOT, "3rdParty/SDL3/Lib/Windows", SDL_MODE, "SDL3.lib"),
 		path.join(DORA_SOURCE_ROOT, "3rdParty/Love/Artifacts/Windows/love.lib"),
 		path.join(DORA_SOURCE_ROOT, "3rdParty/theora/Lib/Windows", SDL_MODE, "theoradec.lib"),
 		path.join(DORA_SOURCE_ROOT, "3rdParty/Wa/Lib/Windows/wa.lib"),

@@ -44,7 +44,7 @@ jobs:
         sudo apt-get install -y ccache cmake pkg-config libgl1-mesa-dev libssl-dev libdbus-1-dev \
           libasound2-dev libjack-jackd2-dev libpulse-dev libpipewire-0.3-dev libsamplerate0-dev libsndio-dev \
           libibus-1.0-dev libudev-dev libusb-1.0-0-dev \
-          libx11-dev libxext-dev libxcursor-dev libxi-dev libxfixes-dev libxrandr-dev libxrender-dev libxss-dev \
+          libx11-dev libxext-dev libxcursor-dev libxi-dev libxfixes-dev libxrandr-dev libxrender-dev libxss-dev libxtst-dev \
           libdrm-dev libgbm-dev libegl1-mesa-dev libwayland-dev libwayland-bin wayland-protocols \
           libxkbcommon-dev libdecor-0-dev
     - name: Install SDL3

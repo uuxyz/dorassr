@@ -26,7 +26,7 @@ function(dora_add_apple_app)
 	set(DORA_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../..")
 	set(DORA_SOURCE_ROOT "${DORA_ROOT}/Source")
 	set(DORA_BGFX_ROOT "${DORA_SOURCE_ROOT}/3rdParty/bgfx")
-	set(DORA_SDL2_ROOT "${DORA_SOURCE_ROOT}/3rdParty/SDL2")
+	set(DORA_SDL3_ROOT "${DORA_SOURCE_ROOT}/3rdParty/SDL3")
 
 	if(platform STREQUAL "macos")
 		set(DORA_LIB_SUFFIX macOS)
@@ -37,7 +37,7 @@ function(dora_add_apple_app)
 		if(NOT DORA_IOS_VARIANT)
 			set(DORA_IOS_VARIANT simulator)
 		endif()
-		# 模拟器与真机的 SDL2/Love/theora/wa/Rust 预编译库是不同产物
+		# 模拟器与真机的 SDL3/Love/theora/wa/Rust 预编译库是不同产物
 		if(DORA_IOS_VARIANT STREQUAL "simulator")
 			set(DORA_LIB_SUFFIX iOS-Simulator)
 		else()
@@ -55,7 +55,7 @@ function(dora_add_apple_app)
 		endif()
 		set(DORA_BGFX_LIB_DIR "${DORA_BGFX_ROOT}/build/ios/${DORA_IOS_VARIANT}")
 	endif()
-	set(DORA_SDL2_LIB "${DORA_SDL2_ROOT}/Lib/${DORA_LIB_SUFFIX}/libSDL2.a")
+	set(DORA_SDL3_LIB "${DORA_SDL3_ROOT}/Lib/${DORA_LIB_SUFFIX}/libSDL3.a")
 	set(DORA_LOVE_LIB "${DORA_SOURCE_ROOT}/3rdParty/Love/Artifacts/${DORA_LIB_SUFFIX}/liblove.a")
 	set(DORA_THEORA_LIB "${DORA_SOURCE_ROOT}/3rdParty/theora/Lib/${DORA_LIB_SUFFIX}/libtheoradec.a")
 	set(DORA_WA_LIB "${DORA_SOURCE_ROOT}/3rdParty/Wa/Lib/${DORA_LIB_SUFFIX}/libwa.a")
@@ -107,7 +107,7 @@ function(dora_add_apple_app)
 
 	# ---- 头文件与定义（与 Linux CMake 对齐，去 DBUS/X11，bx compat 换 Apple）----
 	target_include_directories(${app} PRIVATE
-		"${DORA_SDL2_ROOT}/include"
+		"${DORA_SDL3_ROOT}/include"
 		"${DORA_BGFX_ROOT}/include"
 		"${DORA_SOURCE_ROOT}/3rdParty/bimg/include"
 		"${DORA_SOURCE_ROOT}/3rdParty/bx/include"
@@ -132,7 +132,7 @@ function(dora_add_apple_app)
 		"${DORA_SOURCE_ROOT}/3rdParty/theora/include")
 
 	target_compile_definitions(${app} PRIVATE
-		WITH_SDL2
+		WITH_SDL2_STATIC
 		BX_CONFIG_DEBUG=0
 		d_m3HasWASI
 		SPDLOG_FMT_EXTERNAL
@@ -152,7 +152,7 @@ function(dora_add_apple_app)
 	endforeach()
 
 	target_link_libraries(${app} PRIVATE
-		"${DORA_SDL2_LIB}"
+		"${DORA_SDL3_LIB}"
 		"${DORA_LOVE_LIB}"
 		"${DORA_THEORA_LIB}"
 		"${DORA_WA_LIB}"
