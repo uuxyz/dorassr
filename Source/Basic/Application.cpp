@@ -1833,13 +1833,13 @@ void Application::install(String path) {
 		return;
 	}
 
-	char* basePath = SDL_GetBasePath();
+	/* SDL3: 返回 SDL 内部缓存的指针，所有权归 SDL，不可释放 */
+	const char* basePath = SDL_GetBasePath();
 	if (!basePath) {
 		Error("Application.install() failed to locate the running application");
 		return;
 	}
 	auto resourcesPath = fs::weakly_canonical(fs::path(basePath), error);
-	SDL_free(basePath);
 	auto targetApp = resourcesPath.parent_path().parent_path();
 	if (error
 		|| targetApp.extension() != ".app"

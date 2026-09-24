@@ -1761,10 +1761,9 @@ bool Content::isFileExist(String filePath) {
 Content::Content()
 	: _thread(SharedAsyncThread.newThread())
 	, _appPath(getPrefPath()) {
-	char* currentPath = SDL_GetBasePath();
-	_assetPath = currentPath;
+	/* SDL3: 返回 SDL 内部缓存的指针，所有权归 SDL，不可释放 */
+	_assetPath = SDL_GetBasePath();
 	trimTrailingSlashes(_assetPath);
-	SDL_free(currentPath);
 	_writablePath = _appPath;
 }
 #endif // BX_PLATFORM_OSX || BX_PLATFORM_IOS
