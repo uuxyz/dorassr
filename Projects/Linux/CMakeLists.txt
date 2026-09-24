@@ -23,7 +23,6 @@ endif()
 set(DORA_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../..)
 set(DORA_SOURCE_ROOT ${DORA_ROOT}/Source)
 set(DORA_BGFX_ROOT ${DORA_SOURCE_ROOT}/3rdParty/bgfx)
-set(DORA_SDL2_ROOT ${DORA_SOURCE_ROOT}/3rdParty/SDL2)
 
 if(NOT CMAKE_BUILD_TYPE)
 	set(CMAKE_BUILD_TYPE release)
@@ -51,7 +50,6 @@ else()
 endif()
 
 set(DORA_BGFX_BUILD_DIR ${DORA_BGFX_ROOT}/build/linux/${DORA_BGFX_ARCH}/${DORA_BUILD_MODE})
-set(DORA_SDL2_BUILD_DIR ${DORA_SDL2_ROOT}/Lib/Linux/${DORA_RUNTIME_ARCH})
 set(DORA_WA_BUILD_DIR ${DORA_SOURCE_ROOT}/3rdParty/Wa/Lib/Linux/${DORA_WA_ARCH})
 set(DORA_RUNTIME_BUILD_DIR ${DORA_SOURCE_ROOT}/Rust/lib/Linux/${DORA_RUNTIME_ARCH})
 set(DORA_LOVE_BUILD_DIR ${DORA_SOURCE_ROOT}/3rdParty/Love/Artifacts/Linux/${DORA_RUNTIME_ARCH})
@@ -63,10 +61,11 @@ else()
 endif()
 
 find_package(PkgConfig REQUIRED)
+pkg_check_modules(SDL3 REQUIRED IMPORTED_TARGET sdl3)
 pkg_check_modules(DBUS REQUIRED dbus-1)
 
 include_directories(
-	${DORA_SDL2_ROOT}/include
+	${SDL3_INCLUDE_DIRS}
 	${DBUS_INCLUDE_DIRS}
 	${DORA_BGFX_ROOT}/include
 	${DORA_SOURCE_ROOT}/3rdParty/bimg/include
@@ -152,11 +151,7 @@ set_target_properties(
 	${DORA_BGFX_BUILD_DIR}/libshaderc-lib.a
 )
 
-add_library(SDL2-lib STATIC IMPORTED)
-set_target_properties(
-	SDL2-lib PROPERTIES IMPORTED_LOCATION
-	${DORA_SDL2_BUILD_DIR}/libSDL2.a
-)
+# vendored SDL2 import removed; SDL3 comes via PkgConfig::SDL3
 
 add_library(WA-lib STATIC IMPORTED)
 set_target_properties(
@@ -170,7 +165,7 @@ set_target_properties(
 	${DORA_RUNTIME_BUILD_DIR}/libdora_runtime.a
 )
 
-add_definitions(-DWITH_SDL2 -DBX_CONFIG_DEBUG=${DORA_BX_CONFIG_DEBUG} -Dd_m3HasWASI -DLUA_USE_LINUX -DSPDLOG_FMT_EXTERNAL -DJPH_NO_FORCE_INLINE)
+add_definitions(-DWITH_SDL2_STATIC -DBX_CONFIG_DEBUG=${DORA_BX_CONFIG_DEBUG} -Dd_m3HasWASI -DLUA_USE_LINUX -DSPDLOG_FMT_EXTERNAL -DJPH_NO_FORCE_INLINE)
 # 打包方可注入版本（Nix/CI release）；缺省用源码内的开发版本
 if(DORA_VERSION_OVERRIDE)
 	add_definitions("-DDORA_VERSION=\"${DORA_VERSION_OVERRIDE}\"")
@@ -189,4 +184,4 @@ include("${DORA_ROOT}/Projects/CMake/DoraGeneratedSources.cmake")
 add_executable(dora-ssr ${DORA_ENGINE_SOURCES})
 dora_add_generated_lua_sources(dora-ssr)
 
-target_link_libraries(dora-ssr z SDL2-lib LOVE-lib THEORA-lib BGFX-lib BIMGDE-lib BIMG-lib SHADERC-lib GLSLANG-lib SPIRVCROSS-lib SPIRVOPT-lib BX-lib ${DORA_RENDER_LINK_LIBS} ${DBUS_LINK_LIBRARIES} DORA-lib WA-lib m dl pthread rt)
+target_link_libraries(dora-ssr z PkgConfig::SDL3 LOVE-lib THEORA-lib BGFX-lib BIMGDE-lib BIMG-lib SHADERC-lib GLSLANG-lib SPIRVCROSS-lib SPIRVOPT-lib BX-lib ${DORA_RENDER_LINK_LIBS} ${DBUS_LINK_LIBRARIES} DORA-lib WA-lib m dl pthread rt)

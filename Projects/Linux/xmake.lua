@@ -1,5 +1,5 @@
 -- Linux 应用目标：取代手写的 CMake 流程（Stage 2 of xmake unification）。
--- vendor 库由 Tools/build-scripts/build_lib_linux.sh 构建（SDL2 走 CMake，
+-- vendor 库由 Tools/build-scripts/build_lib_linux.sh 构建（SDL3 走系统包，
 -- bgfx/Love 走 xmake，Wa 走 Go，Rust 走 Cargo），本工程按路径链接其产物。
 --
 -- 用法（在 Projects/Linux 下）:
@@ -164,7 +164,7 @@ target("dora")
 	set_pcxxheader(path.join(DORA_SOURCE_ROOT, "Const/Header.h"))
 
 	add_defines(
-		"WITH_SDL2",
+		"WITH_SDL2_STATIC",
 		"d_m3HasWASI",
 		"LUA_USE_LINUX",
 		"SPDLOG_FMT_EXTERNAL",
@@ -189,7 +189,6 @@ target("dora")
 	end
 
 	add_includedirs(
-		path.join(DORA_SOURCE_ROOT, "3rdParty/SDL2/include"),
 		path.join(DORA_SOURCE_ROOT, "3rdParty/bgfx/include"),
 		path.join(DORA_SOURCE_ROOT, "3rdParty/bimg/include"),
 		path.join(DORA_SOURCE_ROOT, "3rdParty/bx/include"),
@@ -221,7 +220,6 @@ target("dora")
 	-- vendor + 第三方预编译库链接
 	add_linkdirs(
 		BGFX_LIB_DIR,
-		path.join(DORA_SOURCE_ROOT, "3rdParty/SDL2/Lib/Linux", HOST_ARCH),
 		path.join(DORA_SOURCE_ROOT, "3rdParty/Love/Artifacts/Linux", HOST_ARCH),
 		path.join(DORA_SOURCE_ROOT, "3rdParty/theora/Lib/Linux", HOST_ARCH),
 		path.join(DORA_SOURCE_ROOT, "3rdParty/Wa/Lib/Linux", WA_LIB_ARCH),
@@ -229,7 +227,10 @@ target("dora")
 	add_links(
 		"bgfx", "bimg", "bimg_decode", "bx",
 		"shaderc-lib", "glslang", "spirv-cross", "spirv-opt",
-		"SDL2", "love", "theoradec", "wa", "dora_runtime")
+		"love", "theoradec", "wa", "dora_runtime")
+
+	-- SDL3 via pkg-config
+	add_extpackages("pkgconfig::sdl3")
 
 	-- 渲染/系统库
 	if HOST_ARCH == "aarch64" then
