@@ -28,7 +28,7 @@ for (const event of ["button", "motion"]) {
 }
 assert.match(
 	source,
-	/Touch::FromMouseAndTouch\) == Touch::FromMouseAndTouch && event\.tfinger\.touchId == SDL_MOUSE_TOUCHID/,
+	/Touch::FromMouseAndTouch\) == Touch::FromMouseAndTouch && event\.tfinger\.touchID == SDL_MOUSE_TOUCHID/,
 	"Synthetic mouse-generated touch events must remain filtered",
 );
 assert.doesNotMatch(
