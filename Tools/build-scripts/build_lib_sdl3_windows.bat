@@ -39,8 +39,9 @@ if errorlevel 1 exit /b %errorlevel%
 
 if not exist "%SDL_DIR%\%OUT_DIR%" mkdir "%SDL_DIR%\%OUT_DIR%"
 
-rem SDL3 names its static import library SDL3-static.lib
-copy /Y "%BUILD_DIR%\SDL3-static.%CMAKE_BUILD_TYPE%.lib" "%SDL_DIR%\%OUT_DIR%\SDL3.lib" >nul 2>nul
+rem SDL3 names its static import library SDL3-static.lib; MSBuild places
+rem per-config outputs in a subdirectory named after the configuration.
+copy /Y "%BUILD_DIR%\%CMAKE_BUILD_TYPE%\SDL3-static.lib" "%SDL_DIR%\%OUT_DIR%\SDL3.lib" >nul 2>nul
 if errorlevel 1 copy /Y "%BUILD_DIR%\SDL3-static.lib" "%SDL_DIR%\%OUT_DIR%\SDL3.lib" >nul
 if errorlevel 1 exit /b %errorlevel%
 
