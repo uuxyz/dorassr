@@ -314,7 +314,7 @@ return {
 	"../../../Source/3rdParty/soloud/filter/soloud_freeverbfilter.cpp",
 	"../../../Source/3rdParty/soloud/filter/soloud_biquadresonantfilter.cpp",
 	"../../../Source/3rdParty/soloud/filter/soloud_waveshaperfilter.cpp",
-	"../../../Source/3rdParty/soloud/backend/sdl/soloud_sdl2.cpp",
+	"../../../Source/3rdParty/soloud/backend/sdl2_static/soloud_sdl2_static.cpp",
 	"../../../Source/3rdParty/soloud/audiosource/wav/soloud_wavstream.cpp",
 	"../../../Source/3rdParty/soloud/audiosource/wav/dr_impl.cpp",
 	"../../../Source/3rdParty/soloud/audiosource/wav/soloud_wav.cpp",

@@ -47,31 +47,40 @@ namespace SoLoud
 	struct SDL2StaticBackendData
 	{
 		SDL_AudioSpec activeAudioSpec;
-		SDL_AudioDeviceID audioDeviceID;
+		SDL_AudioStream *stream;
 		SoLoud::Soloud *soloud;
 		uint64_t generation;
 	};
 
 	static uint64_t gNextBackendGeneration = 0;
 
-	void soloud_sdl2static_audiomixer(void *userdata, Uint8 *stream, int len)
+	/* SDL3 removed the push-style device callback. The stream callback runs on
+	   SDL's audio thread and reports how many more bytes it wants; we mix that
+	   many frames with SoLoud and push them into the stream, which handles
+	   format conversion to the device. */
+	void soloud_sdl2static_audiomixer(void *userdata, SDL_AudioStream *stream, int additional_amount, int total_amount)
 	{
+		(void)total_amount;
 		SDL2StaticBackendData *backend = (SDL2StaticBackendData *)userdata;
 		if (!backend || backend->generation == 0 || !backend->soloud)
-		{
-			memset(stream, 0, len);
 			return;
-		}
-		short *buf = (short*)stream;
-		if (backend->activeAudioSpec.format == SDL_AUDIO_F32LE)
+		if (additional_amount <= 0)
+			return;
+		const int bytesPerFrame = backend->activeAudioSpec.channels * (int)sizeof(float);
+		int frames = additional_amount / bytesPerFrame;
+		while (frames > 0)
 		{
-			int samples = len / (backend->activeAudioSpec.channels * sizeof(float));
-			backend->soloud->mix((float *)buf, samples);
-		}
-		else // assume s16 if not float
-		{
-			int samples = len / (backend->activeAudioSpec.channels * sizeof(short));
-			backend->soloud->mixSigned16(buf, samples);
+			float mixBuffer[2048 * 2];
+			const int chunk = frames < 2048 ? frames : 2048;
+			if (backend->activeAudioSpec.format != SDL_AUDIO_F32)
+			{
+				/* Format conversions are handled by the stream; only feed F32. */
+				return;
+			}
+			backend->soloud->mix(mixBuffer, chunk);
+			if (!SDL_PutAudioStreamData(stream, mixBuffer, chunk * bytesPerFrame))
+				return;
+			frames -= chunk;
 		}
 	}
 
@@ -80,16 +89,17 @@ namespace SoLoud
 		SDL2StaticBackendData *backend = (SDL2StaticBackendData *)aSoloud->mBackendData;
 		if (!backend)
 			return;
-		if (backend->audioDeviceID)
+		if (backend->stream)
 		{
-			// SDL holds the device lock while invoking the callback. Taking it here
-			// waits for an in-flight mix and makes every later callback return silence.
-			SDL_LockAudioDevice(backend->audioDeviceID);
+			// SDL holds the device lock while invoking the callback. Locking the
+			// stream here waits for an in-flight mix and makes every later
+			// callback observe the zeroed generation.
+			SDL_LockAudioStream(backend->stream);
 			backend->generation = 0;
 			backend->soloud = NULL;
-			SDL_UnlockAudioDevice(backend->audioDeviceID);
-			SDL_CloseAudioDevice(backend->audioDeviceID);
-			backend->audioDeviceID = 0;
+			SDL_UnlockAudioStream(backend->stream);
+			SDL_DestroyAudioStream(backend->stream);
+			backend->stream = NULL;
 		}
 		aSoloud->mBackendData = NULL;
 		delete backend;
@@ -99,7 +109,7 @@ namespace SoLoud
 	{
 		if (!SDL_WasInit(SDL_INIT_AUDIO))
 		{
-			if (SDL_InitSubSystem(SDL_INIT_AUDIO) < 0)
+			if (!SDL_InitSubSystem(SDL_INIT_AUDIO))
 			{
 				return UNKNOWN_ERROR;
 			}
@@ -113,31 +123,26 @@ namespace SoLoud
 		SDL_AudioSpec as;
 		memset(&as, 0, sizeof(as));
 		as.freq = aSamplerate;
-		as.format = SDL_AUDIO_F32LE;
+		as.format = SDL_AUDIO_F32;
 		as.channels = aChannels;
-		as.samples = aBuffer;
-		as.callback = soloud_sdl2static_audiomixer;
-		as.userdata = backend;
 
-		backend->audioDeviceID = SDL_OpenAudioDevice(NULL, 0, &as, &backend->activeAudioSpec, SDL_AUDIO_ALLOW_ANY_CHANGE & ~(SDL_AUDIO_ALLOW_FORMAT_CHANGE | SDL_AUDIO_ALLOW_CHANNELS_CHANGE));
-		if (backend->audioDeviceID == 0)
+		backend->stream = SDL_OpenAudioDeviceStream(
+			SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &as,
+			soloud_sdl2static_audiomixer, backend);
+		if (backend->stream == NULL)
 		{
-			as.format = SDL_AUDIO_S16LE;
-			backend->audioDeviceID = SDL_OpenAudioDevice(NULL, 0, &as, &backend->activeAudioSpec, SDL_AUDIO_ALLOW_ANY_CHANGE & ~(SDL_AUDIO_ALLOW_FORMAT_CHANGE | SDL_AUDIO_ALLOW_CHANNELS_CHANGE));
-			if (backend->audioDeviceID == 0)
-			{
-				delete backend;
-				return UNKNOWN_ERROR;
-			}
+			delete backend;
+			return UNKNOWN_ERROR;
 		}
+		SDL_GetAudioStreamFormat(backend->stream, &backend->activeAudioSpec, NULL);
 
-		aSoloud->postinit_internal(backend->activeAudioSpec.freq, backend->activeAudioSpec.samples, aFlags, backend->activeAudioSpec.channels);
+		aSoloud->postinit_internal(backend->activeAudioSpec.freq, aBuffer, aFlags, backend->activeAudioSpec.channels);
 
 		aSoloud->mBackendData = backend;
 		aSoloud->mBackendCleanupFunc = soloud_sdl2static_deinit;
 
-		SDL_PauseAudioDevice(backend->audioDeviceID, 0);
-		aSoloud->mBackendString = "SDL2 (static)";
+		SDL_ResumeAudioStreamDevice(backend->stream);
+		aSoloud->mBackendString = "SDL3 (static)";
 		return 0;
 	}	
 };
