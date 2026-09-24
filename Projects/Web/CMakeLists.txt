@@ -777,10 +777,15 @@ if(DORA_WEB_LINK_PLAYER)
 				$<TARGET_OBJECTS:dora-web-link-deps>
 				$<TARGET_OBJECTS:dora-web-love-compile-probe>
 				$<TARGET_OBJECTS:dora-web-love-node-compile-probe>)
-			target_link_libraries(dora-web-love-pthread-player PRIVATE ${DORA_WEB_LOVE_PROBE_LIBRARIES})
-		if(TARGET SDL3-web-pthread)
-			target_link_libraries(dora-web-love-pthread-player PRIVATE SDL3-web-pthread)
+			# pthread player 必须用 pthread 变体的 SDL3，剔除共享列表里的普通变体
+		set(DORA_WEB_PTHREAD_PLAYER_LIBRARIES "${DORA_WEB_LOVE_PROBE_LIBRARIES}")
+		if(TARGET SDL3-web)
+			list(REMOVE_ITEM DORA_WEB_PTHREAD_PLAYER_LIBRARIES SDL3-web)
 		endif()
+		if(TARGET SDL3-web-pthread)
+			list(APPEND DORA_WEB_PTHREAD_PLAYER_LIBRARIES SDL3-web-pthread)
+		endif()
+		target_link_libraries(dora-web-love-pthread-player PRIVATE ${DORA_WEB_PTHREAD_PLAYER_LIBRARIES})
 			target_compile_definitions(dora-web-love-pthread-player PRIVATE
 				${DORA_WEB_ENGINE_DEFINITIONS}
 				DORA_WEB_LOVE_PROBE)
