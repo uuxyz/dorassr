@@ -109,10 +109,10 @@ NS_DORA_END
 
 static DoraGameDocumentPicker* gameDocumentPicker;
 static UIViewController* gamePresenter(SDL_Window* window) {
-	SDL_SysWMinfo info;
-	SDL_VERSION(&info.version);
-	if (!SDL_GetWindowWMInfo(window, &info)) return nil;
-	UIViewController* controller = info.info.uikit.window.rootViewController;
+	SDL_PropertiesID props = SDL_GetWindowProperties(window);
+	UIWindow* uiWindow = s_cast<UIWindow*>(SDL_GetPointerProperty(props, SDL_PROP_WINDOW_UIKIT_WINDOW_POINTER, nullptr));
+	if (!uiWindow) return nil;
+	UIViewController* controller = uiWindow.rootViewController;
 	while (controller.presentedViewController) controller = controller.presentedViewController;
 	return controller;
 }
@@ -168,12 +168,12 @@ NS_DORA_END
 NS_DORA_BEGIN
 Rect Application::getSafeArea() {
 	@autoreleasepool {
-		SDL_SysWMinfo wmi;
-		SDL_VERSION(&wmi.version);
-		if (!SDL_GetWindowWMInfo(_sdlWindow, &wmi)) {
+		SDL_PropertiesID props = SDL_GetWindowProperties(_sdlWindow);
+		UIWindow* uiWindow = s_cast<UIWindow*>(SDL_GetPointerProperty(props, SDL_PROP_WINDOW_UIKIT_WINDOW_POINTER, nullptr));
+		if (!uiWindow) {
 			return Rect{0.0f, 0.0f, s_cast<float>(_visualWidth), s_cast<float>(_visualHeight)};
 		}
-		UIView* view = wmi.info.uikit.window.rootViewController.view;
+		UIView* view = uiWindow.rootViewController.view;
 		UIEdgeInsets insets = view.safeAreaInsets;
 		return Rect{s_cast<float>(insets.left), s_cast<float>(insets.bottom),
 			std::max(s_cast<float>(_visualWidth - insets.left - insets.right), 0.0f),
@@ -214,10 +214,10 @@ bool Application::setAudioMixWithSystem(bool mix) {
 }
 
 void Application::updateWindowSize() {
-	SDL_SysWMinfo wmi;
-	SDL_VERSION(&wmi.version);
-	SDL_GetWindowWMInfo(_sdlWindow, &wmi);
-	CALayer* layer = wmi.info.uikit.window.rootViewController.view.layer;
+	SDL_PropertiesID props = SDL_GetWindowProperties(_sdlWindow);
+	UIWindow* uiWindow = s_cast<UIWindow*>(SDL_GetPointerProperty(props, SDL_PROP_WINDOW_UIKIT_WINDOW_POINTER, nullptr));
+	if (!uiWindow) return;
+	CALayer* layer = uiWindow.rootViewController.view.layer;
 	CGRect frame = layer.frame;
 	for (NSUInteger i = 0; i < layer.sublayers.count; i++) {
 		layer.sublayers[i].frame = frame;
