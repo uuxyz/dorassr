@@ -82,6 +82,7 @@
 		"test:log-buffer": "node scripts/test-log-buffer.mjs",
 		"test:agent-patch-batch": "node scripts/test-agent-patch-batch.mjs",
 		"test:agent-auto-scroll": "node scripts/test-agent-auto-scroll.mjs",
+		"test:first-project-tour": "node scripts/test-first-project-tour.mjs",
 		"test:agent-render-window": "node scripts/test-agent-render-window.mjs",
 		"test:agent-session-snapshot": "node scripts/test-agent-session-snapshot.mjs",
 		"test:agent-step-budget": "node scripts/test-agent-step-budget.mjs",
@@ -102,6 +103,7 @@
 		"test:heavy-assets": "node scripts/test-heavy-assets.mjs",
 		"test:lodash-amd": "node scripts/test-lodash-amd.mjs",
 		"test:xrt-network-wrapper": "node scripts/test-xrt-network-wrapper.mjs",
+		"test:auth-signature": "node scripts/test-auth-signature.mjs",
 		"preview": "vite preview",
 		"lint": "oxlint src",
 		"postinstall": "node scripts/copy-typescript.js"

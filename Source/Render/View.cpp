@@ -177,7 +177,7 @@ bool View::isPostProcessNeeded() const noexcept {
 }
 
 float View::getStandardDistance() const noexcept {
-	return _size.height * 0.5f / std::tan(bx::toRad(_fieldOfView) * 0.5f);
+	return _size.height * 0.5f / std::tan(ktm::radians(_fieldOfView) * 0.5f);
 }
 
 float View::getAspectRatio() const noexcept {
@@ -212,8 +212,8 @@ float View::getFieldOfView() const noexcept {
 }
 
 void View::updateProjection() {
-	bx::mtxProj(
-		_projection.m,
+	Matrix::perspective(
+		_projection,
 		_fieldOfView,
 		getAspectRatio(),
 		_nearPlaneDistance,

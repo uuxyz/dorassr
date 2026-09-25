@@ -59,7 +59,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #define DORA_VERSION "1.9.3"_slice
 #endif
 #ifndef DORA_REVISION
-#define DORA_REVISION "5"_slice
+#define DORA_REVISION "7"_slice
 #endif
 
 namespace {

@@ -10,7 +10,6 @@
 using namespace Dora;
 
 #include "bx/timer.h"
-#include "bx/math.h"
 #include "bgfx/bgfx.h"
 
 #include <limits.h> // INT_MAX
