@@ -114,12 +114,11 @@ static const char* getShaderProfile(
 ) {
     switch (renderer) {
         case DoraShadercRenderer_OpenGL:
-            // Keep desktop OpenGL shader output compatible with the legacy
-            // contexts supported by bgfx. The GL backend can promote this
-            // profile when a shader actually requires newer features, while
-            // emitting GLSL 4.30 unconditionally makes `texture()` invalid
-            // on GLSL 1.20 drivers.
-            return "120";
+            // The vendored shaderc compiles ESSL through desktop GLSL 430 +
+            // SPIR-V Cross and only accepts desktop profiles from 330 up
+            // (GLSL <= 150 was dropped with the bgfx upgrade). 330 is the
+            // lowest profile it can still emit for desktop GL.
+            return "330";
         case DoraShadercRenderer_OpenGLES:
             return stage == DoraShadercStage_Compute ? "310_es" : "300_es";
         case DoraShadercRenderer_Metal:
