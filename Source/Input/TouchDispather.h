@@ -98,6 +98,7 @@ protected:
 	bool up(const SDL_Event& event);
 	bool down(const SDL_Event& event);
 	bool move(const SDL_Event& event);
+	bool gesture();
 	void mouseMove(const SDL_Event& event);
 	bool wheel(const SDL_Event& event);
 
