@@ -474,8 +474,7 @@ add_library(main SHARED
 	src/main/cpp/3rdParty/soloud/filter/soloud_freeverbfilter.cpp
 	src/main/cpp/3rdParty/soloud/filter/soloud_biquadresonantfilter.cpp
 	src/main/cpp/3rdParty/soloud/filter/soloud_waveshaperfilter.cpp
-	src/main/cpp/3rdParty/soloud/backend/sdl/soloud_sdl2.cpp
-	src/main/cpp/3rdParty/soloud/backend/sdl/soloud_sdl2_dll.c
+	src/main/cpp/3rdParty/soloud/backend/sdl2_static/soloud_sdl2_static.cpp
 	src/main/cpp/3rdParty/soloud/audiosource/wav/stb_vorbis.c
 	src/main/cpp/3rdParty/soloud/audiosource/wav/soloud_wavstream.cpp
 	src/main/cpp/3rdParty/soloud/audiosource/wav/dr_impl.cpp

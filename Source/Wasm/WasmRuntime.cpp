@@ -111,12 +111,11 @@ static bool WaGitDispose(int64_t jobId) {
 #elif BX_PLATFORM_ANDROID
 extern "C" {
 #include <jni.h>
-extern "C" JNIEnv* Android_JNI_GetEnv();
 static JavaVM* g_VM = NULL;
 static jclass g_MainActivityClass = NULL;
 static void CacheJavaVM() {
 	if (!g_VM) {
-		JNIEnv* env = Android_JNI_GetEnv();
+		JNIEnv* env = s_cast<JNIEnv*>(SDL_GetAndroidJNIEnv());
 		if (!env || env->GetJavaVM(&g_VM) != 0) {
 			Issue("Failed to get JavaVM");
 		}
