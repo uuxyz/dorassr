@@ -105,8 +105,6 @@ JNIEXPORT jstring JNICALL Java_org_ippclub_dorassr_MainActivity_nativeGetInstall
 	return jstr;
 }
 }
-extern "C" int Android_JNI_SendMessage(int command, int param);
-extern "C" JNIEnv* Android_JNI_GetEnv();
 
 extern "C" JNIEXPORT void JNICALL Java_org_ippclub_dorassr_MainActivity_nativeReceiveFile(JNIEnv* env, jclass, jstring value, jboolean picked) {
 	const jchar* text = env->GetStringChars(value, nullptr);
@@ -124,7 +122,7 @@ extern "C" JNIEXPORT void JNICALL Java_org_ippclub_dorassr_MainActivity_nativeRe
 }
 
 static bool androidFileAction(const char* name, const std::string& path) {
-	JNIEnv* env = Android_JNI_GetEnv();
+	JNIEnv* env = s_cast<JNIEnv*>(SDL_GetAndroidJNIEnv());
 	jobject activity = r_cast<jobject>(SDL_GetAndroidActivity());
 	if (!env || !activity) return false;
 	jclass clazz = env->GetObjectClass(activity);
@@ -143,7 +141,7 @@ static bool androidFileAction(const char* name, const std::string& path) {
 }
 
 static void setAndroidAppWebView(const std::string& path, bool visible) {
-	JNIEnv* env = Android_JNI_GetEnv();
+	JNIEnv* env = s_cast<JNIEnv*>(SDL_GetAndroidJNIEnv());
 	jobject activity = r_cast<jobject>(SDL_GetAndroidActivity());
 	if (!env || !activity) return;
 	jclass clazz = env->GetObjectClass(activity);
@@ -1600,7 +1598,7 @@ std::string Application::getClipboardText() const {
 
 #if BX_PLATFORM_ANDROID
 Rect Application::getSafeArea() {
-	JNIEnv* env = Android_JNI_GetEnv();
+	JNIEnv* env = s_cast<JNIEnv*>(SDL_GetAndroidJNIEnv());
 	jobject activity = r_cast<jobject>(SDL_GetAndroidActivity());
 	if (!env || !activity) {
 		return Rect{0.0f, 0.0f, s_cast<float>(_visualWidth), s_cast<float>(_visualHeight)};
@@ -1632,7 +1630,7 @@ Rect Application::getSafeArea() {
 }
 
 bool Application::isReducedMotion() const noexcept {
-	JNIEnv* env = Android_JNI_GetEnv();
+	JNIEnv* env = s_cast<JNIEnv*>(SDL_GetAndroidJNIEnv());
 	jobject activity = r_cast<jobject>(SDL_GetAndroidActivity());
 	if (!env || !activity) return false;
 	jclass clazz = env->GetObjectClass(activity);
@@ -1648,7 +1646,7 @@ bool Application::isReducedMotion() const noexcept {
 }
 
 void Application::vibrate(double seconds) {
-	JNIEnv* env = Android_JNI_GetEnv();
+	JNIEnv* env = s_cast<JNIEnv*>(SDL_GetAndroidJNIEnv());
 	jobject activity = r_cast<jobject>(SDL_GetAndroidActivity());
 	if (!env || !activity) return;
 	jclass clazz = env->GetObjectClass(activity);
@@ -1665,7 +1663,7 @@ void Application::vibrate(double seconds) {
 }
 
 bool Application::hasBackgroundMusic() const {
-	JNIEnv* env = Android_JNI_GetEnv();
+	JNIEnv* env = s_cast<JNIEnv*>(SDL_GetAndroidJNIEnv());
 	jobject activity = r_cast<jobject>(SDL_GetAndroidActivity());
 	if (!env || !activity) return false;
 	jclass clazz = env->GetObjectClass(activity);
@@ -1944,7 +1942,7 @@ exit 1
 #elif BX_PLATFORM_ANDROID
 	g_androidInstallFile = path.toString();
 	const int COMMAND_INSTALL = 0x8000;
-	Android_JNI_SendMessage(COMMAND_INSTALL, 0);
+	SDL_SendAndroidMessage(COMMAND_INSTALL, 0);
 #else
 	Error("Application.install() is not unsupported on this platform");
 #endif
