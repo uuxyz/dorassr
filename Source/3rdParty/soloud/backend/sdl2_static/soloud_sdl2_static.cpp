@@ -111,6 +111,9 @@ namespace SoLoud
 		{
 			if (!SDL_InitSubSystem(SDL_INIT_AUDIO))
 			{
+				SDL_LogError(SDL_LOGCATEGORY_APPLICATION,
+					"SoLoud SDL3 backend: SDL_InitSubSystem(SDL_INIT_AUDIO) failed: %s",
+					SDL_GetError());
 				return UNKNOWN_ERROR;
 			}
 		}
@@ -131,6 +134,9 @@ namespace SoLoud
 			soloud_sdl2static_audiomixer, backend);
 		if (backend->stream == NULL)
 		{
+			SDL_LogError(SDL_LOGCATEGORY_APPLICATION,
+				"SoLoud SDL3 backend: failed to open the default playback device (%u Hz, %u ch): %s",
+				as.freq, as.channels, SDL_GetError());
 			delete backend;
 			return UNKNOWN_ERROR;
 		}
