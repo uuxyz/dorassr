@@ -1352,7 +1352,7 @@ void ImGuiDora::begin() {
 		_mouseVisible = io.MouseDrawCursor;
 		SharedApplication.invokeInRender([this]() {
 			// Hide OS mouse cursor if ImGui is drawing it
-			_mouseVisible ? SDL_ShowCursor() : SDL_HideCursor();
+			_mouseVisible ? SDL_HideCursor() : SDL_ShowCursor();
 		});
 	}
 
