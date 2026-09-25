@@ -10,6 +10,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <algorithm>
+#include <string>
 #include <vector>
 
 /* bgfx shaderc headers */
@@ -282,6 +284,89 @@ static int getUtf8BomSize(const char* data, int size) {
         : 0;
 }
 
+/* The new vendored shaderc resolves #include only from the real filesystem,
+   but embedded runtime builds serve bgfx_shader.sh through the fileOps
+   callbacks. Expand includes textually here (recursively, with a cycle
+   guard) so those callbacks get consulted; unresolved includes are left in
+   place for shaderc's own disk resolution. */
+static bool resolveIncludes(
+    const std::string& input,
+    std::string& output,
+    const DoraShadercFileOps* fileOps,
+    std::vector<std::string>& visiting,
+    int depth
+) {
+    if (depth > 16) {
+        output += input;
+        return true;
+    }
+    size_t pos = 0;
+    bool ok = true;
+    while (pos < input.size()) {
+        size_t eol = input.find('\n', pos);
+        if (eol == std::string::npos) {
+            eol = input.size();
+        }
+        std::string line = input.substr(pos, eol - pos);
+        pos = eol + 1;
+
+        /* trim leading whitespace */
+        size_t begin = line.find_first_not_of(" \t\r");
+        if (begin == std::string::npos || line.compare(begin, 8, "#include") != 0) {
+            output += line;
+            output += '\n';
+            continue;
+        }
+        size_t lt = line.find('<', begin + 8);
+        size_t qt = line.find('"', begin + 8);
+        size_t open = std::string::npos;
+        size_t close = std::string::npos;
+        if (lt != std::string::npos && (qt == std::string::npos || lt < qt)) {
+            size_t gt = line.find('>', lt);
+            if (gt != std::string::npos) {
+                open = lt;
+                close = gt;
+            }
+        } else if (qt != std::string::npos) {
+            size_t qe = line.find('"', qt + 1);
+            if (qe != std::string::npos) {
+                open = qt;
+                close = qe;
+            }
+        }
+        if (open == std::string::npos) {
+            output += line;
+            output += '\n';
+            continue;
+        }
+        std::string name = line.substr(open + 1, close - open - 1);
+        if (std::find(visiting.begin(), visiting.end(), name) != visiting.end()) {
+            continue; /* cyclic include: drop */
+        }
+        std::vector<char> data;
+        int size = 0;
+        if (!readFile(name.c_str(), data, &size, fileOps) || size <= 0) {
+            /* Keep the line so shaderc reports the missing include itself. */
+            output += line;
+            output += '\n';
+            ok = false;
+            continue;
+        }
+        std::string included(data.data(), static_cast<size_t>(size));
+        visiting.push_back(name);
+        std::string expanded;
+        if (!resolveIncludes(included, expanded, fileOps, visiting, depth + 1)) {
+            ok = false;
+        }
+        visiting.pop_back();
+        output += expanded;
+        if (!expanded.empty() && expanded.back() != '\n') {
+            output += '\n';
+        }
+    }
+    return ok;
+}
+
 static DoraShadercResult compileSourceInternal(
     const char* source,
     int sourceSize,
@@ -376,11 +461,18 @@ static DoraShadercResult compileSourceInternal(
     }
 
     const int bomSize = getUtf8BomSize(source, sourceSize);
-    int mutableSourceSize = sourceSize - bomSize;
+    std::string sourceText(source + bomSize, static_cast<size_t>(sourceSize - bomSize));
+    {
+        std::string resolved;
+        std::vector<std::string> visiting;
+        resolveIncludes(sourceText, resolved, options->fileOps, visiting, 0);
+        sourceText = std::move(resolved);
+    }
+    int mutableSourceSize = static_cast<int>(sourceText.size());
     const int extraPadding = 16384;
     char* shaderBuffer = new char[(size_t)mutableSourceSize + extraPadding + 1];
     memset(shaderBuffer, 0, (size_t)mutableSourceSize + extraPadding + 1);
-    memcpy(shaderBuffer, source + bomSize, (size_t)mutableSourceSize);
+    memcpy(shaderBuffer, sourceText.data(), (size_t)mutableSourceSize);
     shaderBuffer[(size_t)mutableSourceSize] = '\n';
 
     MemoryWriter bytecodeWriter;
