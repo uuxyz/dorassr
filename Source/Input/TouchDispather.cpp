@@ -683,8 +683,8 @@ void UITouchHandler::handleEvent(const SDL_Event& event) {
 
 /* SDL3 removed the multigesture event. Rebuild the same "Gesture" payload
    (centroid position, finger count, normalized pinch delta, rotation delta
-   in degrees) from raw finger events. The tracker updates exactly once per
-   event when it is queued, then every NodeTouchHandler reads the snapshot. */
+   in degrees) from raw finger events. Prepare a batch once, then let each
+   NodeTouchHandler read that batch's snapshot. */
 
 /* TouchDispatcher */
 
@@ -697,12 +697,9 @@ void TouchDispatcher::add(const SDL_Event& event) {
 	} else if (event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
 		SDL_CaptureMouse(false);
 	}
-	SDL_Event stamped = event;
-	stamped.common.timestamp = SDL_GetTicks();
-	_events.push_back(stamped);
-}
-	{
-		/* 临时诊断：无采样记录全部原始输入事件（含 64 位完整 ID 与毫秒时戳） */
+	/* Opt-in raw event trace. SDL3 timestamps are nanoseconds. */
+	static const bool traceInput = std::getenv("DORA_INPUT_TRACE") != nullptr;
+	if (traceInput) {
 		const char* name = nullptr;
 		switch (event.type) {
 			case SDL_EVENT_FINGER_DOWN: name = "FINGER_DOWN"; break;
@@ -717,29 +714,31 @@ void TouchDispatcher::add(const SDL_Event& event) {
 		if (name) {
 			static uint64_t seq = 0;
 			++seq;
-			Uint64 ms = SDL_GetTicks();
+			const Uint64 now = SDL_GetTicksNS();
+			const Uint64 ageMs = event.common.timestamp && now >= event.common.timestamp
+				? (now - event.common.timestamp) / SDL_NS_PER_MS : 0;
 			if (event.type == SDL_EVENT_FINGER_DOWN || event.type == SDL_EVENT_FINGER_UP ||
 				event.type == SDL_EVENT_FINGER_MOTION || event.type == SDL_EVENT_FINGER_CANCELED) {
 				std::fprintf(stdout,
-					"[InputTrace #%llu][%llums] %s touchID=%llu fingerID=%llu pos=(%.4f,%.4f)\n",
-					static_cast<unsigned long long>(seq), static_cast<unsigned long long>(ms),
+					"[InputTrace #%llu][age=%llums] %s touchID=%llu fingerID=%llu pos=(%.4f,%.4f)\n",
+					static_cast<unsigned long long>(seq), static_cast<unsigned long long>(ageMs),
 					name, static_cast<unsigned long long>(event.tfinger.touchID),
 					static_cast<unsigned long long>(event.tfinger.fingerID),
 					static_cast<double>(event.tfinger.x), static_cast<double>(event.tfinger.y));
 			} else if (event.type == SDL_EVENT_MOUSE_MOTION) {
 				std::fprintf(stdout,
-					"[InputTrace #%llu][%llums] %s which=%u pos=(%d,%d)\n",
-					static_cast<unsigned long long>(seq), static_cast<unsigned long long>(ms),
-					name, event.motion.which, event.motion.x, event.motion.y);
+					"[InputTrace #%llu][age=%llums] %s which=%u pos=(%.2f,%.2f)\n",
+					static_cast<unsigned long long>(seq), static_cast<unsigned long long>(ageMs),
+					name, event.motion.which, static_cast<double>(event.motion.x), static_cast<double>(event.motion.y));
 			} else {
 				std::fprintf(stdout,
-					"[InputTrace #%llu][%llums] %s which=%u button=%u pos=(%d,%d)\n",
-					static_cast<unsigned long long>(seq), static_cast<unsigned long long>(ms),
-					name, event.button.which, event.button.button, event.button.x, event.button.y);
+					"[InputTrace #%llu][age=%llums] %s which=%u button=%u pos=(%.2f,%.2f)\n",
+					static_cast<unsigned long long>(seq), static_cast<unsigned long long>(ageMs),
+					name, event.button.which, event.button.button,
+					static_cast<double>(event.button.x), static_cast<double>(event.button.y));
 			}
 		}
 	}
-	updateGestureState(event);
 	_events.push_back(event);
 }
 
@@ -752,29 +751,15 @@ bool TouchDispatcher::hasEvents() {
 }
 
 void TouchDispatcher::dispatch() {
-	/* 丢弃停顿期间积压的过期输入（帧停顿时事件在队列中积压，
-	   一帧内重放会让抓取→瞄准→击球瞬间完成，表现为"一点就飞"）。*/
-	constexpr Uint64 staleMs = 250;
-	Uint64 now = SDL_GetTicks();
-	bool dropped = false;
-	for (auto eit = _events.begin(); eit != _events.end();) {
-		auto e = std::any_cast<SDL_Event>(&(*eit));
-		if (now - e->common.timestamp > staleMs) {
-			eit = _events.erase(eit);
-			dropped = true;
-		} else {
-			++eit;
+	if (!_gesturePrepared) {
+		/* The application has already filtered stale pointer events before
+		   forwarding them to either the dispatcher or Mouse state. */
+		for (auto& e : _events) {
+			updateGestureState(*std::any_cast<SDL_Event>(&e));
 		}
+		_gesturePrepared = true;
 	}
 	if (!_events.empty() && !_handlers.empty()) {
-		/* 手势状态只按存活事件推进（过期事件已丢弃，不参与合成） */
-		for (auto& e : _events) {
-			auto ev = std::any_cast<SDL_Event>(&e);
-			updateGestureState(*ev);
-		}
-		s_gesture.active = false;
-		s_gesture.dDist = 0.0f;
-		s_gesture.dTheta = 0.0f;
 		for (auto it = _handlers.rbegin(); it != _handlers.rend(); ++it) {
 			auto handler = it->lock();
 			for (auto eit = _events.begin(); eit != _events.end();) {
@@ -798,7 +783,10 @@ void TouchDispatcher::clearHandlers() {
 }
 
 void TouchDispatcher::clearEvents() {
-	/* 本轮触控批次的合成手势增量已分发完毕，归零等待下一批 */
+	/* Unhandled pointer events belong to this frame. Do not replay them into
+	   nodes created by a later scene (for example, after IDE project loading). */
+	_events.clear();
+	_gesturePrepared = false;
 	s_gesture.active = false;
 	s_gesture.dDist = 0.0f;
 	s_gesture.dTheta = 0.0f;
