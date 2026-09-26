@@ -1130,6 +1130,21 @@ void Application::updateDeltaTime() {
 	if (_deltaTime <= 0) {
 		_deltaTime = 1.0 / _targetFPS;
 		_lastTime = currentTime;
+		return;
+	}
+	/* Long stalls (project loading, shader compilation, debugger pauses) used
+	   to pass multi-second deltas straight into physics and animations, which
+	   made bodies explode across the screen. Clamp the step and report the
+	   stall once instead. */
+	constexpr double maxDeltaTime = 0.1;
+	if (_deltaTime > maxDeltaTime) {
+		static double lastSpikeLogged = 0.0;
+		if (currentTime - lastSpikeLogged > 3.0) {
+			Warn("frame stall: {:.3f}s delta clamped to {:.3f}s.", _deltaTime, maxDeltaTime);
+			lastSpikeLogged = currentTime;
+		}
+		_deltaTime = maxDeltaTime;
+		_lastTime = currentTime;
 	}
 }
 
