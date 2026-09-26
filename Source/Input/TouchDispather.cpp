@@ -22,12 +22,13 @@ NS_DORA_BEGIN
 /* Touch */
 
 uint32_t Touch::_source =
-#if BX_PLATFORM_EMSCRIPTEN
-	Touch::FromMouseAndTouch;
-#elif BX_PLATFORM_OSX
+#if BX_PLATFORM_OSX
 	Touch::FromMouse;
 #else
-	Touch::FromTouch;
+	/* SDL3 的 MOUSE_TOUCH_EVENTS 会为每次鼠标点击合成一套 FINGER 事件。
+	   桌面平台必须接受鼠标路径并过滤合成触摸（与 Emscripten 同策略），
+       否则触摸路径与鼠标路径被同一次点击同时触发、互相重置。 */
+	Touch::FromMouseAndTouch;
 #endif
 
 Touch::Touch(int id)
@@ -696,6 +697,48 @@ void TouchDispatcher::add(const SDL_Event& event) {
 	} else if (event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
 		SDL_CaptureMouse(false);
 	}
+	SDL_Event stamped = event;
+	stamped.common.timestamp = SDL_GetTicks();
+	_events.push_back(stamped);
+}
+	{
+		/* 临时诊断：无采样记录全部原始输入事件（含 64 位完整 ID 与毫秒时戳） */
+		const char* name = nullptr;
+		switch (event.type) {
+			case SDL_EVENT_FINGER_DOWN: name = "FINGER_DOWN"; break;
+			case SDL_EVENT_FINGER_UP: name = "FINGER_UP"; break;
+			case SDL_EVENT_FINGER_MOTION: name = "FINGER_MOTION"; break;
+			case SDL_EVENT_FINGER_CANCELED: name = "FINGER_CANCELED"; break;
+			case SDL_EVENT_MOUSE_BUTTON_DOWN: name = "MOUSE_DOWN"; break;
+			case SDL_EVENT_MOUSE_BUTTON_UP: name = "MOUSE_UP"; break;
+			case SDL_EVENT_MOUSE_MOTION: name = "MOUSE_MOTION"; break;
+			default: break;
+		}
+		if (name) {
+			static uint64_t seq = 0;
+			++seq;
+			Uint64 ms = SDL_GetTicks();
+			if (event.type == SDL_EVENT_FINGER_DOWN || event.type == SDL_EVENT_FINGER_UP ||
+				event.type == SDL_EVENT_FINGER_MOTION || event.type == SDL_EVENT_FINGER_CANCELED) {
+				std::fprintf(stdout,
+					"[InputTrace #%llu][%llums] %s touchID=%llu fingerID=%llu pos=(%.4f,%.4f)\n",
+					static_cast<unsigned long long>(seq), static_cast<unsigned long long>(ms),
+					name, static_cast<unsigned long long>(event.tfinger.touchID),
+					static_cast<unsigned long long>(event.tfinger.fingerID),
+					static_cast<double>(event.tfinger.x), static_cast<double>(event.tfinger.y));
+			} else if (event.type == SDL_EVENT_MOUSE_MOTION) {
+				std::fprintf(stdout,
+					"[InputTrace #%llu][%llums] %s which=%u pos=(%d,%d)\n",
+					static_cast<unsigned long long>(seq), static_cast<unsigned long long>(ms),
+					name, event.motion.which, event.motion.x, event.motion.y);
+			} else {
+				std::fprintf(stdout,
+					"[InputTrace #%llu][%llums] %s which=%u button=%u pos=(%d,%d)\n",
+					static_cast<unsigned long long>(seq), static_cast<unsigned long long>(ms),
+					name, event.button.which, event.button.button, event.button.x, event.button.y);
+			}
+		}
+	}
 	updateGestureState(event);
 	_events.push_back(event);
 }
@@ -709,7 +752,29 @@ bool TouchDispatcher::hasEvents() {
 }
 
 void TouchDispatcher::dispatch() {
+	/* 丢弃停顿期间积压的过期输入（帧停顿时事件在队列中积压，
+	   一帧内重放会让抓取→瞄准→击球瞬间完成，表现为"一点就飞"）。*/
+	constexpr Uint64 staleMs = 250;
+	Uint64 now = SDL_GetTicks();
+	bool dropped = false;
+	for (auto eit = _events.begin(); eit != _events.end();) {
+		auto e = std::any_cast<SDL_Event>(&(*eit));
+		if (now - e->common.timestamp > staleMs) {
+			eit = _events.erase(eit);
+			dropped = true;
+		} else {
+			++eit;
+		}
+	}
 	if (!_events.empty() && !_handlers.empty()) {
+		/* 手势状态只按存活事件推进（过期事件已丢弃，不参与合成） */
+		for (auto& e : _events) {
+			auto ev = std::any_cast<SDL_Event>(&e);
+			updateGestureState(*ev);
+		}
+		s_gesture.active = false;
+		s_gesture.dDist = 0.0f;
+		s_gesture.dTheta = 0.0f;
 		for (auto it = _handlers.rbegin(); it != _handlers.rend(); ++it) {
 			auto handler = it->lock();
 			for (auto eit = _events.begin(); eit != _events.end();) {
