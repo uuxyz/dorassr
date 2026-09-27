@@ -36,9 +36,6 @@ importers:
       '@emotion/styled':
         specifier: ^11.14.1
         version: 11.14.1(@emotion/react@11.14.0(@types/react@19.2.15)(react@19.2.6)(supports-color@7.2.0))(@types/react@19.2.15)(react@19.2.6)(supports-color@7.2.0)
-      '@esotericsoftware/spine-player':
-        specifier: 4.3.5
-        version: 4.3.5
       '@fortawesome/fontawesome-free':
         specifier: ^5.15.4
         version: 5.15.4
@@ -192,6 +189,10 @@ importers:
       typescript:
         specifier: 5.9.3
         version: 5.9.3
+    optionalDependencies:
+      '@esotericsoftware/spine-player':
+        specifier: 4.3.5
+        version: 4.3.5
     devDependencies:
       '@babel/core':
         specifier: ^7.29.7

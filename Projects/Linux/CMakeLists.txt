@@ -157,6 +157,9 @@ include("${DORA_ROOT}/Projects/CMake/DoraEngineSources.cmake")
 include("${DORA_ROOT}/Projects/CMake/DoraGeneratedSources.cmake")
 
 add_executable(dora-ssr ${DORA_ENGINE_SOURCES})
+if(NOT DORA_WITH_SPINE)
+	target_compile_definitions(dora-ssr PRIVATE DORA_NO_SPINE)
+endif()
 dora_add_generated_lua_sources(dora-ssr)
 
 target_link_libraries(dora-ssr z SDL2-lib LOVE-lib THEORA-lib BGFX-lib BIMGDE-lib BIMG-lib SHADERC-lib GLSLO-lib FCPP-lib BX-lib ${DORA_RENDER_LINK_LIBS} ${DBUS_LINK_LIBRARIES} DORA-lib WA-lib m dl pthread rt)

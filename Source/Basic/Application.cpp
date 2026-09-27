@@ -2327,7 +2327,9 @@ extern "C" DORA_EXPORT int dora_run(MainFunc mainFunc) {
 #include "playrho/Defines.hpp"
 #include "soloud.h"
 #include "spdlog/version.h"
+#ifndef DORA_NO_SPINE
 #include "spine/Version.h"
+#endif
 #include "sqlite3.h"
 #include "wasm3.h"
 #include "yuescript/yue_compiler.h"
@@ -2341,7 +2343,9 @@ std::string Dora::Application::getDeps() const noexcept {
 		"- PlayRho {}.{}.{}\n"
 		"- soloud {}\n"
 		"- DragonBones 5.6.3\n"
+#ifndef DORA_NO_SPINE
 		"- Spine {}\n"
+#endif
 		"- ImGui {}\n"
 		"- ImPlot {}\n"
 		"- sqlite3 {}\n"
@@ -2353,7 +2357,9 @@ std::string Dora::Application::getDeps() const noexcept {
 		LUA_VERSION_MAJOR, LUA_VERSION_MINOR, LUA_VERSION_RELEASE,
 		PLAYRHO_VERSION_MAJOR, PLAYRHO_VERSION_MINOR, PLAYRHO_VERSION_PATCH,
 		SOLOUD_VERSION,
+#ifndef DORA_NO_SPINE
 		SPINE_VERSION_STRING,
+#endif
 		IMGUI_VERSION,
 		IMPLOT_VERSION,
 		SQLITE_VERSION,
@@ -2370,7 +2376,9 @@ std::string Dora::Application::getDeps() const noexcept {
 		"- PlayRho {}.{}.{}\n"
 		"- soloud {}\n"
 		"- DragonBones 5.6.3\n"
+#ifndef DORA_NO_SPINE
 		"- Spine {}\n"
+#endif
 		"- ImGui {}\n"
 		"- ImPlot {}\n"
 		"- sqlite3 {}\n"
@@ -2386,7 +2394,9 @@ std::string Dora::Application::getDeps() const noexcept {
 		SharedLuaEngine.getTealVersion(),
 		PLAYRHO_VERSION_MAJOR, PLAYRHO_VERSION_MINOR, PLAYRHO_VERSION_PATCH,
 		SOLOUD_VERSION,
+#ifndef DORA_NO_SPINE
 		SPINE_VERSION_STRING,
+#endif
 		IMGUI_VERSION,
 		IMPLOT_VERSION,
 		SQLITE_VERSION,

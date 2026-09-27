@@ -57,9 +57,15 @@ if (features.format !== "dora-web-features" || features.version !== 2 || feature
 if (features.profiles?.core?.available !== true || features.profiles?.["dora-preset"]?.available !== true || features.profiles?.custom?.available !== true) {
 	throw new Error("Web configurable profile availability is invalid");
 }
-const requiredModules = ["lua", "content", "http", "idbfs", "doraPackage", "input", "audio", "drawNode", "sprite", "label", "renderTarget", "particle", "spine", "dragonBones", "nanoVG", "playRho2D", "entity", "platformer", "builtinLuaLibraries", "imGui"];
+const requiredModules = ["lua", "content", "http", "idbfs", "doraPackage", "input", "audio", "drawNode", "sprite", "label", "renderTarget", "particle", "dragonBones", "nanoVG", "playRho2D", "entity", "platformer", "builtinLuaLibraries", "imGui"];
 requiredModules.push("yueCompiler", "machineLearning");
 const excludedModules = ["threads", "dynamicLinking", "rustBridge", "wasmRuntime", "tealCompiler", "loveNode", "model3D", "jolt3D", "video", "workspace"];
+if (typeof features.modules?.spine !== "boolean") {
+	throw new Error("Web Spine feature flag is missing");
+}
+if (process.env.DORA_WITH_SPINE && features.modules.spine !== (process.env.DORA_WITH_SPINE === "1")) {
+	throw new Error("Web Spine feature flag does not match DORA_WITH_SPINE");
+}
 for (const moduleName of requiredModules) {
 	if (features.modules?.[moduleName] !== true) throw new Error(`required Web module is not declared: ${moduleName}`);
 }

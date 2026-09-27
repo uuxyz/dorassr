@@ -21,7 +21,8 @@ if (fs.statSync(releasePointerPath, {throwIfNoEntry: false})?.isFile()) {
 	artifactRoot = path.resolve(root, path.dirname(pointer.entry));
 	assert.ok(artifactRoot.startsWith(`${root}${path.sep}`) && fs.statSync(artifactRoot, {throwIfNoEntry: false})?.isDirectory(), "Dora Web release pointer target is missing");
 }
-const readyMessage = "lazy asset, Sprite, Label, RenderTarget, blend, scissor, stencil, Particle, Spine, DragonBones, NanoVG, PlayRho, ImGui and Lua/YueScript/Teal examples verified";
+const spineEnabled = JSON.parse(fs.readFileSync(path.join(artifactRoot, "dora-web-features.json"), "utf8")).modules.spine === true;
+const readyMessage = "lazy asset, Sprite, Label, RenderTarget, blend, scissor, stencil, Particle" + (spineEnabled ? ", Spine" : "") + ", DragonBones, NanoVG, PlayRho, ImGui and Lua/YueScript/Teal examples verified";
 const reloadCount = Number(process.env.DORA_WEB_RELOADS || 0);
 assert.ok(Number.isInteger(reloadCount) && reloadCount >= 0 && reloadCount <= 100, "DORA_WEB_RELOADS must be an integer from 0 to 100");
 const soakSeconds = Number(process.env.DORA_WEB_SOAK_SECONDS || 0);
@@ -390,7 +391,7 @@ function assertFixture(image) {
 	const particle = findColor(image, (r, g, b, x, y) => x >= 180 && x <= 240 && y >= 540 && y <= 610 && r < 120 && g > 190 && b > 210);
 	assert.ok(particle.count > 100, `Particle fixture is missing: ${JSON.stringify(particle)}`);
 	const spine = findColor(image, (r, g, b, x, y) => x >= 890 && x <= 990 && y >= 530 && y <= 630 && ((r < 80 && g > 170 && b > 180) || (r < 90 && g > 150 && b < 150)));
-	assert.ok(spine.count > 1500, `Spine fixture is missing: ${JSON.stringify(spine)}`);
+	if (spineEnabled) assert.ok(spine.count > 1500, `Spine fixture is missing: ${JSON.stringify(spine)}`);
 	const dragonBones = findColor(image, (r, g, b, x, y) => x >= 1020 && x <= 1140 && y >= 520 && y <= 640 && r > 220 && g >= 70 && g <= 190 && b < 160);
 	assert.ok(dragonBones.count > 1500, `DragonBones fixture is missing: ${JSON.stringify(dragonBones)}`);
 	const nanoVgBackground = findColor(image, (r, g, b, x, y) => x >= 100 && x <= 300 && y >= 100 && y <= 260 && r >= 55 && r <= 100 && g >= 30 && g <= 80 && b >= 90 && b <= 150);

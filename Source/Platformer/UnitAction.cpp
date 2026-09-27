@@ -17,7 +17,6 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include "Entity/Entity.h"
 #include "Lua/LuaHandler.h"
 #include "Node/Model.h"
-#include "Node/Spine.h"
 #include "Physics/PhysicsWorld.h"
 #include "Physics/Sensor.h"
 #include "Platformer/AI.h"

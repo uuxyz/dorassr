@@ -19,7 +19,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include "Basic/Database.h"
 #include "Basic/Director.h"
 #include "Basic/Scheduler.h"
+#ifndef DORA_NO_SPINE
 #include "Cache/AtlasCache.h"
+#endif
 #include "Cache/AudioCache.h"
 #include "Cache/Cache.h"
 #include "Cache/ClipCache.h"
@@ -31,7 +33,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include "Cache/ParticleCache.h"
 #include "Cache/SVGCache.h"
 #include "Cache/ShaderCache.h"
+#ifndef DORA_NO_SPINE
 #include "Cache/SkeletonCache.h"
+#endif
 #include "Cache/TextureCache.h"
 #include "Common/Async.h"
 #include "Effect/Effect.h"
@@ -65,7 +69,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include "Node/Light3D.h"
 #include "Node/Particle.h"
 #include "Node/View3D.h"
+#ifndef DORA_NO_SPINE
 #include "Node/Spine.h"
+#endif
 #include "Node/Sprite.h"
 #include "Node/TileNode.h"
 #include "Node/VGNode.h"

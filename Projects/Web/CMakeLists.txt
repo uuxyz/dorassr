@@ -60,6 +60,9 @@ endforeach()
 set(DORA_WEB_DEMO_GAME "${CMAKE_CURRENT_SOURCE_DIR}/demo-game")
 file(GLOB_RECURSE DORA_WEB_DEMO_GAME_FILES CONFIGURE_DEPENDS
 	"${DORA_WEB_DEMO_GAME}/*")
+if(NOT DORA_WITH_SPINE)
+	list(FILTER DORA_WEB_DEMO_GAME_FILES EXCLUDE REGEX "/Spine/")
+endif()
 set(DORA_WEB_DEMO_SPRITE "${DORA_ROOT}/Assets/Image/logo.png")
 set(DORA_WEB_AUDIO_FIXTURE_SCRIPT "${DORA_ROOT}/Tools/build-scripts/generate_web_audio_fixture.mjs")
 set(DORA_WEB_RENDER_FIXTURE_SCRIPT "${DORA_ROOT}/Tools/build-scripts/generate_web_render_fixtures.mjs")
@@ -180,6 +183,11 @@ if(DORA_WEB_STUDIO_AGENT_HOST)
 else()
 	set(DORA_WEB_STUDIO_AGENT_HOST_JSON false)
 endif()
+if(DORA_WITH_SPINE)
+	set(DORA_WEB_SPINE_JSON true)
+else()
+	set(DORA_WEB_SPINE_JSON false)
+endif()
 configure_file(
 	"${CMAKE_CURRENT_SOURCE_DIR}/web-features.json.in"
 	"${CMAKE_BINARY_DIR}/dora-web-features.json"
@@ -251,6 +259,9 @@ if(DORA_WEB_BUILD_ENGINE)
 		"${DORA_SOURCE_ROOT}/3rdParty/LuaSocket/src/compat.c"
 		"${DORA_SOURCE_ROOT}/3rdParty/LuaSocket/src/mime.c")
 	add_library(dora-web-engine OBJECT ${DORA_WEB_ENGINE_SOURCES})
+	if(NOT DORA_WITH_SPINE)
+		target_compile_definitions(dora-web-engine PRIVATE DORA_NO_SPINE)
+	endif()
 	dora_add_generated_lua_sources(dora-web-engine)
 	target_compile_definitions(dora-web-engine PRIVATE
 		BX_CONFIG_DEBUG=0
@@ -860,6 +871,7 @@ if(DORA_WEB_LINK_PLAYER)
 		COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${DORA_WEB_DEMO_SPRITE}" "${DORA_WEB_DEMO_STAGE}/Image/logo.png"
 		COMMAND "${DORA_WEB_NODE_EXECUTABLE}" "${DORA_WEB_AUDIO_FIXTURE_SCRIPT}" "${DORA_WEB_DEMO_STAGE}/Audio/fixture.wav" "${DORA_WEB_DEMO_STAGE}/Audio/fixture.ogg"
 		COMMAND "${DORA_WEB_NODE_EXECUTABLE}" "${DORA_WEB_RENDER_FIXTURE_SCRIPT}" "${DORA_WEB_DEMO_STAGE}"
+		COMMAND "${CMAKE_COMMAND}" "-DDORA_WITH_SPINE=${DORA_WITH_SPINE}" "-DDORA_WEB_DEMO_STAGE=${DORA_WEB_DEMO_STAGE}" -P "${CMAKE_CURRENT_SOURCE_DIR}/filter-demo-spine.cmake"
 		COMMAND "${CMAKE_COMMAND}" -E env
 			"DORA_WEB_GAME_PROFILE=${DORA_WEB_PROFILE}"
 			"DORA_WEB_EAGER_GAME_ASSETS=0"
@@ -868,7 +880,7 @@ if(DORA_WEB_LINK_PLAYER)
 			"${DORA_WEB_DEMO_STAGE}"
 			"${CMAKE_BINARY_DIR}"
 			"init.lua"
-		DEPENDS "${DORA_ROOT}/Tools/build-scripts/package_web_game.mjs" "${DORA_WEB_AUDIO_FIXTURE_SCRIPT}" "${DORA_WEB_RENDER_FIXTURE_SCRIPT}" ${DORA_WEB_DEMO_GAME_FILES} "${DORA_WEB_DEMO_SPRITE}"
+		DEPENDS "${DORA_ROOT}/Tools/build-scripts/package_web_game.mjs" "${DORA_WEB_AUDIO_FIXTURE_SCRIPT}" "${DORA_WEB_RENDER_FIXTURE_SCRIPT}" "${CMAKE_CURRENT_SOURCE_DIR}/filter-demo-spine.cmake" ${DORA_WEB_DEMO_GAME_FILES} "${DORA_WEB_DEMO_SPRITE}"
 		COMMENT "Packaging the Dora Web demo manifest")
 	add_dependencies(dora-web-player dora-web-game-package)
 endif()

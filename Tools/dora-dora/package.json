@@ -12,7 +12,6 @@
 		"@blockly/field-colour-hsv-sliders": "^6.0.12",
 		"@emotion/react": "^11.14.0",
 		"@emotion/styled": "^11.14.1",
-		"@esotericsoftware/spine-player": "4.3.5",
 		"@fortawesome/fontawesome-free": "^5.15.4",
 		"@monaco-editor/react": "^4.7.0",
 		"@mui/icons-material": "^7.3.8",
@@ -64,6 +63,9 @@
 		"synonyms": "^1.0.1",
 		"tailwindcss": "^4.3.0",
 		"typescript": "5.9.3"
+	},
+	"optionalDependencies": {
+		"@esotericsoftware/spine-player": "4.3.5"
 	},
 	"scripts": {
 		"predev": "node scripts/build-studio-compiler.cjs",

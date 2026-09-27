@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.5.0)
 project(Dora-SSR)
 
+option(DORA_WITH_SPINE "Build the optional Spine runtime" OFF)
+
 set(DORA_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../../../..)
 set(DORA_SDL2_ROOT ${DORA_ROOT}/Source/3rdParty/SDL2)
 
@@ -680,5 +682,12 @@ add_library(main SHARED
 	src/main/cpp/3rdParty/tic80/api/luaapi.c
 	src/main/cpp/3rdParty/tic80/vendor/blip-buf/blip_wasm_host.cpp
 )
+
+if(NOT DORA_WITH_SPINE)
+	get_target_property(DORA_ANDROID_SOURCES main SOURCES)
+	list(FILTER DORA_ANDROID_SOURCES EXCLUDE REGEX "/(3rdParty/spine/|Cache/(AtlasCache|SkeletonCache)\\.cpp$|Node/Spine\\.cpp$)")
+	set_property(TARGET main PROPERTY SOURCES "${DORA_ANDROID_SOURCES}")
+	target_compile_definitions(main PRIVATE DORA_NO_SPINE)
+endif()
 
 target_link_libraries(main android log EGL z GLESv1_CM GLESv2 SDL2-lib LOVE-lib THEORA-lib BGFX-lib BIMGDE-lib BIMG-lib SHADERC-lib GLSLO-lib FCPP-lib BX-lib DORA-lib)
