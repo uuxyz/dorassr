@@ -158,7 +158,7 @@ After building, executable files and related resources will be generated in the 
 <TabItem value="macos" label="macOS">
 
 #### Step 1: Configure Project
-1. Open `Projects/macOS/Dora.xcodeproj`
+1. Run `Tools/build-scripts/build_macos.sh release`, then open `Projects/macOS/build-cmake/Dora.xcodeproj`
 2. Set in Xcode:
    - Bundle Identifier
    - Application name
@@ -168,21 +168,21 @@ After building, executable files and related resources will be generated in the 
 #### Step 2: Build Project
 ```bash
 # Build through Xcode GUI or use the command below
-xcodebuild -project Projects/macOS/Dora.xcodeproj -scheme Dora -configuration Release
+cmake --build Projects/macOS/build-cmake --config Release --target Dora
 ```
 
 </TabItem>
 <TabItem value="ios" label="iOS">
 
 #### Step 1: Configure Project
-1. Open `Projects/iOS/Dora.xcodeproj`
+1. Generate a device project as described in `Projects/apple/README.md`, then open `Projects/iOS/build-cmake-device/Dora.xcodeproj`
 2. Set Bundle Identifier and developer certificate
 3. Configure app icons and launch screen
 
 #### Step 2: Build and Package
 ```bash
 # Build through Xcode GUI or use the command below
-xcodebuild -project Projects/iOS/Dora.xcodeproj -scheme Dora -configuration Release -destination generic/platform=iOS
+cmake --build Projects/iOS/build-cmake-device --config Release --target Dora
 ```
 
 </TabItem>
