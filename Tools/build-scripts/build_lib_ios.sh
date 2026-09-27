@@ -22,6 +22,8 @@ case "$BUILD_MODE" in
 		;;
 esac
 
+CARGO_ARGS+=(--features spine)
+
 "$SCRIPT_DIR/check_build_env.sh" ios lib
 
 "$SCRIPT_DIR/build_lib_sdl2.sh" ios "--$BUILD_MODE"

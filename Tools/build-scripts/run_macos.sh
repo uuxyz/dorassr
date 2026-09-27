@@ -65,7 +65,7 @@ ensure_dependencies() {
 ensure_dependencies
 
 cd "$ROOT_DIR/Source/Rust"
-cargo build --target "$RUST_TARGET"
+cargo build --features spine --target "$RUST_TARGET"
 cp "target/$RUST_TARGET/debug/libdora_runtime.a" lib/macOS/libdora_runtime.a
 xcodebuild ARCHS="$XCODE_ARCH" ONLY_ACTIVE_ARCH=NO -project ../../Projects/macOS/Dora.xcodeproj -target Dora -configuration Debug CONFIGURATION_BUILD_DIR=./build/Debug
 stop_running_dora

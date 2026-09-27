@@ -22,6 +22,10 @@ case "$BUILD_MODE" in
 		;;
 esac
 
+case "${DORA_WITH_SPINE:-0}" in
+	1|ON|on|TRUE|true) CARGO_ARGS+=(--features spine) ;;
+esac
+
 "$SCRIPT_DIR/check_build_env.sh" linux lib
 
 "$SCRIPT_DIR/build_lib_sdl2.sh" linux "--$BUILD_MODE"

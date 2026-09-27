@@ -4,4 +4,4 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-dora-ssr = { path = "../dora" }
+dora-ssr = { path = "../dora", features = ["spine"] }

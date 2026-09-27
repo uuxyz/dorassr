@@ -20,6 +20,10 @@ case "$BUILD_MODE" in
 		;;
 esac
 
+case "${DORA_WITH_SPINE:-0}" in
+	1|ON|on|TRUE|true) CARGO_ARGS+=(--features spine) ;;
+esac
+
 cd "$SCRIPT_DIR/../../Source/Rust"
 
 rustup target add i686-pc-windows-msvc

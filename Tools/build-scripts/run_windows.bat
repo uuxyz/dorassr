@@ -14,13 +14,19 @@ cd /d "%SUBDIR_PATH%"
 call "%SCRIPT_DIR%setup_cargo_target_windows.bat"
 if errorlevel 1 exit /b %errorlevel%
 
-cargo build --target i686-pc-windows-msvc
+set "SPINE_CARGO_ARGS="
+if /I "%DORA_WITH_SPINE%"=="1" set "SPINE_CARGO_ARGS=--features spine"
+if /I "%DORA_WITH_SPINE%"=="ON" set "SPINE_CARGO_ARGS=--features spine"
+cargo build %SPINE_CARGO_ARGS% --target i686-pc-windows-msvc
 if errorlevel 1 exit /b %errorlevel%
 
 copy "%DORA_CARGO_TARGET_DIR%\i686-pc-windows-msvc\debug\dora_runtime.lib" "lib\Windows\dora_runtime.lib"
 if errorlevel 1 exit /b %errorlevel%
 
-msbuild ..\..\Projects\Windows\Dora.sln -p:Configuration=Debug
+set "SPINE_MSBUILD_ARGS="
+if /I "%DORA_WITH_SPINE%"=="1" set "SPINE_MSBUILD_ARGS=-p:DoraWithSpine=true"
+if /I "%DORA_WITH_SPINE%"=="ON" set "SPINE_MSBUILD_ARGS=-p:DoraWithSpine=true"
+msbuild ..\..\Projects\Windows\Dora.sln -p:Configuration=Debug %SPINE_MSBUILD_ARGS%
 if errorlevel 1 exit /b %errorlevel%
 
 call :stop_running_dora

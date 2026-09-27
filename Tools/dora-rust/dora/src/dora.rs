@@ -111,7 +111,9 @@ mod playable;
 pub use playable::{IPlayable, Playable};
 mod model;
 pub use model::Model;
+#[cfg(feature = "spine")]
 mod spine;
+#[cfg(feature = "spine")]
 pub use spine::Spine;
 mod dragon_bone;
 pub use dragon_bone::DragonBone;
@@ -195,7 +197,8 @@ type ObjectFunc = fn(i64) -> Option<Box<dyn IObject>>;
 
 thread_local! {
     static OBJECT_MAP: LazyCell<Vec<Option<ObjectFunc>>> = LazyCell::new(|| {
-        let type_funcs = [
+        #[allow(unused_mut)] // Spine adds one type when the optional feature is enabled.
+        let mut type_funcs = vec![
             Array::type_info(),
             Dictionary::type_info(),
             Entity::type_info(),
@@ -236,7 +239,6 @@ thread_local! {
             Particle::type_info(),
             Playable::type_info(),
             Model::type_info(),
-            Spine::type_info(),
             DragonBone::type_info(),
             AlignNode::type_info(),
             EffekNode::type_info(),
@@ -269,6 +271,8 @@ thread_local! {
             Buffer::type_info(),
             VGNode::type_info(),
         ];
+        #[cfg(feature = "spine")]
+        type_funcs.push(Spine::type_info());
         let mut map: Vec<Option<ObjectFunc>> = Vec::new();
         for pair in type_funcs.iter() {
             let t = pair.0 as usize;

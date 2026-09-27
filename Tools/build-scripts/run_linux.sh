@@ -90,7 +90,11 @@ ensure_dependencies() {
 build_rust_runtime() {
 	cd "$ROOT_DIR/Source/Rust"
 	rustup target add "$RUST_TARGET"
-	cargo build --target "$RUST_TARGET"
+	local cargo_args=()
+	case "${DORA_WITH_SPINE:-0}" in
+		1|ON|on|TRUE|true) cargo_args+=(--features spine) ;;
+	esac
+	cargo build "${cargo_args[@]}" --target "$RUST_TARGET"
 	mkdir -p "lib/Linux/$RUNTIME_ARCH"
 	cp "target/$RUST_TARGET/debug/libdora_runtime.a" "lib/Linux/$RUNTIME_ARCH/libdora_runtime.a"
 }
@@ -109,7 +113,7 @@ build_linux_app() {
 		rm -rf build/CMakeCache.txt build/CMakeFiles
 	fi
 	cd build
-	cmake -DCMAKE_BUILD_TYPE=debug ..
+	cmake -DCMAKE_BUILD_TYPE=debug "-DDORA_WITH_SPINE=${DORA_WITH_SPINE:-OFF}" ..
 	cmake --build . --parallel "$jobs"
 }
 

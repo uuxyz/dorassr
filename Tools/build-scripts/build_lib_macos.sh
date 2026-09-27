@@ -23,6 +23,8 @@ case "$BUILD_MODE" in
 		;;
 esac
 
+CARGO_ARGS+=(--features spine)
+
 case "$TARGET_ARCH" in
 	arm64|aarch64)
 		RUST_TARGETS=(aarch64-apple-darwin)
