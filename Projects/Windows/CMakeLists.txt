@@ -62,7 +62,7 @@ target_include_directories(Dora PRIVATE
 	"${DORA_VENDOR_ROOT}/Effekseer")
 
 target_compile_definitions(Dora PRIVATE
-	WIN32 _WINDOWS _CRT_SECURE_NO_WARNINGS
+	WIN32 _WINDOWS _MBCS _CRT_SECURE_NO_WARNINGS
 	_SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING
 	WITH_SDL2_STATIC SDL_MAIN_HANDLED d_m3HasWASI LUA_USE_WINDOWS
 	SPDLOG_FMT_EXTERNAL
@@ -71,6 +71,7 @@ target_compile_definitions(Dora PRIVATE
 target_compile_options(Dora PRIVATE
 	$<$<COMPILE_LANGUAGE:CXX>:/FS>
 	$<$<COMPILE_LANGUAGE:CXX>:/Zc:__cplusplus>
+	$<$<COMPILE_LANGUAGE:CXX>:/Zc:preprocessor>
 	/utf-8 /wd4244 /wd4996 /wd4200 /wd4819)
 
 # The old Visual Studio project used this PCH for engine files, but excluded
