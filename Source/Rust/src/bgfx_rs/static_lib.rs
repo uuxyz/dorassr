@@ -2010,9 +2010,9 @@ pub struct VertexLayoutBuilder {
 	/// Stride.
 	pub stride: u16,
 	/// Attribute offsets.
-	pub offset: [u16; 18usize],
+	pub offset: [u16; 26usize],
 	/// Used attributes.
-	pub attributes: [u16; 18usize],
+	pub attributes: [u16; 26usize],
 }
 /// Encoders are used for submitting draw calls from multiple threads. Only one encoder
 /// per thread should be used. Use `bgfx::begin()` to obtain an encoder for a thread.
@@ -2610,6 +2610,7 @@ impl Texture {
 				format as _,
 				params.flags,
 				_mem,
+				0,
 			);
 			Texture { handle: _ret }
 		}
@@ -2691,6 +2692,7 @@ impl Texture {
 				format as _,
 				params.flags,
 				_mem,
+				0,
 			);
 			Texture { handle: _ret }
 		}
@@ -2735,6 +2737,7 @@ impl Texture {
 				format as _,
 				params.flags,
 				_mem,
+				0,
 			);
 			Texture { handle: _ret }
 		}
@@ -4741,6 +4744,7 @@ pub fn create_texture_2d(
 			format as _,
 			params.flags,
 			_mem,
+			0,
 		);
 		Texture { handle: _ret }
 	}
@@ -4822,6 +4826,7 @@ pub fn create_texture_3d(
 			format as _,
 			params.flags,
 			_mem,
+			0,
 		);
 		Texture { handle: _ret }
 	}
@@ -4866,6 +4871,7 @@ pub fn create_texture_cube(
 			format as _,
 			params.flags,
 			_mem,
+			0,
 		);
 		Texture { handle: _ret }
 	}
@@ -5198,7 +5204,7 @@ pub fn get_result(handle: &OcclusionQuery, result: &mut i32) -> OcclusionQueryRe
 /// Height of view port region.
 pub fn set_view_rect(id: ViewId, x: u16, y: u16, width: u16, height: u16) {
 	unsafe {
-		bgfx_sys::bgfx_set_view_rect(id, x, y, width, height);
+		bgfx_sys::bgfx_set_view_rect(id, x as i16, y as i16, width, height, 0.0, 1.0);
 	}
 }
 /// * `id`:

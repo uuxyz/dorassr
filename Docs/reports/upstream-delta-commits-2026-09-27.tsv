@@ -1,0 +1,81 @@
+90c1ca2dd	Merge branch 'feat/vendor-decouple': vendor decoupling, render boundary, merge-tree tooling
+983d6c4dd	feat(tools): keep-list trimming for vendor upgrades
+b6b146f7a	vendor(bx): upgrade to upstream master feadfc17 (API 129-era -> current)
+3e61ed329	fix(tools): subpath matching in keep-lists
+a48edcce2	vendor(bimg): correct UPSTREAM base to the recorded import snapshot
+b29f86d87	vendor(bimg): upgrade to upstream master e1e7634e
+bd13b88ed	vendor(bgfx): upgrade to upstream master 6b9153a3 (API 129 -> 161)
+8f47ab7e1	vendor(bgfx): engine-side migration fixes and shaderc upgrade
+5c12a88e3	vendor(bgfx): link-level integration for the embedded shaderc
+87d1fdb65	vendor(bgfx): fix CI round-1 failures across platforms
+095927b11	vendor(bgfx): CI round-2 platform fixes
+718319843	vendor(bgfx): CI round-3 fixes
+41fe32b7a	vendor(bgfx): CI round-3 fixes, part 2
+21a7a1f36	vendor(bgfx): CI round-4 fixes
+341b98ae1	vendor(bgfx): CI round-5 fixes
+ac447382c	vendor(bgfx): CI round-6 fixes
+1d30f256f	vendor(bgfx): CI round-7 fixes
+3400b7af8	build(apple): replace hand-maintained Xcode projects with a CMake generator
+7e922b78a	build(web): exclude spirv-tools mimalloc.cpp from source globs
+dddbd792a	build: CI round-8 fixes
+eeb44d451	build: CI round-9 fixes
+08c2ee259	build(apple): exclude the DBus nfd backend from Apple sources
+9aa3c930e	build(shaders): fix efkbgfx name mapping in the regeneration scripts
+6082a0c3c	build(apple): compile portable platform sources alongside the .mm files
+cb1e50af8	build(windows): link glslang/spirv instead of the removed fcpp
+e7fb8aba9	ci(apple): watch Projects/apple/** so shared Apple build changes trigger CI
+8e45a1e2a	ci(apple): touch shared build definition to trigger validation
+9d649367c	build(ios): link the simulator prebuilt libraries for simulator builds
+f5d35f6ae	build(windows): replace Dora.vcxproj/Dora.sln with an xmake app target
+99dcbf428	feat(bgfx): decouple the vendor trees and add merge-tree upgrade tooling
+3d8be993b	feat(render): isolate the render-device lifecycle behind RenderSurface
+4896bc338	feat(render): complete the render-boundary materialization
+d0c8d7544	vendor(bx): upgrade to current master
+974f3e131	vendor(bimg): upgrade to current master
+992872666	vendor(bgfx): integrate the upgraded stack with the engine
+a546bdb30	build: fix vendor-upgrade fallout across platforms
+7e5114279	build(apple): generate the Xcode project from CMake
+cbc61a53f	vendor(bgfx): sync to upstream master 81d81fb, drop the EAC routing patch
+7fb9400d1	fix(director): include bgfx.h for the new ViewId capture API
+9a8ec66e3	build: allow version/revision injection at configure time
+0233ed36d	build: version injection and third-party license inventory
+a7bb0d59f	build(nix): sync packaging with nixpkgs PR 559941, bump to v1.9.3
+abdd55fdb	build(nix): use nixpkgs for leaf header-only libraries
+d595875e7	vendor(sdl2): rebase the Dora fork onto the SDL 2.32.0 release
+5d2f76ffe	fix(sdl2): update the carried xmake.lua to 2.32.0 and restore wayland-protocols
+2c936c1ee	fix(sdl2): undef the GLES macros on iOS like the original fork
+73e50d0a5	ci: add compile caches across platforms and parallelize the Android build
+d1ed83991	ci(android): enable the Gradle cache in setup-java
+b19347918	build(linux): replace CMakeLists/makefile with xmake app target
+2ee2765f5	ci(ui): fix duplicate with block in pnpm setup
+98825a028	refactor(sdl3): apply official SDL2→SDL3 migration scripts
+3b4d30bba	refactor(sdl3): replace SysWMinfo with Properties API, clean removed hints
+ebb50c68e	refactor(sdl3): fix TouchDispather for SDL3 API
+10cad438b	refactor(sdl3): fix Content.cpp WriteIO/ReadIO signatures, Controller API updates
+026164925	refactor(sdl3): migrate all engine sources to SDL3 API
+c3fcd0f59	feat(sdl3): port SoLoud audio backend to SDL3 and switch Linux build to system SDL3
+79dba9b23	ci(linux): provision SDL3 and drop vendored SDL2 from the Linux build
+9cb86e379	fix(sdl3): invert SDL_Init/GL return-value checks for SDL3 bool semantics
+b77964dbe	ci(ui): point pnpm cache at the dora-dora lockfile
+898e92665	feat(sdl3): vendor SDL3 3.4.14 and switch all platform builds to it
+b9bb17a2f	ci(android): merge duplicate with-block in setup-go
+2b979bc0c	test(touch): track the SDL3 touchID spelling in the input contract
+a999fe85f	fix(sdl3): migrate platform-gated code paths missed by Linux builds
+1fb83dd50	fix(windows): copy the MSBuild per-config SDL3 static lib output
+c3c413b6e	fix(web): adapt the last SDL_WriteIO call to the SDL3 signature
+bd2f9e0f6	fix(sdl3): SDL_GetBasePath returns an SDL-owned cached pointer
+e020c4cf0	ci(appimage): provision SDL3 on the ubuntu-22.04 AppImage runners
+1d4d42634	fix(sdl3): platform fixes surfaced by the first CI round
+bc4a1eb40	fix(apple): link the SDL3-required AVFoundation/UTType/CoreBluetooth frameworks
+dcec1af65	fix(ci): SDL3 Android jar target off; Web SDL3 variant follows the pthread profile
+9cea63304	fix(ios): SDL_GetWindowFullscreenMode returns a pointer in SDL3
+ff564900f	fix(android,ios): cargo target-dir nesting and the OpenGLES framework
+995a71d48	fix(sdl3): iOS app entry and Android shared library packaging
+5ee6aff59	fix(android): SDL3 public JNI APIs and the soloud SDL3 backend
+53846e2b9	feat(touch): rebuild multigesture on SDL3 finger events
+90327c971	fix(soloud): surface the SDL error when the SDL3 audio backend fails
+1c14b407a	fix(soloud): correct the SDL log category constant name
+a93290612	fix(shader): request GLSL 330 for runtime GL shader compilation
+f8ad98e49	fix(shader): resolve runtime shader includes through the fileOps callbacks
+331bfa1c3	fix(gui): un-invert the OS cursor visibility logic in the ImGui backend
+5aeaf6ce6	fix(core): clamp frame delta time to 0.1s with stall diagnostics

@@ -1150,11 +1150,11 @@ void Director::ProfilerInfo::update(double deltaTime) {
 			writer.Key("transientVertexBytes");
 			writer.Int(std::max(bgfx::getStats()->transientVbUsed, 0));
 			writer.Key("transientVertexCapacity");
-			writer.Uint(bgfx::getCaps()->limits.transientVbSize);
+			writer.Uint(bgfx::getCaps()->limits.maxTransientVbSize);
 			writer.Key("transientIndexBytes");
 			writer.Int(std::max(bgfx::getStats()->transientIbUsed, 0));
 			writer.Key("transientIndexCapacity");
-			writer.Uint(bgfx::getCaps()->limits.transientIbSize);
+			writer.Uint(bgfx::getCaps()->limits.maxTransientIbSize);
 			writer.Key("tri");
 			writer.Int(s_cast<int>(bgfx::getStats()->numPrims[bgfx::Topology::TriStrip] + bgfx::getStats()->numPrims[bgfx::Topology::TriList]));
 			writer.Key("line");

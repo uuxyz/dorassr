@@ -457,6 +457,11 @@ if(DORA_WEB_LINK_PLAYER)
 		SHADERC_CONFIG_HLSL=0
 		SHADERC_CONFIG_METAL=0
 		SHADERC_CONFIG_SPIRV=0
+		# 与 Tools/bgfx/xmake.lua 的 glslang target 一致：SpvTools.cpp 的
+		# SpirvToolsDisassemble 等实现在 #if ENABLE_OPT 内，缺宏则链接失败；
+		# glslang 的 HLSL 前端同样由 ENABLE_HLSL 启用。
+		ENABLE_OPT=1
+		ENABLE_HLSL=1
 	)
 	if(DORA_WEB_PTHREADS)
 		# pthread 版 player 依赖 Love 线程 worker；新 bx 默认在 Emscripten 上
@@ -487,6 +492,11 @@ if(DORA_WEB_LINK_PLAYER)
 		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/include"
 		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty"
 		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glslang"
+		# 与 Tools/bgfx/xmake.lua 的 shaderc-lib 一致：ShaderLang.h 位于
+		# glslang/glslang/Public，缺失时 shaderc.h 的 __has_include 探测失败，
+		# shaderc_glsl.cpp 会静默编译成 stub（"GLSL compiler is not compiled in."）。
+		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glslang/glslang/Public"
+		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/glslang/glslang/Include"
 		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-cross"
 		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-headers/include"
 		"${DORA_SOURCE_ROOT}/3rdParty/bgfx/3rdparty/spirv-tools"

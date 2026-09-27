@@ -306,7 +306,13 @@ void View3D::render3D(bgfx::ViewId viewId) {
 	if (!surfaces.empty()) {
 		for (auto surface : surfaces) surface->prepare(*camera);
 		SharedView.pushBack("Surface3D"_slice, [&]() {
-			SharedDirector.bindGameCaptureView(SharedView.getId());
+			const auto surfaceViewId = SharedView.getId();
+			SharedDirector.bindGameCaptureView(surfaceViewId);
+			// This is a separate bgfx view. Surface3D's 2D renderer needs the
+			// same camera projection that renderDirect() uses to align its plane
+			// with the 3D scene, including when the camera looks off-axis.
+			bgfx::setViewTransform(surfaceViewId, nullptr, directorViewProj.m);
+
 			for (auto surface : surfaces) surface->renderPrepared();
 		});
 	}

@@ -20,6 +20,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include "GUI/ImGuiDora.h"
 #include "Http/XrtNetwork.h"
 #include "Input/Controller.h"
+#include "Input/TouchDispather.h"
 #include "Lua/BuiltinModules.h"
 #include "Render/RenderSurface.h"
 #include "Lua/ToLua/tolua++.h"
@@ -65,6 +66,43 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 namespace {
 std::mutex receivedFileMutex;
 std::deque<std::string> receivedFiles;
+
+bool isStalePointerEvent(const SDL_Event& event) {
+	switch (event.type) {
+		case SDL_EVENT_MOUSE_BUTTON_DOWN:
+		case SDL_EVENT_MOUSE_BUTTON_UP:
+		case SDL_EVENT_MOUSE_MOTION:
+		case SDL_EVENT_MOUSE_WHEEL:
+		case SDL_EVENT_FINGER_DOWN:
+		case SDL_EVENT_FINGER_UP:
+		case SDL_EVENT_FINGER_MOTION:
+		case SDL_EVENT_FINGER_CANCELED:
+			break;
+		default:
+			return false;
+	}
+	// Both values use SDL's monotonic nanosecond clock. A zero timestamp
+	// belongs to a caller-created event and cannot be classified by age.
+	constexpr Uint64 maxAge = 250 * SDL_NS_PER_MS;
+	const Uint64 now = SDL_GetTicksNS();
+	return event.common.timestamp != 0 && now >= event.common.timestamp
+		&& now - event.common.timestamp > maxAge;
+}
+
+void discardStalePointerEvent(const SDL_Event& event) {
+	// A delayed release must still end the physical button state. Forwarding
+	// it to game nodes would replay a gesture from before the stall.
+	if (event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
+		SharedDirector.getUITouchHandler()->handleEvent(event);
+		SDL_CaptureMouse(false);
+	}
+	static const bool traceInput = std::getenv("DORA_INPUT_TRACE") != nullptr;
+	if (traceInput) {
+		const Uint64 ageMs = (SDL_GetTicksNS() - event.common.timestamp) / SDL_NS_PER_MS;
+		std::fprintf(stdout, "[InputTrace][age=%llums] discarded stale event type=%u\n",
+			static_cast<unsigned long long>(ageMs), event.type);
+	}
+}
 #if BX_PLATFORM_EMSCRIPTEN
 void setWebRuntimeState(const char* state, const char* detail = "") {
 	// The page owns lifecycle UI even when main runs on a pthread. Synchronous
@@ -1366,6 +1404,10 @@ void Application::runEmscriptenFrame() {
 			case "SDLEvent"_hash: {
 				SDL_Event sdlEvent;
 				logicEvent->get(sdlEvent);
+				if (isStalePointerEvent(sdlEvent)) {
+					discardStalePointerEvent(sdlEvent);
+					break;
+				}
 				if (sdlEvent.type == SDL_EVENT_QUIT) {
 					_logicRunning = false;
 					quitHandler();
@@ -1465,6 +1507,10 @@ int Application::mainLogic(Application* app) {
 				case "SDLEvent"_hash: {
 					SDL_Event sdlEvent;
 					event->get(sdlEvent);
+					if (isStalePointerEvent(sdlEvent)) {
+						discardStalePointerEvent(sdlEvent);
+						break;
+					}
 					switch (sdlEvent.type) {
 						case SDL_EVENT_QUIT: {
 							app->_logicRunning = false;

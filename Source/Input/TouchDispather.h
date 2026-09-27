@@ -151,6 +151,7 @@ protected:
 private:
 	std::vector<std::weak_ptr<TouchHandler>> _handlers;
 	std::list<std::any> _events;
+	bool _gesturePrepared = false;
 	SINGLETON_REF(TouchDispatcher, Director);
 };
 

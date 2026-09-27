@@ -507,14 +507,14 @@ void ImGuiDora::showStats(bool* pOpen, uint32_t windowFlags, const std::function
 			ImGui::SameLine();
 			ImGui::Text("%.2f / %.2f MiB",
 				static_cast<double>(std::max(renderStats->transientVbUsed, 0)) / (1024.0 * 1024.0),
-				static_cast<double>(renderCaps->limits.transientVbSize) / (1024.0 * 1024.0));
+				static_cast<double>(renderCaps->limits.maxTransientVbSize) / (1024.0 * 1024.0));
 			itemHovered = ImGui::IsItemHovered();
 			if (itemHovered) HelpMarker(useChinese ? u8"当前帧共享临时顶点缓冲区的使用量和容量，达到容量后后续临时几何会被安全丢弃"sv : "shared per-frame transient vertex buffer usage and capacity; later transient geometry is safely dropped when exhausted"_slice);
 			ImGui::TextColored(themeColor, useChinese ? r_cast<const char*>(u8"临时索引缓冲：") : "Transient Index Buffer:");
 			ImGui::SameLine();
 			ImGui::Text("%.2f / %.2f MiB",
 				static_cast<double>(std::max(renderStats->transientIbUsed, 0)) / (1024.0 * 1024.0),
-				static_cast<double>(renderCaps->limits.transientIbSize) / (1024.0 * 1024.0));
+				static_cast<double>(renderCaps->limits.maxTransientIbSize) / (1024.0 * 1024.0));
 			itemHovered = ImGui::IsItemHovered();
 			if (itemHovered) HelpMarker(useChinese ? u8"当前帧共享临时索引缓冲区的使用量和容量"sv : "shared per-frame transient index buffer usage and capacity"_slice);
 			ImGui::TextColored(themeColor, useChinese ? r_cast<const char*>(u8"三角形：") : "Tri:");

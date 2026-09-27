@@ -24,6 +24,22 @@ set(DORA_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../..)
 set(DORA_SOURCE_ROOT ${DORA_ROOT}/Source)
 set(DORA_BGFX_ROOT ${DORA_SOURCE_ROOT}/3rdParty/bgfx)
 
+# 嵌入 bgfx shader 头：运行时编译用户 .sc 时 bgfx_shader.sh /
+# bgfx_compute.sh 由嵌入数据提供（BgfxEmbeddedShaders.hpp 经 __has_include
+# 探测 generated/*.sh.h）。与 Tools/bgfx/xmake.lua 的 bin2c 生成保持一致，
+# 生成位置同在 Source/Shader/DoraShaderc/generated（.gitignore 已排除）。
+set(DORA_GENERATED_SHADER_DIR "${DORA_SOURCE_ROOT}/Shader/DoraShaderc/generated")
+file(MAKE_DIRECTORY "${DORA_GENERATED_SHADER_DIR}")
+function(dora_embed_text input output)
+	file(READ "${input}" hex_data HEX)
+	string(REGEX REPLACE "(..)" "0x\\1," byte_data "${hex_data}")
+	file(WRITE "${output}" "${byte_data}0x00\n")
+endfunction()
+dora_embed_text("${DORA_BGFX_ROOT}/src/bgfx_shader.sh"
+	"${DORA_GENERATED_SHADER_DIR}/bgfx_shader.sh.h")
+dora_embed_text("${DORA_BGFX_ROOT}/src/bgfx_compute.sh"
+	"${DORA_GENERATED_SHADER_DIR}/bgfx_compute.sh.h")
+
 if(NOT CMAKE_BUILD_TYPE)
 	set(CMAKE_BUILD_TYPE release)
 endif()

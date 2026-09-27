@@ -2990,22 +2990,29 @@ pub const BGFX_ATTRIB_TEXCOORD6: bgfx_attrib = 16;
 #[doc = " (16) a_texcoord6"]
 pub const BGFX_ATTRIB_TEXCOORD7: bgfx_attrib = 17;
 #[doc = " (17) a_texcoord7"]
-pub const BGFX_ATTRIB_COUNT: bgfx_attrib = 18;
+pub const BGFX_ATTRIB_TEXCOORD8: bgfx_attrib = 18;
+pub const BGFX_ATTRIB_TEXCOORD9: bgfx_attrib = 19;
+pub const BGFX_ATTRIB_TEXCOORD10: bgfx_attrib = 20;
+pub const BGFX_ATTRIB_TEXCOORD11: bgfx_attrib = 21;
+pub const BGFX_ATTRIB_TEXCOORD12: bgfx_attrib = 22;
+pub const BGFX_ATTRIB_TEXCOORD13: bgfx_attrib = 23;
+pub const BGFX_ATTRIB_TEXCOORD14: bgfx_attrib = 24;
+pub const BGFX_ATTRIB_TEXCOORD15: bgfx_attrib = 25;
+pub const BGFX_ATTRIB_COUNT: bgfx_attrib = 26;
 #[doc = " Vertex attribute enum.\n"]
 pub type bgfx_attrib = ::std::os::raw::c_uint;
 #[doc = " Vertex attribute enum.\n"]
 pub use self::bgfx_attrib as bgfx_attrib_t;
-pub const BGFX_ATTRIB_TYPE_UINT8: bgfx_attrib_type = 0;
-#[doc = " ( 0) Uint8"]
-pub const BGFX_ATTRIB_TYPE_UINT10: bgfx_attrib_type = 1;
-#[doc = " ( 1) Uint10, availability depends on: `BGFX_CAPS_VERTEX_ATTRIB_UINT10`."]
-pub const BGFX_ATTRIB_TYPE_INT16: bgfx_attrib_type = 2;
-#[doc = " ( 2) Int16"]
-pub const BGFX_ATTRIB_TYPE_HALF: bgfx_attrib_type = 3;
-#[doc = " ( 3) Half, availability depends on: `BGFX_CAPS_VERTEX_ATTRIB_HALF`."]
-pub const BGFX_ATTRIB_TYPE_FLOAT: bgfx_attrib_type = 4;
-#[doc = " ( 4) Float"]
-pub const BGFX_ATTRIB_TYPE_COUNT: bgfx_attrib_type = 5;
+pub const BGFX_ATTRIB_TYPE_INT8: bgfx_attrib_type = 0;
+pub const BGFX_ATTRIB_TYPE_UINT8: bgfx_attrib_type = 1;
+pub const BGFX_ATTRIB_TYPE_UINT10: bgfx_attrib_type = 2;
+pub const BGFX_ATTRIB_TYPE_INT16: bgfx_attrib_type = 3;
+pub const BGFX_ATTRIB_TYPE_UINT16: bgfx_attrib_type = 4;
+pub const BGFX_ATTRIB_TYPE_HALF: bgfx_attrib_type = 5;
+pub const BGFX_ATTRIB_TYPE_FLOAT: bgfx_attrib_type = 6;
+pub const BGFX_ATTRIB_TYPE_INT32: bgfx_attrib_type = 7;
+pub const BGFX_ATTRIB_TYPE_UINT32: bgfx_attrib_type = 8;
+pub const BGFX_ATTRIB_TYPE_COUNT: bgfx_attrib_type = 9;
 #[doc = " Vertex attribute type enum.\n"]
 pub type bgfx_attrib_type = ::std::os::raw::c_uint;
 #[doc = " Vertex attribute type enum.\n"]
@@ -3144,7 +3151,7 @@ pub const BGFX_TEXTURE_FORMAT_RGB9E5F: bgfx_texture_format = 65;
 #[doc = " (65)"]
 pub const BGFX_TEXTURE_FORMAT_BGRA8: bgfx_texture_format = 66;
 #[doc = " (66)"]
-pub const BGFX_TEXTURE_FORMAT_RGBA8: bgfx_texture_format = 67;
+pub const BGFX_TEXTURE_FORMAT_RGBA8: bgfx_texture_format = 74;
 #[doc = " (67)"]
 pub const BGFX_TEXTURE_FORMAT_RGBA8I: bgfx_texture_format = 68;
 #[doc = " (68)"]
@@ -3158,7 +3165,7 @@ pub const BGFX_TEXTURE_FORMAT_RGBA16I: bgfx_texture_format = 72;
 #[doc = " (72)"]
 pub const BGFX_TEXTURE_FORMAT_RGBA16U: bgfx_texture_format = 73;
 #[doc = " (73)"]
-pub const BGFX_TEXTURE_FORMAT_RGBA16F: bgfx_texture_format = 74;
+pub const BGFX_TEXTURE_FORMAT_RGBA16F: bgfx_texture_format = 81;
 #[doc = " (74)"]
 pub const BGFX_TEXTURE_FORMAT_RGBA16S: bgfx_texture_format = 75;
 #[doc = " (75)"]
@@ -3190,7 +3197,7 @@ pub const BGFX_TEXTURE_FORMAT_D16: bgfx_texture_format = 88;
 #[doc = " (88)"]
 pub const BGFX_TEXTURE_FORMAT_D24: bgfx_texture_format = 89;
 #[doc = " (89)"]
-pub const BGFX_TEXTURE_FORMAT_D24S8: bgfx_texture_format = 90;
+pub const BGFX_TEXTURE_FORMAT_D24S8: bgfx_texture_format = 98;
 #[doc = " (90)"]
 pub const BGFX_TEXTURE_FORMAT_D32: bgfx_texture_format = 91;
 #[doc = " (91)"]
@@ -3978,9 +3985,9 @@ pub struct bgfx_vertex_layout_s {
 	#[doc = " Hash."]
 	pub stride: u16,
 	#[doc = " Stride."]
-	pub offset: [u16; 18usize],
+	pub offset: [u16; 26usize],
 	#[doc = " Attribute offsets."]
-	pub attributes: [u16; 18usize],
+	pub attributes: [u16; 26usize],
 }
 #[doc = " Vertex layout.\n"]
 pub type bgfx_vertex_layout_t = bgfx_vertex_layout_s;
@@ -4483,6 +4490,7 @@ extern "C" {
 		_format: bgfx_texture_format_t,
 		_flags: u64,
 		_mem: *const bgfx_memory_t,
+		_external: u64,
 	) -> bgfx_texture_handle_t;
 }
 extern "C" {
@@ -4505,6 +4513,7 @@ extern "C" {
 		_format: bgfx_texture_format_t,
 		_flags: u64,
 		_mem: *const bgfx_memory_t,
+		_external: u64,
 	) -> bgfx_texture_handle_t;
 }
 extern "C" {
@@ -4516,6 +4525,7 @@ extern "C" {
 		_format: bgfx_texture_format_t,
 		_flags: u64,
 		_mem: *const bgfx_memory_t,
+		_external: u64,
 	) -> bgfx_texture_handle_t;
 }
 extern "C" {
@@ -4698,7 +4708,15 @@ extern "C" {
 }
 extern "C" {
 	#[doc = " Set view rectangle. Draw primitive outside view will be clipped.\n\n @param[in] _id View id.\n @param[in] _x Position x from the left corner of the window.\n @param[in] _y Position y from the top corner of the window.\n @param[in] _width Width of view port region.\n @param[in] _height Height of view port region.\n"]
-	pub fn bgfx_set_view_rect(_id: bgfx_view_id_t, _x: u16, _y: u16, _width: u16, _height: u16);
+	pub fn bgfx_set_view_rect(
+		_id: bgfx_view_id_t,
+		_x: i16,
+		_y: i16,
+		_width: u16,
+		_height: u16,
+		_minDepth: f32,
+		_maxDepth: f32,
+	);
 }
 extern "C" {
 	#[doc = " Set view rectangle. Draw primitive outside view will be clipped.\n\n @param[in] _id View id.\n @param[in] _x Position x from the left corner of the window.\n @param[in] _y Position y from the top corner of the window.\n @param[in] _ratio Width and height will be set in respect to back-buffer size.\n  See: `BackbufferRatio::Enum`.\n"]

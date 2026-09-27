@@ -123,6 +123,7 @@ pub fn create_empty_rgba8(
 			bgfx_sys::BGFX_TEXTURE_FORMAT_RGBA8,
 			sampler_flags,
 			std::ptr::null(),
+			0,
 		)
 	};
 	if texture.idx == u16::MAX {
@@ -214,6 +215,7 @@ fn create_rgba8_data(
 			bgfx_sys::BGFX_TEXTURE_FORMAT_RGBA8,
 			sampler_flags,
 			memory,
+			0,
 		)
 	};
 	if texture.idx == u16::MAX {
@@ -371,6 +373,7 @@ pub fn create_rgba16f(
 			bgfx_sys::BGFX_TEXTURE_FORMAT_RGBA16F,
 			sampler_flags,
 			memory,
+			0,
 		)
 	};
 	if texture.idx == u16::MAX {
@@ -413,6 +416,7 @@ pub fn create_cube_rgba8(
 			bgfx_sys::BGFX_TEXTURE_FORMAT_RGBA8,
 			sampler_flags,
 			std::ptr::null(),
+			0,
 		)
 	};
 	if texture.idx == u16::MAX {
@@ -455,6 +459,7 @@ pub fn create_cube_rgba16f(
 			bgfx_sys::BGFX_TEXTURE_FORMAT_RGBA16F,
 			sampler_flags,
 			std::ptr::null(),
+			0,
 		)
 	};
 	if texture.idx == u16::MAX {
