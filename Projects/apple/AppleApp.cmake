@@ -51,6 +51,8 @@ function(dora_add_apple_app)
 
 	# nfd_portal is Linux-only. The .mm files complement the portable .cpp files.
 	list(FILTER DORA_ENGINE_SOURCES EXCLUDE REGEX "/3rdParty/nfd/nfd_portal\\.cpp$")
+	list(APPEND DORA_ENGINE_SOURCES
+		"${DORA_SOURCE_ROOT}/3rdParty/soloud/backend/sdl2_static/soloud_sdl2_static.cpp")
 
 	set(DORA_APPLE_SOURCES
 		"${DORA_SOURCE_ROOT}/Basic/Application.mm"

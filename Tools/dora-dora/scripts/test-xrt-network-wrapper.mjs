@@ -24,8 +24,6 @@ assert.match(implementation, /#include "xrt\/xrt\.h"/);
 
 const projectFiles = [
 	"Projects/Android/Dora/app/CMakeLists.txt",
-	"Projects/Windows/Dora/Dora.vcxproj",
-	"Projects/Windows/Dora/Dora.vcxproj.filters",
 	"Projects/CMake/DoraEngineSources.cmake",
 ];
 for (const projectFile of projectFiles) {
@@ -34,6 +32,7 @@ for (const projectFile of projectFiles) {
 	assert.doesNotMatch(source, /XrtHttpClient\.(?:c|h)/, `${projectFile} still references the old wrapper name`);
 }
 assert.match(await readRepoFile("Projects/Linux/CMakeLists.txt"), /DoraEngineSources\.cmake/);
+assert.match(await readRepoFile("Projects/Windows/CMakeLists.txt"), /DoraEngineSources\.cmake/);
 for (const platform of ["macOS", "iOS"]) {
 	const source = await readRepoFile(`Projects/${platform}/CMakeLists.txt`);
 	assert.match(source, /AppleApp\.cmake/, `${platform} must use the shared Apple project definition`);

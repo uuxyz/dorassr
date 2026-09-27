@@ -56,6 +56,7 @@ Projects/macOS/Dora.app
 Projects/macOS/build-cmake/
 Projects/iOS/build-cmake-simulator/
 Projects/iOS/build-cmake-device/
+Projects/Windows/build-cmake/
 
 # Ignore vim swaps
 *.swp
