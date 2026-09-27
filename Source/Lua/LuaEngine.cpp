@@ -1597,10 +1597,12 @@ LuaEngine::LuaEngine()
 	tolua_beginmodule(L, "TileNode");
 	tolua_variable(L, "filter", TileNode_GetTextureFilter, TileNode_SetTextureFilter);
 	tolua_endmodule(L);
+	#ifndef DORA_NO_SPINE
 	tolua_beginmodule(L, "Spine");
 	tolua_function(L, "containsPoint", Spine_containsPoint);
 	tolua_function(L, "intersectsSegment", Spine_intersectsSegment);
 	tolua_endmodule(L);
+	#endif
 	tolua_beginmodule(L, "DragonBone");
 	tolua_function(L, "containsPoint", DragonBone_containsPoint);
 	tolua_function(L, "intersectsSegment", DragonBone_intersectsSegment);
@@ -1812,12 +1814,14 @@ LuaEngine::LuaEngine()
 		}
 		tolua_endmodule(L);
 
+		#ifndef DORA_NO_SPINE
 		tolua_beginmodule(L, "Spine");
 		{
 			tolua_function(L, "containsPoint", Spine_containsPoint);
 			tolua_function(L, "intersectsSegment", Spine_intersectsSegment);
 		}
 		tolua_endmodule(L);
+		#endif
 
 		tolua_beginmodule(L, "DragonBone");
 		{

@@ -14,13 +14,14 @@ for _, name in ipairs(require("expected")) do
 	end
 	assert(type(item) == "function", "Missing API: " .. name)
 end
-for class, names in pairs({
-	Spine = {"containsPoint", "intersectsSegment"},
+local manualMethods = {
 	DragonBone = {"containsPoint", "intersectsSegment"},
 	Particle = {"onFinished"}, Playable = {"onAnimationEnd"},
 	Body = {"onBodyEnter", "onBodyLeave", "onContactStart", "onContactEnd"},
 	AlignNode = {"onAlignLayout"}, EffekNode = {"onEffekEnd"},
-}) do
+}
+if D.Spine then manualMethods.Spine = {"containsPoint", "intersectsSegment"} end
+for class, names in pairs(manualMethods) do
 	for _, name in ipairs(names) do assert(type(D[class][name]) == "function", class .. "." .. name) end
 end
 local v = D.Vec2(3, 4)

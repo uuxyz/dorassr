@@ -100,9 +100,11 @@ thread(function()
 	assert(Content:loadAsync("Audio/fixture.wav"), "WAV fixture failed to load")
 	assert(Content:loadAsync("Audio/fixture.ogg"), "OGG fixture failed to load")
 	assert(Content:loadAsync("Particle/fire.par"), "Particle fixture failed to load")
-	assert(Content:loadAsync("Spine/web-spine.atlas"), "Spine atlas fixture failed to load")
-	assert(Content:loadAsync("Spine/web-spine.json"), "Spine skeleton fixture failed to load")
-	assert(Content:loadAsync("Spine/web-spine.png"), "Spine texture fixture failed to load")
+	if Spine then
+		assert(Content:loadAsync("Spine/web-spine.atlas"), "Spine atlas fixture failed to load")
+		assert(Content:loadAsync("Spine/web-spine.json"), "Spine skeleton fixture failed to load")
+		assert(Content:loadAsync("Spine/web-spine.png"), "Spine texture fixture failed to load")
+	end
 	assert(Content:loadAsync("DragonBones/web-dragon_ske.json"), "DragonBones skeleton fixture failed to load")
 	assert(Content:loadAsync("DragonBones/web-dragon_tex.json"), "DragonBones atlas fixture failed to load")
 	assert(Content:loadAsync("DragonBones/web-dragon.png"), "DragonBones texture fixture failed to load")
@@ -240,14 +242,16 @@ thread(function()
 	assert(particle.active, "Particle fixture failed to start")
 	Director.ui:addChild(particle)
 
-	local spine = Spine("Spine/web-spine")
-	assert(spine, "Spine fixture failed to create")
-	spine.x = 300
-	spine.y = -220
-	spine.scaleX = 0.55
-	spine.scaleY = 0.55
-	assert(spine:play("pulse", true) > 0, "Spine fixture animation failed to play")
-	Director.ui:addChild(spine)
+	if Spine then
+		local spine = Spine("Spine/web-spine")
+		assert(spine, "Spine fixture failed to create")
+		spine.x = 300
+		spine.y = -220
+		spine.scaleX = 0.55
+		spine.scaleY = 0.55
+		assert(spine:play("pulse", true) > 0, "Spine fixture animation failed to play")
+		Director.ui:addChild(spine)
+	end
 
 	local dragon = DragonBone("DragonBones/web-dragon")
 	assert(dragon, "DragonBones fixture failed to create")
@@ -331,5 +335,5 @@ thread(function()
 	runCompiledExample("Examples/YueDraw.yue", "Examples/YueDraw.lua", "_ENV = Dora")
 	runCompiledExample("Examples/TealLabel.tl", "Examples/TealLabel.lua", "local Label")
 
-	print("Dora SSR Web Player manifest game ready; lazy asset, Sprite, Label, RenderTarget, blend, scissor, stencil, Particle, Spine, DragonBones, NanoVG, PlayRho, ImGui and Lua/YueScript/Teal examples verified")
+	print("Dora SSR Web Player manifest game ready; lazy asset, Sprite, Label, RenderTarget, blend, scissor, stencil, Particle" .. (Spine and ", Spine" or "") .. ", DragonBones, NanoVG, PlayRho, ImGui and Lua/YueScript/Teal examples verified")
 end)

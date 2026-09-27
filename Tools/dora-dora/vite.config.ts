@@ -451,6 +451,7 @@ const codeWireStaticPlugin = (): Plugin => ({
 
 export default defineConfig(async ({ command, mode }) => {
 	const env = loadEnv(mode, process.cwd(), '');
+	const withSpine = env.DORA_WITH_SPINE === '1';
 	const publicUrl = env.PUBLIC_URL || '/';
 	const inspectorPlugins = command === 'serve'
 		? [(await import('code-inspector-plugin')).codeInspectorPlugin({
@@ -513,6 +514,7 @@ export default defineConfig(async ({ command, mode }) => {
 		resolve: {
 			dedupe: ['react', 'react-dom', 'react-markdown', 'remark-gfm'],
 			alias: [
+				...(withSpine ? [{ find: /^\.\/SpinePlayer$/, replacement: path.join(rootDir, 'optional/SpinePlayer.tsx') }] : []),
 				{ find: 'path', replacement: path.join(rootDir, 'src/3rdParty/Path') },
 				{ find: 'fs', replacement: emptyModule },
 				{ find: 'perf_hooks', replacement: emptyModule },

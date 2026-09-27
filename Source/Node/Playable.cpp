@@ -12,7 +12,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 #include "Node/DragonBone.h"
 #include "Node/Model.h"
+#ifndef DORA_NO_SPINE
 #include "Node/Spine.h"
+#endif
 
 NS_DORA_BEGIN
 
@@ -65,7 +67,13 @@ Playable* Playable::create(String filename) {
 	}
 	switch (Switch::hash(tokens.front())) {
 		case "model"_hash: return Model::create(tokens.back());
-		case "spine"_hash: return Spine::create(tokens.back());
+		case "spine"_hash:
+#ifndef DORA_NO_SPINE
+			return Spine::create(tokens.back());
+#else
+			Error("Spine support is not available in this build");
+			return nullptr;
+#endif
 		case "bone"_hash: return DragonBone::create(tokens.back());
 		default:
 			Error("playable str flag must be of \"model\", \"spine\" and \"bone\", got \"{}\"", tokens.front().toString());

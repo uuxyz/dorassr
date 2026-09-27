@@ -21,6 +21,7 @@ MUSIC_FEATURE="${DORA_WEB_FEATURE_MUSIC:-AUTO}"
 MODEL_3D_FEATURE="${DORA_WEB_FEATURE_MODEL_3D:-AUTO}"
 MUSIC_FEATURE_UPPER="$(printf '%s' "$MUSIC_FEATURE" | tr '[:lower:]' '[:upper:]')"
 MODEL_3D_FEATURE_UPPER="$(printf '%s' "$MODEL_3D_FEATURE" | tr '[:lower:]' '[:upper:]')"
+SPINE_FEATURE_UPPER="$(printf '%s' "${DORA_WITH_SPINE:-OFF}" | tr '[:lower:]' '[:upper:]')"
 if [[ "$STUDIO_AGENT_HOST" == "1" ]]; then
 	if [[ -z "${DORA_WEB_BUILD_DIR+x}" || -z "${DORA_WEB_PACKAGE_DIR+x}" || -z "${DORA_WEB_PLAYER_PACKAGE_DIR+x}" || "$BUILD_ENGINE" != "1" || "$LINK_PLAYER" != "1" ]]; then
 		echo "[ERROR] Studio Agent host requires explicit, separate build/probe/player directories and the full linked engine" >&2
@@ -48,7 +49,7 @@ RUST_TOOLCHAIN_ROOT="$(rustc --print sysroot)"
 RUST_REMAP_FLAGS="--remap-path-prefix=$RUST_USER_ROOT=/build-user --remap-path-prefix=$RUST_TOOLCHAIN_ROOT=/rust-toolchain"
 
 "$SCRIPT_DIR/check_web_build_env.sh"
-if [[ "$MUSIC_FEATURE_UPPER" == "ON" || "$MODEL_3D_FEATURE_UPPER" == "ON" ]]; then
+if [[ "$MUSIC_FEATURE_UPPER" == "ON" || "$MODEL_3D_FEATURE_UPPER" == "ON" || "$SPINE_FEATURE_UPPER" == "ON" || "$SPINE_FEATURE_UPPER" == "1" ]]; then
 	RUST_BUILD_ARGS=(
 		--manifest-path "$ROOT_DIR/Source/Rust/Cargo.toml"
 		--target "$DORA_WEB_RUST_TARGET"
@@ -58,6 +59,9 @@ if [[ "$MUSIC_FEATURE_UPPER" == "ON" || "$MODEL_3D_FEATURE_UPPER" == "ON" ]]; th
 	)
 	if [[ "$MUSIC_FEATURE_UPPER" == "ON" ]]; then
 		RUST_BUILD_ARGS+=(--features music)
+	fi
+	if [[ "$SPINE_FEATURE_UPPER" == "ON" || "$SPINE_FEATURE_UPPER" == "1" ]]; then
+		RUST_BUILD_ARGS+=(--features spine)
 	fi
 	RUST_BUILD_FLAGS="$RUST_REMAP_FLAGS ${RUSTFLAGS:-}"
 	if [[ "$BUILD_PTHREADS" == "1" ]]; then
@@ -85,6 +89,7 @@ CMAKE_ARGS=(
 	-DDORA_WEB_PTHREADS="$BUILD_PTHREADS"
 	-DDORA_WEB_PROFILE="$WEB_PROFILE"
 	-DDORA_WEB_STUDIO_AGENT_HOST="$STUDIO_AGENT_HOST"
+	-DDORA_WITH_SPINE="$SPINE_FEATURE_UPPER"
 )
 if [[ "$STUDIO_AGENT_HOST" == "1" ]]; then
 	CMAKE_ARGS+=(-DDORA_WEB_EXPERIMENTAL_MAIN_WORKER=OFF)

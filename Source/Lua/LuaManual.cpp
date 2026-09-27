@@ -1404,6 +1404,7 @@ void __Model_getAnimationNames(lua_State* L, String filename) {
 }
 
 /* Spine */
+#ifndef DORA_NO_SPINE
 
 void __Spine_getLookNames(lua_State* L, String spineStr) {
 	auto skelData = SharedSkeletonCache.load(spineStr);
@@ -1494,6 +1495,8 @@ tolua_lerror:
 	return 0;
 #endif
 }
+
+#endif
 
 /* DragonBone */
 

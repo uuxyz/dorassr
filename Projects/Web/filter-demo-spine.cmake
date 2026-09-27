@@ -1,0 +1,3 @@
+if(NOT DORA_WITH_SPINE)
+	file(REMOVE_RECURSE "${DORA_WEB_DEMO_STAGE}/Spine")
+endif()

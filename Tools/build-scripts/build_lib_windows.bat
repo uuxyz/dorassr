@@ -36,10 +36,14 @@ if errorlevel 1 exit /b %errorlevel%
 rustup target add i686-pc-windows-msvc
 if errorlevel 1 exit /b %errorlevel%
 
+set "SPINE_CARGO_ARGS="
+if /I "%DORA_WITH_SPINE%"=="1" set "SPINE_CARGO_ARGS=--features spine"
+if /I "%DORA_WITH_SPINE%"=="ON" set "SPINE_CARGO_ARGS=--features spine"
+
 if /I "%BUILD_MODE%"=="release" (
-	cargo build --release --target i686-pc-windows-msvc
+	cargo build --release %SPINE_CARGO_ARGS% --target i686-pc-windows-msvc
 ) else (
-	cargo build --target i686-pc-windows-msvc
+	cargo build %SPINE_CARGO_ARGS% --target i686-pc-windows-msvc
 )
 if errorlevel 1 exit /b %errorlevel%
 

@@ -2,6 +2,8 @@
 # Platform targets may filter this list, but must not parse another target file.
 include_guard(GLOBAL)
 
+option(DORA_WITH_SPINE "Build the optional Spine runtime" OFF)
+
 set(DORA_ENGINE_SOURCES
 	${DORA_SOURCE_ROOT}/Platformer/AINode.cpp
 	${DORA_SOURCE_ROOT}/Platformer/Define.cpp
@@ -583,3 +585,7 @@ set(DORA_ENGINE_SOURCES
 	${DORA_SOURCE_ROOT}/3rdParty/tic80/api/luaapi.c
 	${DORA_SOURCE_ROOT}/3rdParty/tic80/vendor/blip-buf/blip_wasm_host.cpp
 )
+
+if(NOT DORA_WITH_SPINE)
+	list(FILTER DORA_ENGINE_SOURCES EXCLUDE REGEX "/(3rdParty/spine/|Cache/(AtlasCache|SkeletonCache)\\.cpp$|Node/Spine\\.cpp$)")
+endif()

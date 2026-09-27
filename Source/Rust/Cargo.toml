@@ -10,6 +10,7 @@ crate-type = ["staticlib"]
 [features]
 default = ["music"]
 music = ["dep:ebur128", "dep:lewton", "dep:rustysynth"]
+spine = ["dora-ssr/spine"]
 
 [dependencies]
 dora-ssr = { path = "../../Tools/dora-rust/dora" }

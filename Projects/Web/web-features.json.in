@@ -31,7 +31,7 @@
     "label": true,
     "renderTarget": true,
     "particle": true,
-    "spine": true,
+    "spine": @DORA_WEB_SPINE_JSON@,
     "dragonBones": true,
     "nanoVG": true,
     "playRho2D": @DORA_WEB_FEATURE_PHYSICS_2D_JSON@,
