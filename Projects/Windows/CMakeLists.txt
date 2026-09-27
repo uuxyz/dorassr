@@ -59,7 +59,8 @@ target_include_directories(Dora PRIVATE
 	"${DORA_VENDOR_ROOT}/dragonBones"
 	"${DORA_VENDOR_ROOT}/wasm3"
 	"${DORA_VENDOR_ROOT}/Zip/zlib"
-	"${DORA_VENDOR_ROOT}/Effekseer")
+	"${DORA_VENDOR_ROOT}/Effekseer"
+	"${DORA_VENDOR_ROOT}/theora/include")
 
 target_compile_definitions(Dora PRIVATE
 	WIN32 _WINDOWS _MBCS _CRT_SECURE_NO_WARNINGS
