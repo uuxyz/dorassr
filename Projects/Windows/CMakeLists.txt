@@ -92,7 +92,6 @@ target_link_libraries(Dora PRIVATE
 	"${DORA_SDL2_DIR}/SDL2.lib"
 	"${DORA_VENDOR_ROOT}/Love/Artifacts/Windows/love.lib"
 	"${DORA_THEORA_DIR}/theoradec.lib"
-	"${DORA_VENDOR_ROOT}/Wa/Lib/Windows/wa.lib"
 	"${DORA_SOURCE_ROOT}/Rust/lib/Windows/dora_runtime.lib"
 	"${DORA_BGFX_DIR}/bgfx.lib"
 	"${DORA_BGFX_DIR}/bimg.lib"
