@@ -65,6 +65,12 @@ if is_plat("android") then
                 envs["CARGO_TARGET_" .. env_triple:upper() .. "_LINKER"] = cc
                 os.vrunv("rustup", {"target", "add", triple}, {envs = envs, curdir = rust_dir})
                 local argv = {"build", "--locked", "--target", triple}
+                -- Vendored crates (Tools/scripts/rust-vendor.sh) enable fully
+                -- offline builds for F-Droid and distro packagers.
+                local vendored = os.isdir(path.join(rust_dir, "vendor"))
+                if vendored then
+                    table.insert(argv, "--offline")
+                end
                 if profile == "release" then
                     table.insert(argv, "--release")
                 end
@@ -201,6 +207,12 @@ if is_plat("windows") then
                 }, {envs = envs, curdir = rust_dir})
                 os.vrunv("rustup", {"target", "add", triple}, {envs = envs, curdir = rust_dir})
                 local argv = {"build", "--locked", "--target", triple}
+                -- Vendored crates (Tools/scripts/rust-vendor.sh) enable fully
+                -- offline builds for F-Droid and distro packagers.
+                local vendored = os.isdir(path.join(rust_dir, "vendor"))
+                if vendored then
+                    table.insert(argv, "--offline")
+                end
                 if profile == "release" then
                     table.insert(argv, "--release")
                 end
@@ -316,6 +328,12 @@ if is_plat("macosx", "linux") then
                 end
                 os.vrunv("rustup", {"target", "add", triple}, {envs = envs, curdir = rust_dir})
                 local argv = {"build", "--locked", "--target", triple}
+                -- Vendored crates (Tools/scripts/rust-vendor.sh) enable fully
+                -- offline builds for F-Droid and distro packagers.
+                local vendored = os.isdir(path.join(rust_dir, "vendor"))
+                if vendored then
+                    table.insert(argv, "--offline")
+                end
                 if profile == "release" then
                     table.insert(argv, "--release")
                 end
@@ -417,6 +435,12 @@ if is_plat("iphoneos") then
                 envs.IPHONEOS_DEPLOYMENT_TARGET = "13.0"
                 os.vrunv("rustup", {"target", "add", triple}, {envs = envs, curdir = rust_dir})
                 local argv = {"build", "--locked", "--target", triple}
+                -- Vendored crates (Tools/scripts/rust-vendor.sh) enable fully
+                -- offline builds for F-Droid and distro packagers.
+                local vendored = os.isdir(path.join(rust_dir, "vendor"))
+                if vendored then
+                    table.insert(argv, "--offline")
+                end
                 if profile == "release" then
                     table.insert(argv, "--release")
                 end
