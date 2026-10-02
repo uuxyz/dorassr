@@ -27,6 +27,30 @@ def prepareXmakeAndroid = tasks.register('prepareXmakeAndroid', Exec) {
 android {
 	compileSdk 34
 	buildToolsVersion = '34.0.0'
+	flavorDimensions 'distribution'
+	productFlavors {
+		// Full-featured build with the in-app self-updater. This is the
+		// historical default and what the GitHub release APK ships.
+		standard {
+			dimension 'distribution'
+			externalNativeBuild {
+				cmake {
+					arguments '-DDORA_SELF_UPDATE=ON'
+				}
+			}
+		}
+		// Store build for distribution channels whose policies forbid
+		// self-updating apps (F-Droid, Steam, Flathub, Play). Removes the
+		// package-install permission and compiles out Application.install().
+		store {
+			dimension 'distribution'
+			externalNativeBuild {
+				cmake {
+					arguments '-DDORA_SELF_UPDATE=OFF'
+				}
+			}
+		}
+	}
 	defaultConfig {
 		applicationId "org.ippclub.dorassr"
 		minSdkVersion 28

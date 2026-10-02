@@ -9,10 +9,18 @@ if(NOT ANDROID_ABI MATCHES "^(armeabi-v7a|arm64-v8a|x86_64)$")
     message(FATAL_ERROR "Unsupported Dora Android ABI: ${ANDROID_ABI}")
 endif()
 find_program(DORA_XMAKE NAMES xmake xmake.exe HINTS "$ENV{DORA_XMAKE_DIR}" /opt/homebrew/bin /usr/local/bin REQUIRED)
+# Store distributions (F-Droid, Steam, Flathub) forbid self-updating apps;
+# OFF compiles out Application.install() and drops the install permission.
+option(DORA_SELF_UPDATE "Build the in-app self-updater" ON)
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(DORA_XMAKE_MODE debug)
 else()
     set(DORA_XMAKE_MODE release)
+endif()
+if(DORA_SELF_UPDATE)
+    set(DORA_XMAKE_SELF_UPDATE y)
+else()
+    set(DORA_XMAKE_SELF_UPDATE n)
 endif()
 # Each Gradle ABI/variant has independent xmake configuration and host objects.
 # No native source list, compiler flags or dependency graph is maintained here.
@@ -24,7 +32,7 @@ execute_process(
     COMMAND "${CMAKE_COMMAND}" -E env "XMAKE_CONFIGDIR=${DORA_XMAKE_CONFIG}"
         "${DORA_XMAKE}" f -q -y -p android -a "${ANDROID_ABI}" -m "${DORA_XMAKE_MODE}"
         "--ndk=${ANDROID_NDK}" "--ndk_sdkver=${ANDROID_PLATFORM_LEVEL}"
-        "--builddir=${DORA_XMAKE_CONFIG}/build" --ccache=n
+        "--builddir=${DORA_XMAKE_CONFIG}/build" --ccache=n "--dora_self_update=${DORA_XMAKE_SELF_UPDATE}"
     WORKING_DIRECTORY "${DORA_ROOT}"
     RESULT_VARIABLE result)
 if(NOT result EQUAL 0)

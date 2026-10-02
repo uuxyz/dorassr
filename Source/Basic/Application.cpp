@@ -1623,6 +1623,14 @@ const Slice Application::getVersion() const noexcept {
 	return versionStr;
 }
 
+bool Application::isSelfUpdate() const noexcept {
+#ifdef DORA_DISABLE_SELF_UPDATE
+	return false;
+#else
+	return true;
+#endif
+}
+
 bool Application::isDebugging() const noexcept {
 #ifdef NDEBUG
 	return false;
@@ -1831,6 +1839,10 @@ bool Application::setAudioMixWithSystem(bool mix) {
 #endif
 
 void Application::install(String path) {
+#ifdef DORA_DISABLE_SELF_UPDATE
+	(void)path;
+	Error("Application.install() is disabled in this build");
+#else
 #if BX_PLATFORM_WINDOWS && !defined(DORA_AS_LIB)
 	AssertUnless(SharedContent.isAbsolutePath(path), "expecting an absolute path");
 	auto assetPath = SharedContent.getAssetPath();
@@ -2081,6 +2093,7 @@ exit 1
 #else
 	Error("Application.install() is not unsupported on this platform");
 #endif
+#endif // DORA_DISABLE_SELF_UPDATE
 }
 
 bool Application::saveLog(String filename) {

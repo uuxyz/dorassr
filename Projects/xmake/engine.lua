@@ -49,6 +49,9 @@ target("Dora")
     add_includedirs(table.unpack(dora_includedirs))
     add_defines("WITH_SDL2_STATIC", "d_m3HasWASI", "SPDLOG_FMT_EXTERNAL")
     add_defines(has_config("dora_native_tests") and "DORA_TEST=1" or "DORA_TEST=0")
+    if not has_config("dora_self_update") then
+        add_defines("DORA_DISABLE_SELF_UPDATE")
+    end
 
     on_load(function (target)
         import("core.project.config")

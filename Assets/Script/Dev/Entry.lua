@@ -381,7 +381,7 @@ updateCheck = function() -- 226
 		end -- 227
 	end) -- 226
 end -- 226
-if (config.lastUpdateCheck ~= nil) then -- 247
+if App.selfUpdate and (config.lastUpdateCheck ~= nil) then -- 247
 	local diffSeconds = os.difftime(os.time(), config.lastUpdateCheck) -- 248
 	if diffSeconds >= 7 * 24 * 60 * 60 then -- 249
 		updateCheck() -- 250
@@ -2196,7 +2196,7 @@ footerWindow = threadLoop(function() -- 1214
 							config.showConsole = showConsole -- 1308
 						end -- 1306
 					end -- 1301
-					if isInEntry and config.updateNotification then -- 1309
+					if isInEntry and config.updateNotification and App.selfUpdate then -- 1309
 						SameLine() -- 1310
 						if ImGui.Button(zh and "更新可用" or "Update") then -- 1311
 							allClear() -- 1312

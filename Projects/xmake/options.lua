@@ -48,6 +48,12 @@ option("dora_music")
     set_description("Build music support")
 option_end()
 
+option("dora_self_update")
+    set_default(true)
+    set_showmenu(true)
+    set_description("Build in-app self-update support (disable for store builds such as F-Droid, Steam and Flathub)")
+option_end()
+
 option("dora_web_pthreads")
     set_default(false)
     set_showmenu(true)

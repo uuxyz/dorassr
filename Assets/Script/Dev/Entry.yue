@@ -244,7 +244,7 @@ updateCheck = -> thread ->
 			::not_new_version::
 			config.lastUpdateCheck = os.time!
 
-if config.lastUpdateCheck?
+if App.selfUpdate and config.lastUpdateCheck?
 	diffSeconds = os.difftime os.time!, config.lastUpdateCheck
 	if diffSeconds >= 7 * 24 * 60 * 60
 		updateCheck!
@@ -1306,7 +1306,7 @@ footerWindow = threadLoop ->
 			if Button ">_", Vec2 30, 30
 				showConsole = not showConsole
 				config.showConsole = showConsole
-		if isInEntry and config.updateNotification
+		if isInEntry and config.updateNotification and App.selfUpdate
 			SameLine!
 			if ImGui.Button zh and "更新可用" or "Update"
 				allClear!

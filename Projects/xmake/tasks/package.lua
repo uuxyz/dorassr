@@ -240,6 +240,7 @@ task("dora-package")
             {nil, "arch", "kv", nil, "Target architecture (iOS: arm64 or simulator x86_64; Linux: arm64 or x86_64)"},
             {nil, "mode", "kv", "debug", "Build mode: debug or release"},
             {nil, "format", "kv", nil, "Package format: Android apk/aab, iOS zip/ipa"},
+            {nil, "flavor", "kv", "standard", "Android flavor: standard (self-updater) or store (F-Droid/Steam policy compliant)"},
             {nil, "appledev", "kv", "simulator", "iOS SDK: simulator or device"},
             {nil, "profile", "kv", nil, "Web profile: core, dora-preset or custom"},
             {nil, "pthreads", "k", nil, "Enable the pthread Web profile"}
@@ -328,8 +329,12 @@ task("dora-package")
             "Gradle requires JDK 17-20; set JAVA_HOME or install Android Studio")
 
         local gradlew = path.join(gradle_root, os.host() == "windows" and "gradlew.bat" or "gradlew")
-        local gradle_task = format == "aab" and "bundleRelease"
-            or (mode == "debug" and "assembleDebug" or "assembleRelease")
+        local flavor = option.get("flavor") or "standard"
+        assert(flavor == "standard" or flavor == "store",
+            "--flavor must be standard or store")
+        local flavorTask = flavor == "standard" and "Standard" or "Store"
+        local gradle_task = format == "aab" and ("bundle" .. flavorTask .. "Release")
+            or (mode == "debug" and ("assemble" .. flavorTask .. "Debug") or ("assemble" .. flavorTask .. "Release"))
         local gradle_args = {gradle_task}
         local signing = {
             store = os.getenv("DORA_ANDROID_SIGNING_STORE_FILE"),
@@ -359,10 +364,10 @@ task("dora-package")
         })
 
         local artifact = format == "aab"
-            and path.join(gradle_root, "app/build/outputs/bundle/release/app-release.aab")
-            or path.join(gradle_root, "app/build/outputs/apk", mode,
-                mode == "debug" and "app-debug.apk"
-                    or (any_signing and "app-release.apk" or "app-release-unsigned.apk"))
+            and path.join(gradle_root, "app/build/outputs/bundle", flavor, "release/app-" .. flavor .. "-release.aab")
+            or path.join(gradle_root, "app/build/outputs/apk", flavor, mode,
+                mode == "debug" and ("app-" .. flavor .. "-debug.apk")
+                    or (any_signing and ("app-" .. flavor .. "-release.apk") or ("app-" .. flavor .. "-release-unsigned.apk")))
         assert(os.isfile(artifact), "Gradle completed without the expected Android artifact: " .. artifact)
         cprint("${green}Android package: %s${clear}", artifact)
     end)

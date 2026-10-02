@@ -14,7 +14,8 @@ add_requires("go", {
 add_requires("rust", {
     alias = "dora_rust",
     host = true,
-    system = false,
+    system = "prefer",
+    optional = true,
     plat = os.host(),
     arch = dora_host_arch
 })
@@ -22,7 +23,8 @@ add_requires("rust", {
 add_requires("rustup", {
     alias = "dora_rustup",
     host = true,
-    system = false,
+    system = "prefer",
+    optional = true,
     plat = os.host(),
     arch = dora_host_arch
 })
