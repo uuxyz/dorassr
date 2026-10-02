@@ -1597,6 +1597,7 @@ void __Model_getAnimationNames(lua_State* L, String filename) {
 	}
 }
 
+#ifndef DORA_DISABLE_SPINE
 /* Spine */
 
 void __Spine_getLookNames(lua_State* L, String spineStr) {
@@ -1688,6 +1689,7 @@ tolua_lerror:
 	return 0;
 #endif
 }
+#endif
 
 /* DragonBone */
 

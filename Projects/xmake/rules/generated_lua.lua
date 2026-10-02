@@ -55,6 +55,7 @@ target("dora-lua-bindings")
     set_values("dora.binding_outputs", table.unpack(BINDING_OUTPUTS))
     on_build(function (target)
         import("core.project.depend")
+        import("core.project.config")
         local generator = assert(target:dep("dora-tolua")):targetfile()
         local script = path.join(TOLUA_DIR, "tolua++.lua")
         local outputs = target:values("dora.binding_outputs")
@@ -84,11 +85,20 @@ target("dora-lua-bindings")
         end
         depend.on_changed(function ()
             cprint("${bright}generating Dora Lua bindings${clear}")
-            os.vrunv(generator, {script})
+            -- Spine-less builds must not emit Spine bindings: the class is
+            -- stripped from the generator inputs via DORA_TOLUA_NO_SPINE.
+            local envs = {DORA_TOLUA_FORCE = "1"}
+            if not config.get("dora_spine") then
+                envs.DORA_TOLUA_NO_SPINE = "1"
+            end
+            os.vrunv(generator, {script}, {envs = envs})
         end, {
             dependfile = path.join(state_dir, "generated_lua.d"),
             files = inputs,
-            values = outputs,
+            -- depend.is_changed compares array items only; keep the spine
+            -- state as a positional string so toggling --dora_spine
+            -- regenerates the bindings.
+            values = {outputs, "spine=" .. tostring(config.get("dora_spine"))},
             changed = missing_output
         })
         lock:close()

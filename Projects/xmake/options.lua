@@ -54,6 +54,12 @@ option("dora_self_update")
     set_description("Build in-app self-update support (disable for store builds such as F-Droid, Steam and Flathub)")
 option_end()
 
+option("dora_spine")
+    set_default(true)
+    set_showmenu(true)
+    set_description("Build Spine skeletal animation support. The Spine runtime's license is not FOSS, so distro and F-Droid builds must disable it (DragonBones stays available)")
+option_end()
+
 option("dora_web_pthreads")
     set_default(false)
     set_showmenu(true)

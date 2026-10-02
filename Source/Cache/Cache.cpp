@@ -11,7 +11,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include "Cache/Cache.h"
 
 #include "Animation/ModelDef.h"
+#ifndef DORA_DISABLE_SPINE
 #include "Cache/AtlasCache.h"
+#endif
 #include "Cache/AudioCache.h"
 #include "Cache/ClipCache.h"
 #include "Cache/DragonBoneCache.h"
@@ -36,8 +38,10 @@ bool Cache::load(String filename) {
 		switch (Switch::hash(tokens.front())) {
 			case "model"_hash:
 				return SharedModelCache.load(tokens.back()) != nullptr;
+#ifndef DORA_DISABLE_SPINE
 			case "spine"_hash:
 				return SharedSkeletonCache.load(tokens.back()) != nullptr;
+#endif
 			case "bone"_hash:
 				return SharedDragonBoneCache.load(tokens.back()).first != nullptr;
 			case "font"_hash:
@@ -49,8 +53,10 @@ bool Cache::load(String filename) {
 	std::string ext = Path::getExt(filename);
 	if (!ext.empty()) {
 		switch (Switch::hash(ext)) {
+#ifndef DORA_DISABLE_SPINE
 			case "atlas"_hash:
 				return SharedAtlasCache.load(filename) != nullptr;
+#endif
 			case "clip"_hash:
 				return SharedClipCache.load(filename) != nullptr;
 			case "frame"_hash:
@@ -97,11 +103,13 @@ void Cache::loadAsync(String filename, const std::function<void(bool)>& callback
 					callback(res != nullptr);
 				});
 				return;
+#ifndef DORA_DISABLE_SPINE
 			case "spine"_hash:
 				SharedSkeletonCache.loadAsync(tokens.back(), [callback](SkeletonData* res) {
 					callback(res != nullptr);
 				});
 				return;
+#endif
 			case "bone"_hash:
 				SharedDragonBoneCache.loadAsync(tokens.back(), [callback](bool res) {
 					callback(res);
@@ -263,15 +271,19 @@ bool Cache::unload(String name) {
 	auto tokens = name.split(":"_slice);
 	if (tokens.size() == 2) {
 		switch (Switch::hash(tokens.front())) {
+#ifndef DORA_DISABLE_SPINE
 			case "spine"_hash:
 				return SharedSkeletonCache.unload(tokens.back());
+#endif
 		}
 	}
 	std::string ext = Path::getExt(name);
 	if (!ext.empty()) {
 		switch (Switch::hash(ext)) {
+#ifndef DORA_DISABLE_SPINE
 			case "atlas"_hash:
 				return SharedAtlasCache.unload(name);
+#endif
 			case "clip"_hash:
 				return SharedClipCache.unload(name);
 			case "frame"_hash:
@@ -327,8 +339,10 @@ bool Cache::unload(String name) {
 				return SharedFontCache.unload();
 			case "Sound"_hash:
 				return SharedAudioCache.unload();
+#ifndef DORA_DISABLE_SPINE
 			case "Spine"_hash:
 				return SharedAtlasCache.unload() && SharedSkeletonCache.unload();
+#endif
 			case "TMX"_hash:
 				return SharedTMXCache.unload();
 			default: {
@@ -351,16 +365,20 @@ void Cache::unload() {
 	SharedSVGCache.unload();
 	SharedFontCache.unload();
 	SharedAudioCache.unload();
+#ifndef DORA_DISABLE_SPINE
 	SharedSkeletonCache.unload();
 	SharedAtlasCache.unload();
+#endif
 	SharedDragonBoneCache.removeUnused();
 	SharedTMXCache.unload();
 }
 
 void Cache::removeUnused() {
 	SharedDragonBoneCache.removeUnused();
+#ifndef DORA_DISABLE_SPINE
 	SharedSkeletonCache.removeUnused();
 	SharedAtlasCache.removeUnused();
+#endif
 	SharedShaderCache.removeUnused();
 	SharedModelCache.removeUnused();
 	SharedModel3DCache.removeUnused();
@@ -379,10 +397,12 @@ void Cache::removeUnused(String name) {
 		case "Bone"_hash:
 			SharedDragonBoneCache.removeUnused();
 			break;
+#ifndef DORA_DISABLE_SPINE
 		case "Spine"_hash:
 			SharedAtlasCache.removeUnused();
 			SharedSkeletonCache.removeUnused();
 			break;
+#endif
 		case "Texture"_hash:
 			SharedTextureCache.removeUnused();
 			break;

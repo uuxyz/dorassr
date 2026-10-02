@@ -995,6 +995,7 @@ static std::vector<std::string> Model_GetAnimationNames(String filename) {
 	return std::vector<std::string>();
 }
 
+#ifndef DORA_DISABLE_SPINE
 // Spine
 
 static std::vector<std::string> Spine_GetLookNames(String spineStr) {
@@ -1023,6 +1024,7 @@ static std::vector<std::string> Spine_GetAnimationNames(String spineStr) {
 	}
 	return std::vector<std::string>();
 }
+#endif
 
 // DragonBones
 
@@ -1998,7 +2000,9 @@ DORA_EXPORT float math_tan(float v) { return std::tan(v); }
 #include "Dora/SchedulerWasm.hpp"
 #include "Dora/SensorWasm.hpp"
 #include "Dora/ShaderCompilerWasm.hpp"
+#ifndef DORA_DISABLE_SPINE
 #include "Dora/SpineWasm.hpp"
+#endif
 #include "Dora/SpriteEffectWasm.hpp"
 #include "Dora/SpriteWasm.hpp"
 #include "Dora/TIC80NodeWasm.hpp"
@@ -2071,7 +2075,9 @@ static void linkAutoModule(wasm3::module3& mod) {
 	linkParticleNode(mod);
 	linkPlayable(mod);
 	linkModel(mod);
+#ifndef DORA_DISABLE_SPINE
 	linkSpine(mod);
+#endif
 	linkDragonBone(mod);
 	linkAlignNode(mod);
 	linkEffekNode(mod);

@@ -65,7 +65,9 @@ Playable* Playable::create(String filename) {
 	}
 	switch (Switch::hash(tokens.front())) {
 		case "model"_hash: return Model::create(tokens.back());
+#ifndef DORA_DISABLE_SPINE
 		case "spine"_hash: return Spine::create(tokens.back());
+#endif
 		case "bone"_hash: return DragonBone::create(tokens.back());
 		default:
 			Error("playable str flag must be of \"model\", \"spine\" and \"bone\", got \"{}\"", tokens.front().toString());

@@ -1,6 +1,10 @@
 TOLUA_VERSION = "1.0.92+dora"
 local output_change = lfs.attributes(flags.o, "modification")
-local rebuild = output_change == nil
+-- The xmake rule drives incremental generation with its own dependency
+-- tracking (including feature toggles such as --dora_spine). When it
+-- decides to run the generator it sets DORA_TOLUA_FORCE so this mtime
+-- shortcut cannot serve a stale output from a differently-configured run.
+local rebuild = output_change == nil or os.getenv("DORA_TOLUA_FORCE") ~= nil
 
 if not rebuild then
 	local input_changes = {

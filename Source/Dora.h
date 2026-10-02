@@ -65,7 +65,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include "Node/Light3D.h"
 #include "Node/Particle.h"
 #include "Node/View3D.h"
+#ifndef DORA_DISABLE_SPINE
 #include "Node/Spine.h"
+#endif
 #include "Node/Sprite.h"
 #include "Node/TileNode.h"
 #include "Node/VGNode.h"

@@ -52,6 +52,9 @@ target("Dora")
     if not has_config("dora_self_update") then
         add_defines("DORA_DISABLE_SELF_UPDATE")
     end
+    if not has_config("dora_spine") then
+        add_defines("DORA_DISABLE_SPINE")
+    end
 
     on_load(function (target)
         import("core.project.config")
@@ -63,6 +66,16 @@ target("Dora")
         end
         local manifest = import("Projects.xmake.manifests.engine", {rootdir = os.projectdir(), anonymous = true})()
         for _, source in ipairs(manifest.sources) do
+            -- Spine sources are excluded entirely (headers stay on the
+            -- include path) so its non-FOSS runtime never reaches store
+            -- and distro builds configured with --dora_spine=n.
+            if not config.get("dora_spine")
+                and (source:startswith("Source/3rdParty/spine/")
+                    or source == "Source/Node/Spine.cpp"
+                    or source == "Source/Cache/SkeletonCache.cpp"
+                    or source == "Source/Cache/AtlasCache.cpp") then
+                goto continue
+            end
             local config
             if target:is_plat("windows") and source:endswith(".c") then
                 -- Genuine C units stay in C mode; C++ code uses .cpp.
@@ -88,6 +101,7 @@ target("Dora")
                 end
                 target:add("files", rootpath(source), config)
             end
+            ::continue::
         end
         target:add("defines", is_mode("debug") and "BX_CONFIG_DEBUG=1" or "BX_CONFIG_DEBUG=0")
     end)

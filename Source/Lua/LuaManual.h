@@ -229,6 +229,7 @@ void __Model_getAnimationNames(lua_State* L, String filename);
 		return 1; \
 	}
 
+#ifndef DORA_DISABLE_SPINE
 /* Spine */
 void __Spine_getLookNames(lua_State* L, String spineStr);
 #define Spine_getLookNames(spineStr) \
@@ -244,6 +245,7 @@ void __Spine_getAnimationNames(lua_State* L, String spineStr);
 	}
 int Spine_containsPoint(lua_State* L);
 int Spine_intersectsSegment(lua_State* L);
+#endif
 
 /* DragonBone */
 void __DragonBone_getLookNames(lua_State* L, String boneStr);
