@@ -13,6 +13,7 @@ on:
       - 'Projects/Web/**'
       - 'xmake.lua'
       - 'Projects/xmake/**'
+      - 'rust-toolchain.toml'
       - 'Tools/tolua\+\+/**'
       - '.github/workflows/static.yml'
   pull_request:
@@ -24,6 +25,7 @@ on:
       - 'Projects/Web/**'
       - 'xmake.lua'
       - 'Projects/xmake/**'
+      - 'rust-toolchain.toml'
       - 'Tools/tolua\+\+/**'
       - '.github/workflows/static.yml'
   workflow_dispatch:
