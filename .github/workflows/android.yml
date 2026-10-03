@@ -12,6 +12,7 @@ on:
       - 'Tools/dora-wa/**'
       - 'xmake.lua'
       - 'Projects/xmake/**'
+      - 'rust-toolchain.toml'
       # Platform-specific code
       - 'Projects/Android/**'
   pull_request:
@@ -24,6 +25,7 @@ on:
       - 'Tools/dora-wa/**'
       - 'xmake.lua'
       - 'Projects/xmake/**'
+      - 'rust-toolchain.toml'
       - 'Projects/Android/**'
   workflow_dispatch:
 

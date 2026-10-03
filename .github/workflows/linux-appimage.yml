@@ -16,6 +16,7 @@ on:
       - 'Projects/Web/**'
       - 'xmake.lua'
       - 'Projects/xmake/**'
+      - 'rust-toolchain.toml'
   pull_request:
     branches: [ main ]
     paths:
@@ -30,6 +31,7 @@ on:
       - 'Projects/Web/**'
       - 'xmake.lua'
       - 'Projects/xmake/**'
+      - 'rust-toolchain.toml'
   workflow_dispatch:
 
 permissions:

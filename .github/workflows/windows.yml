@@ -15,6 +15,7 @@ on:
       - 'Projects/Windows/**'
       - 'xmake.lua'
       - 'Projects/xmake/**'
+      - 'rust-toolchain.toml'
   pull_request:
     branches: [ main ]
     paths:
@@ -27,6 +28,7 @@ on:
       - 'Projects/Windows/**'
       - 'xmake.lua'
       - 'Projects/xmake/**'
+      - 'rust-toolchain.toml'
   workflow_dispatch:
 
 jobs:

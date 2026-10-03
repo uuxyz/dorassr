@@ -11,6 +11,7 @@ on:
       - 'Tools/dora-wa/**'
       - 'xmake.lua'
       - 'Projects/xmake/**'
+      - 'rust-toolchain.toml'
       # Platform-specific code
       - 'Projects/macOS/**'
   pull_request:
@@ -22,6 +23,7 @@ on:
       - 'Tools/dora-wa/**'
       - 'xmake.lua'
       - 'Projects/xmake/**'
+      - 'rust-toolchain.toml'
       - 'Projects/macOS/**'
   workflow_dispatch:
 

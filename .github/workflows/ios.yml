@@ -12,6 +12,7 @@ on:
       - 'Projects/iOS/**'
       - 'xmake.lua'
       - 'Projects/xmake/**'
+      - 'rust-toolchain.toml'
       - 'Assets/**'
       - '.github/workflows/ios.yml'
   pull_request:
@@ -23,6 +24,7 @@ on:
       - 'Projects/iOS/**'
       - 'xmake.lua'
       - 'Projects/xmake/**'
+      - 'rust-toolchain.toml'
       - 'Assets/**'
       - '.github/workflows/ios.yml'
   workflow_dispatch:
