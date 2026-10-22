@@ -30,10 +30,11 @@ public:
 	virtual ~HttpServer();
 	PROPERTY_STRING(WWWPath);
 	PROPERTY_STRING(AuthToken);
-	PROPERTY_BOOL(AuthRequired);
 	PROPERTY_READONLY(std::string, LocalIP);
 	PROPERTY_READONLY(int, WSConnectionCount);
 	struct Request {
+		// Shared backing storage keeps asynchronous requests valid after a timeout.
+		std::shared_ptr<void> storage;
 		Slice method;
 		Slice path;
 		std::vector<Slice> headers;
@@ -90,11 +91,12 @@ protected:
 
 private:
 	friend class WebSocketServer;
+	unsigned _httpPort = 0;
+	std::vector<std::string> _webAllowedHosts;
 	std::string _wwwPath;
 	std::string _authToken;
 	std::string _authSessionId;
 	std::string _authSessionSecret;
-	bool _authRequired;
 	bool _authTokenHasExpiry;
 	std::atomic_bool _stopping{true};
 	std::atomic_uint64_t _generation{0};

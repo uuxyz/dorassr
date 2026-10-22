@@ -137,8 +137,18 @@ HttpServer\post "/agent/project-root", (req): invalidArguments ->
 		else
 			return success: true, found: false, message: err
 
-import "Agent.Tools" as AgentTools
-import "Agent.Session" as AgentSession
+import "Script.Dev.AgentHost" as AgentHost
+AgentTools = AgentHost.proxy "Agent.Tools"
+AgentSession = AgentHost.proxy "Agent.Session"
+AgentStorage = AgentHost.proxy "Agent.Storage.Database"
+AgentLocalAgent = AgentHost.proxy "Agent.Runtime.LocalAgent"
+AgentVisionAssets = AgentHost.proxy "Agent.Tool.VisionAssets"
+
+HttpServer\post "/agent/runtime/status", -> AgentHost.status!
+HttpServer\post "/agent/runtime/reload", -> AgentHost.reload!
+HttpServer\post "/agent/runtime/automatic", (req): invalidArguments ->
+	switch req when {body: {:enabled}}
+		return AgentHost.setAutomatic enabled if type(enabled) == "boolean"
 
 GitJobs = []
 
@@ -146,8 +156,17 @@ gitTerminalState = (status) ->
 	return false unless status and status.state
 	status.state in ["done", "error", "canceled"]
 
+GIT_JOB_TTL = 600
+
+gitPruneJobs = ->
+	time = os.time!
+	for id, job in pairs GitJobs
+		if gitTerminalState(job.status) and time - (job.updatedAt or time) > GIT_JOB_TTL
+			GitJobs[id] = nil
+
 gitInvalidRepoPath = (repoPath) ->
-	not repoPath or repoPath == "" or not Content\isAbsolutePath repoPath
+	return true unless type(repoPath) == "string" and repoPath ~= ""
+	not Git\isRepoPathAllowed repoPath
 
 gitShellSplit = (command) ->
 	args = {}
@@ -159,7 +178,7 @@ gitShellSplit = (command) ->
 		if escape
 			current[] = ch
 			escape = false
-		elseif ch == "\\"
+		elseif ch == "\\" and quote ~= "'"
 			escape = true
 		elseif quote
 			if ch == quote
@@ -168,7 +187,7 @@ gitShellSplit = (command) ->
 				current[] = ch
 		elseif ch == "'" or ch == '"'
 			quote = ch
-		elseif ch\match "%s"
+		elseif ch == " " or ch == "\t" or ch == "\n" or ch == "\r"
 			if #current > 0
 				args[] = table.concat current
 				current = {}
@@ -202,31 +221,35 @@ gitSafeChildPath = (parentPath, childPath) ->
 
 gitCloneDirFromURL = (url) ->
 	return nil unless url and url ~= ""
-	text = tostring(url)\match "^%s*(.-)%s*$"
-	return nil if text == ""
-	text = text\gsub "[/\\]+$", ""
-	name = text\match "([^/:]+)$"
-	return nil unless name and name ~= ""
-	name = name\gsub "%.git$", ""
+	-- Match the backend's repoNameFromURL without changing literal whitespace.
+	text = tostring(url)\gsub "/+$", ""
+	text = text\match(".*:([^/]+)$") or text
+	name = Path\getFilename(text)\gsub "%.git$", ""
 	return nil if name == "" or name == "." or name == ".."
 	name
 
 gitCloneTargetPath = (repoPath, command) ->
 	args = gitShellSplit command
 	return nil unless args[1] == "clone"
-	url = args[2]
-	index = 3
+	url, target = nil, nil
+	index = 2
 	while index <= #args
 		arg = args[index]
 		if arg in ["-b", "--branch", "--depth"]
+			return nil unless args[index + 1]
 			index += 2
-		elseif arg\sub(1, 1) == "-"
-			index += 1
 		else
-			return gitSafeChildPath repoPath, arg
-	if dirName := gitCloneDirFromURL url
-		return gitSafeChildPath repoPath, dirName
-	nil
+			return nil if arg\sub(1, 1) == "-"
+			if not url
+				url = arg
+			elseif not target
+				target = arg
+			else
+				return nil
+			index += 1
+	return nil unless url
+	target or= gitCloneDirFromURL url
+	gitSafeChildPath repoPath, target
 
 gitPathInsideRepo = (repoPath, relPath) ->
 	return false unless repoPath and relPath and relPath ~= ""
@@ -327,11 +350,13 @@ gitApplyProfileToCommit = (command) ->
 	table.concat [gitQuote arg for arg in *args], " "
 
 gitStartJob = (repoPath, command, optionsJSON = nil) ->
+	gitPruneJobs!
 	return nil, "invalid repoPath" if gitInvalidRepoPath repoPath
 	return nil, "invalid command" unless command and command ~= ""
 	optionsJSON = "" unless optionsJSON
 	command = gitApplyProfileToCommit command
 	if targetPath := gitCloneTargetPath repoPath, command
+		return nil, "invalid clone target" if gitInvalidRepoPath targetPath
 		if gitDirNonEmpty targetPath
 			return nil, "clone target directory is not empty"
 	elseif (gitShellSplit command)[1] == "clone"
@@ -682,7 +707,11 @@ HttpServer\post "/git/auth/list", (req) ->
 
 HttpServer\postSchedule "/git/auth/match", (req): invalidArguments ->
 	switch req when {body: body}
+		return invalidArguments unless type(body) == "table"
 		{:repoPath, :command, :url} = body
+		return invalidArguments if url ~= nil and type(url) ~= "string"
+		unless type(url) == "string" and url ~= ""
+			return invalidArguments unless type(repoPath) == "string" and type(command) == "string"
 		host = if url and url ~= "" then gitHostFromURL url else gitCommandHost repoPath, command
 		return success: false, message: "git host is required" unless host
 		items = gitCredentialsForHost host
@@ -728,6 +757,9 @@ HttpServer\postSchedule "/git/auth/test", (req): invalidArguments ->
 		optionsJSON = gitAuthOptionsJSON credential
 		return gitRunSync repoPath, "ls-remote #{gitQuote url}", optionsJSON, 20
 
+-- Read-only database allocation/payload statistics; chat history is retained.
+HttpServer\post "/agent/storage/usage", -> AgentStorage.getStorageUsage!
+
 HttpServer\post "/agent/session/create", (req): invalidArguments ->
 	switch req when {body: {:projectRoot, :title}}
 		return AgentSession.createSession projectRoot, title
@@ -742,7 +774,7 @@ HttpServer\post "/agent/session/get", (req): invalidArguments ->
 
 HttpServer\post "/agent/vision/asset", (req): invalidArguments ->
 	switch req when {body: {sessionId: sessionId, path: path}}
-		return (require "Agent.Tool.VisionAssets").getSessionVisionImageFromPath sessionId, path
+		return AgentVisionAssets.getSessionVisionImageFromPath sessionId, path
 
 HttpServer\post "/agent/session/mode", (req): invalidArguments ->
 	switch req when {body: {:sessionId, :workMode}}
@@ -758,11 +790,11 @@ HttpServer\post "/agent/session/send-local", (req): invalidArguments ->
 
 HttpServer\post "/agent/session/local/new", (req): invalidArguments ->
 	switch req when {body: {:sessionId}}
-		return (require "Agent.LocalAgent").abandonSession sessionId
+		return AgentLocalAgent.abandonSession sessionId
 
 HttpServer\post "/agent/session/local/info", (req): invalidArguments ->
 	switch req when {body: {:sessionId}}
-		info = (require "Agent.LocalAgent").getSessionInfo sessionId
+		info = AgentLocalAgent.getSessionInfo sessionId
 		return success: true, :info
 
 HttpServer\post "/agent/session/continue", (req): invalidArguments ->
@@ -928,12 +960,14 @@ luaCheck = (file, content) ->
 	if info
 		info = for item in *info
 			useCheck = true
-			if not item[5]\match "unused"
+			if item[1] ~= "global" and not item[5]\match "unused"
 				for check in *disabledCheckForLua
 					if item[5]\match check
 						useCheck = false
 			continue unless useCheck
 			switch item[1]
+				when "global"
+					item[1] = "syntax"
 				when "type"
 					item[1] = "warning"
 				when "parsing", "syntax"
@@ -1472,7 +1506,7 @@ ensureLLMConfigTable = ->
 			unless existing.temperature
 				DB\exec "ALTER TABLE LLMConfig ADD COLUMN temperature REAL NOT NULL DEFAULT 0.1"
 			unless existing.max_tokens
-				DB\exec "ALTER TABLE LLMConfig ADD COLUMN max_tokens INTEGER NOT NULL DEFAULT 8192"
+				DB\exec "ALTER TABLE LLMConfig ADD COLUMN max_tokens INTEGER NOT NULL DEFAULT 64000"
 			unless existing.reasoning_effort
 				DB\exec "ALTER TABLE LLMConfig ADD COLUMN reasoning_effort TEXT NOT NULL DEFAULT ''"
 			unless existing.custom_options
@@ -1490,7 +1524,7 @@ ensureLLMConfigTable = ->
 			api_key TEXT NOT NULL,
 			context_window INTEGER NOT NULL DEFAULT 64000,
 			temperature REAL NOT NULL DEFAULT 0.1,
-			max_tokens INTEGER NOT NULL DEFAULT 8192,
+			max_tokens INTEGER NOT NULL DEFAULT 64000,
 			reasoning_effort TEXT NOT NULL DEFAULT '',
 			custom_options TEXT NOT NULL DEFAULT '',
 			supports_function_calling INTEGER NOT NULL DEFAULT 1,
@@ -1499,6 +1533,9 @@ ensureLLMConfigTable = ->
 			updated_at INTEGER
 		);
 	]]
+
+	require("Agent.Config.LLMConfigMigration").upgradeLLMConfig!
+	require("Agent.Config.LLMConfigNames").upgradeLLMConfigNames!
 
 normalizeContextWindow = (value) ->
 	contextWindow = tonumber value
@@ -1515,7 +1552,7 @@ normalizeTemperature = (value) ->
 normalizeMaxTokens = (value) ->
 	maxTokens = tonumber value
 	if maxTokens == nil or maxTokens < 1
-		return 8192
+		return 64000
 	return math.max 1, math.floor maxTokens
 
 normalizeReasoningEffort = (value) ->
@@ -1556,6 +1593,11 @@ HttpServer\post "/llm/create", (req): invalidArguments ->
 		now = os.time!
 		if name == nil or url == nil or model == nil or key == nil
 			return invalidArguments
+		names = require "Agent.Config.LLMConfigNames"
+		name = names.normalizeLLMConfigName name
+		return success: false, code: "INVALID_LLM_CONFIG_NAME", message: "LLM configuration name must be a non-empty string" unless name
+		nameCheck = names.checkLLMConfigName name
+		return nameCheck unless nameCheck.success
 		contextWindow = normalizeContextWindow contextWindow
 		temperature = normalizeTemperature temperature
 		maxTokens = normalizeMaxTokens maxTokens
@@ -1583,7 +1625,10 @@ HttpServer\post "/llm/create", (req): invalidArguments ->
 			now
 			now
 		]
-		return success: affected >= 0
+		if affected < 0
+			nameCheck = names.checkLLMConfigName name
+			return nameCheck unless nameCheck.success
+		return success: affected > 0
 
 HttpServer\post "/llm/update", (req): invalidArguments ->
 	ensureLLMConfigTable!
@@ -1591,7 +1636,12 @@ HttpServer\post "/llm/update", (req): invalidArguments ->
 		{:id, :name, :url, :model, :key, :contextWindow, :temperature, :maxTokens, :reasoningEffort, :customOptions, :supportsFunctionCalling} = body
 		now = os.time!
 		id = tonumber id
-		return invalidArguments if id == nil
+		return invalidArguments if id == nil or id <= 0 or id ~= math.floor id
+		names = require "Agent.Config.LLMConfigNames"
+		name = names.normalizeLLMConfigName name
+		return success: false, code: "INVALID_LLM_CONFIG_NAME", message: "LLM configuration name must be a non-empty string" unless name
+		nameCheck = names.checkLLMConfigName name, id
+		return nameCheck unless nameCheck.success
 		contextWindow = normalizeContextWindow contextWindow
 		temperature = normalizeTemperature temperature
 		maxTokens = normalizeMaxTokens maxTokens
@@ -1616,7 +1666,10 @@ HttpServer\post "/llm/update", (req): invalidArguments ->
 			now
 			id
 		]
-		return success: affected >= 0
+		if affected < 0
+			nameCheck = names.checkLLMConfigName name, id
+			return nameCheck unless nameCheck.success
+		return success: affected > 0
 
 HttpServer\post "/llm/delete", (req): invalidArguments ->
 	ensureLLMConfigTable!
@@ -1627,20 +1680,19 @@ HttpServer\post "/llm/delete", (req): invalidArguments ->
 		return success: affected >= 0
 
 HttpServer\post "/local-agent/list", ->
-	LocalAgent = require "Agent.LocalAgent"
-	return success: true, supported: LocalAgent.isLocalAgentSupported!, items: LocalAgent.listConfigs!
+	return success: true, supported: AgentLocalAgent.isLocalAgentSupported!, items: AgentLocalAgent.listConfigs!
 
 HttpServer\post "/local-agent/save", (req): invalidArguments ->
 	switch req when {body: body}
-		return (require "Agent.LocalAgent").saveConfig body
+		return AgentLocalAgent.saveConfig body
 
 HttpServer\post "/local-agent/delete", (req): invalidArguments ->
 	switch req when {body: {:id}}
-		return (require "Agent.LocalAgent").deleteConfig id
+		return AgentLocalAgent.deleteConfig id
 
 HttpServer\postSchedule "/local-agent/verify", (req): invalidArguments ->
 	switch req when {body: {:id}}
-		return (require "Agent.LocalAgent").verifyConfig id, req.body.projectRoot
+		return AgentLocalAgent.verifyConfig id, req.body.projectRoot
 
 HttpServer\post "/stat", (req): success: false, message: "failed to stat" ->
 	switch req when {body: {:path}}
@@ -1885,6 +1937,7 @@ HttpServer\postSchedule "/doc/read", (req) ->
 HttpServer\get "/read-sync", (req): success: false ->
 	switch req when :params
 		:path = params
+		return success: false, message: "invalid path" unless type(path) == "string" and path ~= ""
 		exts = if params.exts
 			[ext for ext in params.exts\gmatch "[^|]*"]
 		else ["",]
@@ -2006,17 +2059,25 @@ compileFileAsync = (inputFile, sourceCodes, projectRoot = nil): nil ->
 		return nil, resultError
 
 HttpServer\postSchedule "/write", (req): success: false ->
+	finishUpdate = AgentHost.holdSourceUpdate (req.body or {}).path
+	buildSucceeded = false
+	close _ = <close>: -> finishUpdate buildSucceeded
 	switch req when {body: {:path, :content}}
 		if Content\saveAsync path, content
 			switch Path\getExt path when "tl", "yue", "xml"
 				if '' == Path\getExt Path\getName path
 					resultCodes = compileFileAsync path, content
+					buildSucceeded = resultCodes ~= nil
 					return success: true, :resultCodes
+			buildSucceeded = true
 			return success: true
 
 getWaProjectDirFromFile = nil
 
 HttpServer\postSchedule "/build", (req): success: false ->
+	finishUpdate = AgentHost.holdSourceUpdate (req.body or {}).path
+	buildSucceeded = false
+	close _ = <close>: -> finishUpdate buildSucceeded
 	switch req when {body: {:path}}
 		projectRoot = req.body.projectRoot
 		if Content\isdir path
@@ -2031,6 +2092,7 @@ HttpServer\postSchedule "/build", (req): success: false ->
 				if '' == Path\getExt Path\getName path
 					if content := Content\loadAsync path
 						if resultCodes := compileFileAsync path, content, projectRoot
+							buildSucceeded = true
 							return success: true, :resultCodes
 			when "wa"
 				if projDir := getWaProjectDirFromFile path
@@ -2239,9 +2301,9 @@ HttpServer\postSchedule "/run", (req): success: false ->
 		success, err = Entry.enterEntryAsync entry
 		return :success, :err
 
-agentEntryRunQueue = nil
-
 HttpServer\postSchedule "/agent/preview", (req): success: false, message: "invalid call" ->
+	releaseAgent = AgentHost.acquire!
+	close _ = <close>: -> releaseAgent!
 	switch req when {body: {:projectRoot}}
 		return success: false, code: "INVALID_PROJECT", message: "projectRoot must be an existing absolute directory" unless getProjectSourceRoot projectRoot
 		entryFile = req.body.entry or "init.lua"
@@ -2251,7 +2313,7 @@ HttpServer\postSchedule "/agent/preview", (req): success: false, message: "inval
 		return success: false, code: "INVALID_QUEUE_TIMEOUT", message: "queueTimeoutSeconds must be between 1 and 300" unless type(queueTimeoutSeconds) == "number" and queueTimeoutSeconds >= 1 and queueTimeoutSeconds <= 300
 		import "Agent.Tool.EntryRunQueue" as AgentEntryRunQueue
 		import "Agent.Tool.Operation" as AgentOperation
-		agentEntryRunQueue or= AgentEntryRunQueue.sharedEntryRunQueue
+		agentEntryRunQueue = AgentEntryRunQueue.sharedEntryRunQueue
 		requestId = AgentOperation.createOperationId!
 		enqueued = agentEntryRunQueue\enqueue requestId
 		return success: false, code: "ENTRY_QUEUE_REJECTED", message: enqueued.message unless enqueued.success
@@ -2288,6 +2350,8 @@ HttpServer\postSchedule "/agent/preview", (req): success: false, message: "inval
 			frames: result.frames
 
 HttpServer\postSchedule "/agent/command", (req): success: false, code: "INVALID_COMMAND", message: "invalid call" ->
+	releaseAgent = AgentHost.acquire!
+	close _ = <close>: -> releaseAgent!
 	switch req when {body: body}
 		projectRoot = body.projectRoot
 		return success: false, code: "INVALID_PROJECT", message: "projectRoot must be an existing absolute directory" unless getProjectSourceRoot projectRoot
@@ -2617,47 +2681,78 @@ collectTSVirtualFiles = (sourceRoot) ->
 			addFile Path(lualibRoot, file), nil, virtualFile
 	files
 
+supportsCompilerWebView = -> App.platform in ["Android", "macOS", "Windows"]
+webIDECompilerReady = false
+webIDEConnectionGeneration = 0
+tsProbeId = 0
+
+probeWebIDECompiler = (isCancelled) ->
+	return false if HttpServer.wsConnectionCount == 0
+	tsProbeId += 1
+	requestId = "compiler-probe-#{tsProbeId}"
+	generation = webIDEConnectionGeneration
+	done, ready = false, false
+	responses, expectedResponses = 0, HttpServer.wsConnectionCount
+	listener = Node!
+	listener\gslot "AppWS", (event) ->
+		if event.type == "Receive"
+			if res := json.decode event.msg
+				if res.name == "TranspileTSProbe" and res.id == requestId
+					responses += 1
+					ready = ready or res.success == true
+					done = ready or responses >= expectedResponses
+	emit "AppWS", "Send", json.encode name: "TranspileTSProbe", id: requestId
+	deadline = App.runningTime + 5
+	wait -> done or HttpServer.wsConnectionCount == 0 or generation ~= webIDEConnectionGeneration or App.runningTime >= deadline or (isCancelled and isCancelled!)
+	listener\removeFromParent!
+	ready = ready and generation == webIDEConnectionGeneration and HttpServer.wsConnectionCount > 0
+	webIDECompilerReady = ready if generation == webIDEConnectionGeneration
+	ready
+
+compilerConnectionListener = Node!
+-- Service listeners must survive Entry.allClear when a game runs or stops.
+compilerConnectionListener\addTo Director.systemUI
+compilerConnectionListener\gslot "AppWS", (event) ->
+	if event.type in ["Open", "Close"]
+		webIDEConnectionGeneration += 1
+		webIDECompilerReady = false
+		if HttpServer.wsConnectionCount > 0
+			thread -> probeWebIDECompiler!
+
 transpileTSFileWithWebIDE = do
-	const tsReadyTimeout = 5
-	const tsBuildTimeout = 30
 	tsBuildRequestId = 0
-	(file, content, sourceRoot, files) ->
+	(file, content, sourceRoot, files, isCancelled) ->
+		unless probeWebIDECompiler isCancelled
+			if isCancelled and isCancelled!
+				return success: false, :file, message: "build canceled", interrupted: true
+			return success: false, :file, message: "TypeScript transpiler is not ready", failureKind: "tool"
 		tsBuildRequestId += 1
-		requestId = tsBuildRequestId
+		requestId = "server-build-#{tsBuildRequestId}"
 		done = false
-		ready = false
 		result = nil
 		listener = Node!
 		listener\gslot "AppWS", (event) ->
 			if event.type == "Receive"
 				if res := json.decode event.msg
-					if res.name == "TranspileTSProbe" and res.id == requestId
-						ready = true
-					elseif res.name == "TranspileTS" and res.id == requestId
-						listener\removeFromParent!
-						if res.success
+					if res.name == "TranspileTS" and res.id == requestId
+						if res.success and type(res.luaCode) == "string" and res.luaCode\match "%S"
 							luaFile = Path\replaceExt file, "lua"
-							Content\save luaFile, res.luaCode
-							result = success: true, :file
+							result = if Content\save luaFile, res.luaCode
+								success: true, :file
+							else
+								success: false, :file, message: "failed to save #{luaFile}"
 						else
-							result = success: false, :file, message: res.message
+							result = success: false, :file, message: res.message or "Compiler returned no Lua output", failureKind: if res.success then "tool" else res.failureKind
 						done = true
-		emit "AppWS", "Send", json.encode name: "TranspileTSProbe", id: requestId
-		readyDeadline = App.runningTime + tsReadyTimeout
-		wait -> ready or HttpServer.wsConnectionCount == 0 or App.runningTime >= readyDeadline
-		unless ready
-			listener\removeFromParent!
-			if HttpServer.wsConnectionCount == 0
-				return success: false, :file, message: "Web IDE disconnected"
-			return success: false, :file, message: "TypeScript transpiler is not ready"
 		emit "AppWS", "Send", json.encode name: "TranspileTS", id: requestId, :file, :content, projectRoot: sourceRoot, :files
-		deadline = App.runningTime + tsBuildTimeout
-		wait -> done or HttpServer.wsConnectionCount == 0 or App.runningTime >= deadline
+		deadline = App.runningTime + 30
+		wait -> done or HttpServer.wsConnectionCount == 0 or App.runningTime >= deadline or (isCancelled and isCancelled!)
+		listener\removeFromParent!
 		unless done
-			listener\removeFromParent!
-			if HttpServer.wsConnectionCount == 0
-				return success: false, :file, message: "Web IDE disconnected"
-			return success: false, :file, message: "TypeScript transpile timed out"
+			webIDECompilerReady = false
+			if isCancelled and isCancelled!
+				return success: false, :file, message: "build canceled", interrupted: true
+			return success: false, :file, message: "TypeScript transpile timed out or Web IDE disconnected", failureKind: "tool"
 		result
 
 const compilerReadyTimeout = 15
@@ -2665,6 +2760,7 @@ const compilerBuildTimeout = 30
 const compilerIdleCloseSeconds = 8
 compilerReady = false
 compilerRequested = false
+compilerFailure = nil
 compilerUsers = 0
 compilerCloseGeneration = 0
 compilerJobId = 0
@@ -2673,11 +2769,24 @@ compilerResults = {}
 compilerInFlight = {}
 
 HttpServer\post "/compiler/ready", ->
+	return success: false unless compilerRequested
 	compilerReady = true
 	success: true
 
-HttpServer\post "/compiler/poll", ->
+HttpServer\post "/compiler/failure", (req): success: false ->
+	return success: false unless compilerRequested
+	switch req when {body: {:message}}
+		if type(message) == "string"
+			compilerFailure = message
+			compilerReady = false
+			return success: true
+
+HttpServer\postSchedule "/compiler/poll", ->
+	return success: false unless compilerRequested
 	compilerReady = true
+	deadline = App.runningTime + 5
+	wait -> #compilerJobs > 0 or not compilerRequested or compilerFailure or App.runningTime >= deadline
+	return success: false unless compilerRequested and not compilerFailure
 	job = table.remove compilerJobs, 1
 	if job
 		compilerInFlight[job.id] = true
@@ -2697,6 +2806,7 @@ acquireCompiler = ->
 	unless compilerRequested
 		compilerRequested = true
 		compilerReady = false
+		compilerFailure = nil
 		emit "AppWebView", "/compiler.html", true
 
 releaseCompiler = ->
@@ -2709,7 +2819,8 @@ releaseCompiler = ->
 		wait ->
 			compilerUsers > 0 or
 			compilerCloseGeneration ~= closeGeneration or
-			HttpServer.wsConnectionCount > 0 or
+			webIDECompilerReady or
+			compilerFailure or
 			App.runningTime >= closeDeadline
 		if compilerUsers == 0 and compilerCloseGeneration == closeGeneration and compilerRequested
 			compilerRequested = false
@@ -2726,12 +2837,12 @@ removeCompilerJob = (id) ->
 transpileTSFileWithCompiler = (file, content, sourceRoot, files, isCancelled) ->
 	acquireCompiler!
 	readyDeadline = App.runningTime + compilerReadyTimeout
-	wait -> compilerReady or App.runningTime >= readyDeadline or (isCancelled and isCancelled!)
+	wait -> compilerReady or compilerFailure or App.runningTime >= readyDeadline or (isCancelled and isCancelled!)
 	unless compilerReady
 		releaseCompiler!
 		if isCancelled and isCancelled!
 			return success: false, :file, message: "build canceled", interrupted: true
-		return success: false, :file, message: "TypeScript compiler WebView is not ready"
+		return success: false, :file, message: compilerFailure or "TypeScript compiler WebView is not ready", failureKind: "tool"
 	compilerJobId += 1
 	jobId = compilerJobId
 	compilerJobs[] =
@@ -2741,38 +2852,52 @@ transpileTSFileWithCompiler = (file, content, sourceRoot, files, isCancelled) ->
 		projectRoot: sourceRoot
 		:files
 	deadline = App.runningTime + compilerBuildTimeout
-	wait -> compilerResults[jobId] or App.runningTime >= deadline or (isCancelled and isCancelled!)
+	wait -> compilerResults[jobId] or compilerFailure or App.runningTime >= deadline or (isCancelled and isCancelled!)
 	response = compilerResults[jobId]
 	removeCompilerJob jobId
 	releaseCompiler!
 	unless response
 		if isCancelled and isCancelled!
 			return success: false, :file, message: "build canceled", interrupted: true
-		return success: false, :file, message: "TypeScript transpile timed out"
-	if response.success
+		return success: false, :file, message: compilerFailure or "TypeScript transpile timed out", failureKind: "tool"
+	if response.success and type(response.luaCode) == "string" and response.luaCode\match "%S"
 		luaFile = Path\replaceExt file, "lua"
 		if Content\save luaFile, response.luaCode
 			return success: true, :file
 		return success: false, :file, message: "failed to save #{luaFile}"
 	success: false, :file, message: response.message or "TypeScript transpile failed"
 
+compilerFailureListener = Node!
+compilerFailureListener\gslot "AppCompilerFailure", (message) ->
+	compilerFailure = message
+	compilerReady = false
+
 transpileTSFile = (file, content, sourceRoot, files, isCancelled) ->
-	if App.platform == "Android" and HttpServer.wsConnectionCount == 0
+	if supportsCompilerWebView! and not files
+		files = collectTSVirtualFiles sourceRoot or Path\getPath file
+	if HttpServer.wsConnectionCount > 0
+		result = transpileTSFileWithWebIDE file, content, sourceRoot, files, isCancelled
+		return result if result.success or result.interrupted or result.failureKind ~= "tool" or not supportsCompilerWebView!
+		webIDECompilerReady = false
+	if supportsCompilerWebView!
 		return transpileTSFileWithCompiler file, content, sourceRoot, files, isCancelled
-	transpileTSFileWithWebIDE file, content, sourceRoot, files
+	success: false, :file, message: "Web IDE compiler not connected", failureKind: "tool"
 
 HttpServer\postSchedule "/ts/build", (req): success: false ->
+	finishUpdate = AgentHost.holdSourceUpdate (req.body or {}).path
+	buildSucceeded = false
+	close _ = <close>: -> finishUpdate buildSucceeded
 	switch req when {body: {:path}}
-		if App.platform ~= "Android" and HttpServer.wsConnectionCount == 0
+		if not supportsCompilerWebView! and HttpServer.wsConnectionCount == 0
 			return success: false, message: "Web IDE not connected"
 		projectRoot = req.body.projectRoot
 		sourceRoot = getProjectSourceRoot projectRoot
 		unless Content\exist path
 			return success: false, message: "path not existed"
+		messages = []
 		if not Content\isdir path
 			unless Path\getExt(path) in ["ts", "tsx"]
 				return success: false, message: "expecting a TypeScript file"
-			messages = []
 			content = Content\load path
 			unless content
 				return success: false, message: "failed to read file"
@@ -2780,10 +2905,8 @@ HttpServer\postSchedule "/ts/build", (req): success: false ->
 			if "d" ~= Path\getExt Path\getName path
 				files = collectTSVirtualFiles sourceRoot or Path\getPath path
 				messages[] = transpileTSFile path, content, sourceRoot, files
-			return success: true, :messages
 		else
 			fileData = {}
-			messages = []
 			for subFile in *Content\glob path, tsBuildGlobs
 				file = Path path, subFile
 				if content := Content\load file
@@ -2795,7 +2918,13 @@ HttpServer\postSchedule "/ts/build", (req): success: false ->
 			for file, content in pairs fileData
 				continue if "d" == Path\getExt Path\getName file
 				messages[] = transpileTSFile file, content, sourceRoot, files
-			return success: true, :messages
+		success = true
+		for item in *messages
+			success = false unless item.success
+		message = nil
+		message = "TypeScript compilation failed" unless success
+		buildSucceeded = success
+		return :success, :messages, :message
 
 HttpServer\post "/download", (req): success: false ->
 	switch req when body: {:url, :target}
@@ -2805,6 +2934,20 @@ HttpServer\post "/download", (req): success: false ->
 
 isDesktopPlatform = ->
 	App.platform in ["Linux", "Windows", "macOS"]
+
+nativeIDEState, nativeIDEMessage = "stopped", ""
+nativeIDEListener = Node!
+nativeIDEListener\addTo Director.systemUI
+nativeIDEListener\gslot "AppIDEState", (state, message) ->
+	nativeIDEState, nativeIDEMessage = state, message
+
+HttpServer\post "/ide", (req): success: false, message: "invalid IDE action" ->
+	return success: false, message: "Native IDE is unavailable" unless App.platform in ["Android", "macOS", "Windows"]
+	return success: false, message: "Embedded Web IDE is disabled" unless App.webIDEEnabled
+	switch req when {body: {:action}}
+		if action in ["show", "hide", "stop", "reload", "toggle"]
+			emit "AppWebView", "/ide/" .. action, true
+			return success: true
 
 getServerStatus = ->
 	import "Script.Dev.Entry"
@@ -2819,6 +2962,20 @@ getServerStatus = ->
 		url: "http://localhost:8866"
 		:wsConnectionCount
 		webIDEConnected: wsConnectionCount > 0
+		nativeIDE:
+			supported: App.platform in ["Android", "macOS", "Windows"]
+			enabled: App.webIDEEnabled
+			state: nativeIDEState
+			message: nativeIDEMessage
+		typescriptCompiler:
+			webIDEReady: webIDECompilerReady
+			webIDEGeneration: webIDEConnectionGeneration
+			embeddedSupported: supportsCompilerWebView!
+			embeddedRequested: compilerRequested
+			embeddedReady: compilerReady
+			users: compilerUsers
+			queuedJobs: #compilerJobs
+			failure: compilerFailure
 		assetPath: Content.assetPath
 		writablePath: Content.writablePath
 		appPath: Content.appPath
@@ -2925,12 +3082,27 @@ HttpServer\postSchedule "/git/commit-files", (req): invalidArguments ->
 thread ->
 	doraWeb = Path Content.assetPath, "www", "index.html"
 	doraReady = Path Content.appPath, ".www", "dora-ready"
-	if Content\exist doraWeb
+	if Content\exist(doraWeb) or Content\exist(doraWeb .. ".gz")
+		-- The distribution can contain gzip only. Compare stored bytes rather
+		-- than inflating resources just to decide whether the copy is current.
+		storedAsset = (file) ->
+			if Content\exist file
+				Content\load file
+			elseif Content\exist file .. ".gz"
+				Content\load file .. ".gz"
+			else ""
 		heavyAssets = Path Content.assetPath, "www", "heavy-assets.json"
-		heavyAssetsContent = if Content\exist heavyAssets then Content\load heavyAssets else ""
 		runtimeIndex = Path Content.assetPath, "www", "web-player", "runtime.json"
-		runtimeIndexContent = if Content\exist runtimeIndex then Content\load runtimeIndex else ""
-		readyContent = App.version .. "\n" .. Content\load(doraWeb) .. "\n" .. heavyAssetsContent .. "\n" .. runtimeIndexContent
+		compilerIndex = Path Content.assetPath, "www", "compiler.html"
+		manifest = Path Content.assetPath, "www", "precompressed-assets.json"
+		readyContent = table.concat {
+			App.version
+			storedAsset doraWeb
+			storedAsset heavyAssets
+			storedAsset runtimeIndex
+			storedAsset compilerIndex
+			storedAsset manifest
+		}, "\n"
 		needReload = if Content\exist doraReady
 			readyContent ~= Content\load doraReady
 		else true

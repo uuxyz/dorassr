@@ -10,7 +10,8 @@ import type { TreeDataType } from "./FileTree";
 import { ProfilerInfo } from "./ProfilerInfo";
 import { TypedEmitter } from "./utils/typedEmitter";
 import { LogBuffer } from "./LogBuffer";
-import { canonicalizeAuthPath } from "./AuthSignature";
+import { runWithNativeIDE } from "./NativeIDERun";
+import { canonicalizeAuthPath, createAuthHeaders, signAuthPayload, authNonce } from "./AuthSignature";
 
 let authRequired = false;
 export const setAuthRequired = (required: boolean) => {
@@ -50,9 +51,9 @@ const eventEmitter = new TypedEmitter<ServiceEvents>();
 function wsUrl() {
 	let url: string;
 	if (!process.env.NODE_ENV || process.env.NODE_ENV === 'development') {
-		url = "ws://localhost:8868";
+		url = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/__dora/ws`;
 	} else {
-		url = `ws://${window.location.hostname}:8868`;
+		url = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.hostname}:8868`;
 	}
 	return url;
 }
@@ -75,30 +76,19 @@ const parseSession = (raw: string | null): AuthSession | null => {
 	return null;
 };
 
-const hmacHex = async (secret: string, payload: string) => {
-	const encoder = new TextEncoder();
-	const key = await crypto.subtle.importKey(
-		'raw',
-		encoder.encode(secret),
-		{ name: 'HMAC', hash: 'SHA-256' },
-		false,
-		['sign'],
-	);
-	const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(payload));
-	return Array.from(new Uint8Array(signature))
-		.map((byte) => byte.toString(16).padStart(2, '0'))
-		.join('');
-};
+const hmacHex = async (secret: string, payload: string) => signAuthPayload(secret, payload);
 
 const buildWebSocketUrl = async (baseUrl: string, session: AuthSession) => {
 	const url = new URL(baseUrl, window.location.href);
 	const timestamp = Math.floor(Date.now() / 1000).toString();
-	const nonce = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(16).slice(2);
+	const nonce = authNonce();
 	const params = new URLSearchParams(url.searchParams);
 	params.set('session', session.sessionId);
 	params.set('ts', timestamp);
 	params.set('nonce', nonce);
-	const path = canonicalizeAuthPath(new URL(`${url.origin}${url.pathname}?${params.toString()}`));
+	// Sign the engine's target, before Vite's development-only path prefix.
+	const targetPath = (!process.env.NODE_ENV || process.env.NODE_ENV === 'development') ? '/' : url.pathname;
+	const path = canonicalizeAuthPath(new URL(`${url.origin}${targetPath}?${params.toString()}`));
 	const payload = [session.sessionId, 'GET', path, timestamp, nonce, ''].join('\n');
 	const signature = await hmacHex(session.sessionSecret, payload);
 	params.set('sig', signature);
@@ -250,41 +240,61 @@ const handleTranspileTS = async (item: TranspileTSQueueItem) => {
 		}
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
-		sendTranspileTSResponse(item, { name: WsEvent.TranspileTS, success: false, file: item.file, luaCode: "", message });
+		sendTranspileTSResponse(item, { name: WsEvent.TranspileTS, success: false, failureKind: "tool", file: item.file, luaCode: "", message });
 	}
 };
 
+const nativeIDEClosed = () => (window as Window & {__doraIDEClosed?: boolean}).__doraIDEClosed === true;
+let stopWebSocket: (() => void) | undefined;
+export const closeWebSocket = () => stopWebSocket?.();
+window.addEventListener('dora-ide-close', closeWebSocket);
+window.addEventListener('pagehide', closeWebSocket);
+window.addEventListener('pageshow', event => { if (event.persisted) openWebSocket(); });
+
 export function openWebSocket() {
+	closeWebSocket();
+	if (nativeIDEClosed()) return;
+	let disposed = false;
+	let retry: ReturnType<typeof setTimeout> | undefined;
+	let socket: WebSocket | undefined;
 	let connected = false;
+	stopWebSocket = () => {
+		disposed = true;
+		clearTimeout(retry);
+		if (socket) {
+			socket.onopen = socket.onmessage = socket.onerror = socket.onclose = null;
+			socket.close(1000, 'IDE closed');
+		}
+	};
+	const reconnect = () => { if (!disposed) retry = setTimeout(connect, 1000); };
 	const connect = () => {
+		if (disposed || nativeIDEClosed()) return;
 		connected = false;
 		let session: AuthSession | null = null;
 		if (authRequired) {
 			const storageKey = 'doraWebAuthSession';
 			session = parseSession(localStorage.getItem(storageKey));
 			if (!session) {
-				setTimeout(connect, 1000);
+				reconnect();
 				return;
 			}
 		}
 		void (async () => {
 			try {
-				// Do not publish a WebSocket connection until all transpiler chunks
-				// are ready. The native build endpoint synchronously waits for the
-				// socket response and cannot serve lazy asset requests meanwhile.
+				// Warm transpiler chunks before publishing the connection so a
+				// compiler probe can report actual readiness immediately.
 				try {
 					const { warmupTypescriptTranspiler } = await import('./TranspileTS');
 					await warmupTypescriptTranspiler();
 				} catch (error) {
 					console.error("Failed to warm the TypeScript transpiler:", error);
 				}
-				if (session) {
-					const signedUrl = await buildWebSocketUrl(wsUrl(), session);
-					webSocket = new WebSocket(signedUrl);
-				} else {
-					webSocket = new WebSocket(wsUrl());
-				}
-				webSocket.onmessage = async function (evt: MessageEvent) {
+				if (disposed || nativeIDEClosed()) return;
+				const url = session ? await buildWebSocketUrl(wsUrl(), session) : wsUrl();
+				if (disposed || nativeIDEClosed()) return;
+				socket = new WebSocket(url);
+				webSocket = socket;
+				socket.onmessage = async function (evt: MessageEvent) {
 					let dataStr: string;
 					if (evt.data instanceof ArrayBuffer) {
 						const decoder = new TextDecoder("utf-8");
@@ -340,7 +350,14 @@ export function openWebSocket() {
 								break;
 							}
 							case WsEvent.TranspileTSProbe: {
-								sendWebSocketMessage({ name: WsEvent.TranspileTSProbe, id: result.id });
+								try {
+									const { warmupTypescriptTranspiler } = await import('./TranspileTS');
+									await warmupTypescriptTranspiler();
+									sendWebSocketMessage({ name: WsEvent.TranspileTSProbe, id: result.id, success: true });
+								} catch (error) {
+									sendWebSocketMessage({ name: WsEvent.TranspileTSProbe, id: result.id, success: false,
+										message: error instanceof Error ? error.message : String(error) });
+								}
 								break;
 							}
 							case WsEvent.TranspileTS: {
@@ -368,23 +385,23 @@ export function openWebSocket() {
 						}
 					}
 				};
-				webSocket.onopen = () => {
+				socket.onopen = () => {
 					connected = true;
 					eventEmitter.emit(WsOpenEvent);
 				};
-				webSocket.onclose = () => {
+				socket.onclose = () => {
 					if (connected) {
 						connected = false;
 						eventEmitter.emit(WsCloseEvent);
 					}
-					setTimeout(connect, 1000);
+					reconnect();
 				};
-				webSocket.onerror = () => {
-					webSocket.close();
+				socket.onerror = () => {
+					socket?.close();
 				};
 			} catch (err) {
 				void err;
-				setTimeout(connect, 1000);
+				reconnect();
 			}
 		})();
 	};
@@ -452,7 +469,7 @@ export const removeSearchFilesDoneListener = (listener: (message: SearchFilesDon
 
 export function addr(url: string) {
 	if (!process.env.NODE_ENV || process.env.NODE_ENV === 'development') {
-		return "http://localhost:8866" + url;
+		return "/__dora/api" + url;
 	}
 	return url;
 };
@@ -471,7 +488,15 @@ async function post<T>(url: string, data: any = {}) {
 
 function getSync<T>(url: string, params: URLSearchParams): T | null {
 	const xhr = new XMLHttpRequest();
-	xhr.open('GET', addr(url) + '?' + params.toString(), false);
+	const target = addr(url) + '?' + params.toString();
+	xhr.open('GET', target, false);
+	if (authRequired) {
+		const session = parseSession(localStorage.getItem('doraWebAuthSession'));
+		if (!session) throw new Error('Authentication is required before synchronous file reads');
+		const headers = createAuthHeaders(session, 'GET', new URL(target, window.location.href), new Uint8Array(),
+			!process.env.NODE_ENV || process.env.NODE_ENV === 'development');
+		for (const [name, value] of Object.entries(headers)) xhr.setRequestHeader(name, value);
+	}
 	xhr.send();
 	if (xhr.status === 200) {
 		try {
@@ -689,6 +714,7 @@ export interface LLMConfigListResponse {
 
 export interface LLMConfigWriteResponse {
 	success: boolean;
+	code?: string;
 	message?: string;
 };
 
@@ -884,7 +910,7 @@ export interface RunResponse {
 	err?: string;
 };
 export const run = (req: RunRequest) => {
-	return post<RunResponse>("/run", req);
+	return runWithNativeIDE(() => post<RunResponse>("/run", req));
 };
 
 export type RunStatusResponse = {
@@ -1661,6 +1687,16 @@ export const projectRoot = (req: { path: string; isDir: boolean; }) => {
 };
 
 export const agentProjectRoot = projectRoot;
+
+export interface AgentStorageUsage {
+	database: {allocatedBytes: number; freeBytes: number; usedBytes: number; pageSize: number; pageCount: number; freePageCount: number};
+	records: {sessions: number; messages: number; tasks: number; steps: number; checkpoints: number; entries: number; references: number};
+	payload: {messageBytes: number; taskPromptBytes: number; stepBytes: number; checkpointRawBytes: number; checkpointStoredBytes: number};
+	orphanHeavyData: {success: boolean; taskCount: number; checkpointCount: number; entryCount: number; stepCount: number; referenceCount: number; rawBytes: number; candidateTaskIds: number[]};
+}
+
+/** agent.db allocation and logical payload sizes; excludes project .agent files. */
+export const agentStorageUsage = () => post<{success: true; usage: AgentStorageUsage} | {success: false; message: string}>("/agent/storage/usage");
 
 export const agentSessionCreate = (req: { projectRoot: string; title?: string; }) => {
 	return post<{

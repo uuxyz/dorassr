@@ -14,6 +14,7 @@ on:
       - 'rust-toolchain.toml'
       # Platform-specific code
       - 'Projects/macOS/**'
+      - '.github/workflows/macos.yml'
   pull_request:
     branches: [ main ]
     paths:
@@ -25,6 +26,7 @@ on:
       - 'Projects/xmake/**'
       - 'rust-toolchain.toml'
       - 'Projects/macOS/**'
+      - '.github/workflows/macos.yml'
   workflow_dispatch:
 
 jobs:
@@ -40,15 +42,25 @@ jobs:
           package_json_file: 'Tools/dora-dora/package.json'
           cache: true
           cache_dependency_path: 'Tools/dora-dora/pnpm-lock.yaml'
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.14.0'
       - uses: xmake-io/github-action-setup-xmake@v1
         with:
           xmake-version: latest
+      - name: Resolve Dora-Example tests once
+        if: "!startsWith(github.ref, 'refs/tags/')"
+        run: xmake dora-test-deps --env-file="$GITHUB_ENV"
       - name: macOS build
         if: "!startsWith(github.ref, 'refs/tags/')"
         run: |
           xmake --version
           xmake f -y -p macosx -a "$(uname -m)" -m debug
           xmake build Dora
+      - name: Test incremental macOS application identity and resources
+        if: "!startsWith(github.ref, 'refs/tags/')"
+        run: xmake dora-test --case=test_macos_bundle -- --bundle "build/macosx/$(uname -m)/debug/Dora.app"
       - name: Generate tutorial docs
         if: startsWith(github.ref, 'refs/tags/')
         run: node Docs/scripts/generate-language-docs.js

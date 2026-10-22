@@ -750,6 +750,13 @@ interface App {
 	devMode: boolean;
 
 	/**
+	 * 在 macOS、Windows 和 Android 上启用内嵌 Web IDE、悬浮按钮和切换快捷键。
+	 * 默认关闭，Dora 开发入口会按设置启用。打包作品需显式开启。
+	 * 关闭时释放 IDE 界面并恢复引擎焦点；按需运行的后台编译器不受此配置影响。
+	 */
+	webIDEEnabled: boolean;
+
+	/**
 	 * 应用程序窗口大小。
 	 * 由于显示设备的DPI不同，可能会与实际的可视大小有差异。
 	 * 在Android和iOS平台上无法设置此属性。
@@ -3000,7 +3007,7 @@ const enum GlobalEvent {
 
 export {GlobalEvent as GSlot};
 
-type AppEventType = "Quit" | "LowMemory" | "WillEnterBackground" | "DidEnterBackground" | "WillEnterForeground" | "DidEnterForeground" | "Shutdown" | "BackButton";
+type AppEventType = "Quit" | "LowMemory" | "WillEnterBackground" | "DidEnterBackground" | "WillEnterForeground" | "DidEnterForeground" | "Shutdown" | "BackButton" | "WindowFocusLost" | "WindowFocusGained" | "WindowHidden" | "WindowShown";
 type AppSettingName = "Locale" | "Theme" | "FullScreen" | "Position" | "Size";
 type AppWSEventType = "Open" | "Close" | "Send" | "Receive";
 type AppWSMessage = {
@@ -5369,6 +5376,15 @@ class DrawNode extends Node {
 	 */
 	drawDot(pos: Vec2, radius: number, color?: Color): void;
 
+	/** 在指定中心绘制圆。 */
+	drawCircle(center: Vec2, radius: number, color?: Color): void;
+
+	/** 绘制带可选边框的矩形。 */
+	drawRect(rect: Rect, fillColor?: Color, borderWidth?: number, borderColor?: Color): void;
+
+	/** 在指定中心绘制填充椭圆。 */
+	drawEllipse(center: Vec2, radiusX: number, radiusY: number, color?: Color): void;
+
 	/**
 	 * 用指定的半径和颜色绘制两点之间的线段。
 	 * @param from 线的起点。
@@ -5378,11 +5394,32 @@ class DrawNode extends Node {
 	 */
 	drawSegment(from: Vec2, to: Vec2, radius: number, color?: Color): void;
 
+	/** 绘制圆头端点、尖角连接的连续折线，过长尖角使用斜切连接。radius 为线宽的一半；忽略相邻重复顶点。 */
+	drawPolyline(verts: Vec2[], radius: number, color?: Color, closed?: boolean): void;
+
+	/** 以度为单位绘制圆弧：零度朝向 +X，角度增大朝向 +Y。角度差按正负方向最多绘制一圈；整圈自动闭合。lineRadius 为线宽的一半。 */
+	drawArc(center: Vec2, radius: number, startAngle: number, endAngle: number, lineRadius: number, color?: Color): void;
+
+	/** 绘制圆角矩形。圆角半径限制为较短边的一半，零半径绘制普通矩形；borderWidth 为居中边框宽度的一半。 */
+	drawRoundedRect(rect: Rect, cornerRadius: number, fillColor?: Color, borderWidth?: number, borderColor?: Color): void;
+
+	/** 绘制圆环，要求 0 <= innerRadius < outerRadius。内半径为零时填充中心；可选边框沿内外轮廓居中绘制，borderWidth 为半宽。 */
+	drawRing(center: Vec2, innerRadius: number, outerRadius: number, fillColor?: Color, borderWidth?: number, borderColor?: Color): void;
+
+	/** 绘制扇形，角度以度为单位，从 +X 朝向 +Y 增大。正负角度差最多绘制一圈；整圈不绘制径向边，起止角相同时不绘制。borderWidth 为边框半宽。 */
+	drawSector(center: Vec2, radius: number, startAngle: number, endAngle: number, fillColor?: Color, borderWidth?: number, borderColor?: Color): void;
+
+	/** 绘制圆头端点的二次贝塞尔曲线，端点重合时自动闭合；radius 为线宽的一半。自适应细分以 0.25 个局部坐标单位和控制点包围盒对角线的 1% 中较小值为目标误差，最多 1024 段。 */
+	drawQuadraticBezier(from: Vec2, control: Vec2, to: Vec2, radius: number, color?: Color): void;
+
+	/** 绘制圆头端点的三次贝塞尔曲线，端点重合时自动闭合；radius 为线宽的一半。自适应细分以 0.25 个局部坐标单位和控制点包围盒对角线的 1% 中较小值为目标误差，最多 1024 段。 */
+	drawCubicBezier(from: Vec2, control1: Vec2, control2: Vec2, to: Vec2, radius: number, color?: Color): void;
+
 	/**
-	 * 绘制由顶点列表定义的多边形，具有指定的填充颜色和边框。
+	 * 按边界顺序绘制简单凸多边形或凹多边形，支持两种方向；不支持自相交或孔洞。边框以轮廓为中心向两侧延伸。
 	 * @param verts 多边形的顶点。
 	 * @param fillColor 多边形的填充颜色（默认为白色）。
-	 * @param borderWidth 边框的宽度（默认为0）。
+	 * @param borderWidth 边框宽度的一半，向轮廓两侧延伸（默认为0）。
 	 * @param borderColor 边框的颜色（默认为白色）。
 	 */
 	drawPolygon(verts: Vec2[], fillColor?: Color, borderWidth?: number, borderColor?: Color): void;
@@ -9210,6 +9247,8 @@ type GitStatus = GitQueuedStatus | GitRunningStatus | GitErrorStatus | GitCancel
  * 一个提供 Git 命令功能的接口。
  */
 interface Git {
+	/** 检查不含 . 或 .. 分段的绝对路径解析后是否位于可写目录或资源目录内，包含现有符号链接的解析；允许尚未创建的子目录。 */
+	isRepoPathAllowed(repoPath: string): boolean;
 	/**
 	 * 运行支持的 Git 命令，并自动轮询状态。
 	 *

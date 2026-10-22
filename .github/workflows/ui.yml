@@ -4,30 +4,49 @@ on:
   push:
     branches: [ main ]
     paths:
+      - '.github/workflows/ui.yml'
       - 'Tools/dora-dora/**'
-      - 'Studio/**'
-      - 'Studio/packages/agent-ui/**'
-      - 'Studio/packages/compiler/**'
-      - 'Studio/packages/tstl/**'
+      - 'Studio/package.json'
+      - 'Studio/pnpm-lock.yaml'
+      - 'Studio/pnpm-workspace.yaml'
+      - 'Studio/packages/**'
+      - 'Studio/scripts/agent-*.mjs'
+      - 'Studio/scripts/build-agent-*.mjs'
+      - 'Assets/Script/Lib/**'
+      - 'Assets/Script/Dev/WebServer.*'
       - 'Projects/Web/**'
-      - 'xmake.lua'
       - 'Projects/xmake/**'
       - 'rust-toolchain.toml'
+      - 'xmake.lua'
       - 'Source/**'
+      - 'Tools/dora-wa/**'
+      - 'Tools/dora-rust/**'
+      - 'Tools/tolua\+\+/**'
   pull_request:
     branches: [ main ]
     paths:
+      - '.github/workflows/ui.yml'
       - 'Tools/dora-dora/**'
-      - 'Studio/**'
-      - 'Studio/packages/agent-ui/**'
-      - 'Studio/packages/compiler/**'
-      - 'Studio/packages/tstl/**'
+      - 'Studio/package.json'
+      - 'Studio/pnpm-lock.yaml'
+      - 'Studio/pnpm-workspace.yaml'
+      - 'Studio/packages/**'
+      - 'Studio/scripts/agent-*.mjs'
+      - 'Studio/scripts/build-agent-*.mjs'
+      - 'Assets/Script/Lib/**'
+      - 'Assets/Script/Dev/WebServer.*'
       - 'Projects/Web/**'
-      - 'xmake.lua'
       - 'Projects/xmake/**'
       - 'rust-toolchain.toml'
+      - 'xmake.lua'
       - 'Source/**'
+      - 'Tools/dora-wa/**'
+      - 'Tools/dora-rust/**'
+      - 'Tools/tolua\+\+/**'
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   check:
@@ -36,57 +55,52 @@ jobs:
       run:
         working-directory: Tools/dora-dora
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
+      - uses: actions/checkout@v4
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
         with:
           package_json_file: 'Tools/dora-dora/package.json'
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22.14.0'
-          cache: 'pnpm'
-          cache-dependency-path: 'Tools/dora-dora/pnpm-lock.yaml'
-
+          cache: pnpm
+          cache-dependency-path: |
+            Tools/dora-dora/pnpm-lock.yaml
+            Studio/pnpm-lock.yaml
       - name: Setup xmake
         uses: xmake-io/github-action-setup-xmake@v1
         with:
           xmake-version: latest
-
-      - name: Setup current Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: stable
-          cache-dependency-path: Studio/go.sum
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Test current engine contracts
+      - name: Resolve Dora-Example tests once
+        working-directory: .
+        run: xmake dora-test-deps --env-file="$GITHUB_ENV"
+      - name: Install frontend dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y lua5.4
-          xmake dora-test -P ../..
-
-      - name: Test Studio current frontend and Go backend
-        run: |
+          pnpm install --frozen-lockfile
           pnpm --dir ../../Studio install --frozen-lockfile
-          xmake dora-test -P ../.. --suite=studio
-
+      - name: Generate shared declarations for linked UI packages
+        working-directory: .
+        run: |
+          node Docs/scripts/generate-language-docs.js
+          node Studio/packages/agent-contracts/build.mjs
+          node Tools/dora-dora/scripts/build-studio-compiler.cjs
+      - name: Test Web IDE frontend and development proxy
+        run: xmake dora-test -P ../.. --suite=ui
       - name: Lint (oxlint)
-        # oxlint exits 0 for warnings, 1 for errors — only errors block the build
         run: pnpm lint
-
-      - name: Test Web runtime preparation
-        run: pnpm test:web-runtime-preparation
-
+      - name: Typecheck linked Web IDE UI
+        run: pnpm typecheck
       - name: Build (Vite)
         run: pnpm build
-
       - name: Verify Web export assets
         run: |
-          pnpm test:web-package
+          xmake dora-test -P ../.. --case=test-web-package
           pnpm verify:web-release-assets
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-test-results
+          path: build/test-results/*.json
+          if-no-files-found: ignore

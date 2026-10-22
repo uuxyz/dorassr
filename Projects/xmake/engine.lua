@@ -28,6 +28,10 @@ local dora_includedirs = {
     rootpath("Source/3rdParty/bx/include")
 }
 
+if is_plat("windows") then
+    add_requires("dora-webview2 1.0.2903.40")
+end
+
 target("Dora")
     set_kind(is_plat("android") and "shared" or "binary")
     if is_plat("android") then
@@ -108,6 +112,9 @@ target("Dora")
 
     if is_plat("macosx") then
         add_rules("xcode.application")
+        before_build(function (target)
+            import("Projects.xmake.tools.macos_bundle", {rootdir = DORA_ROOT})(target)
+        end)
         set_values("xcode.bundle_identifier", "IppClub.DoraSSR")
         set_toolchains("xcode", {target_minver = "12.0"})
         add_files(rootpath("Projects/macOS/Dora/Info.plist"), rootpath("Projects/macOS/Dora/Assets.xcassets"))
@@ -130,7 +137,7 @@ target("Dora")
         add_frameworks(
             "AudioToolbox", "AudioUnit", "Carbon", "Cocoa", "CoreAudio",
             "CoreFoundation", "CoreHaptics", "CoreVideo", "ForceFeedback",
-            "GameController", "IOKit", "Metal", "QuartzCore", "Security"
+            "GameController", "IOKit", "Metal", "QuartzCore", "Security", "WebKit"
         )
     elseif is_plat("iphoneos") then
         add_rules("mode.debug", "mode.release")
@@ -214,7 +221,10 @@ target("Dora")
         set_runargs("--asset", rootpath("Assets"))
         set_rundir(DORA_ROOT)
     elseif is_plat("windows") then
+        add_packages("dora-webview2")
+        add_files(rootpath("Source/Basic/CompilerWebViewWin.cpp"))
         add_files(rootpath("Projects/Windows/Dora/Resource.rc"))
+        add_files(rootpath("Projects/Windows/Dora/Dora.manifest"))
         add_includedirs(rootpath("Projects/Windows/Dora"))
         add_includedirs(rootpath("Source/3rdParty/bx/include/compat/msvc"))
         add_defines("LUA_USE_WINDOWS", "_CRT_SECURE_NO_WARNINGS", "NOMINMAX")

@@ -16,6 +16,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #endif
 
 #include <random>
+#include <atomic>
 #include <thread>
 
 struct SDL_Window;
@@ -73,12 +74,22 @@ public:
 	PROPERTY_BOOL(FullScreen);
 	PROPERTY_BOOL(AlwaysOnTop);
 	PROPERTY_BOOL(DevMode);
+	PROPERTY_BOOL(WebIDEEnabled);
 	SDLEventHandler eventHandler;
 	QuitHandler quitHandler;
 	int run(MainFunc mainFunc = nullptr);
 	void shutdown();
 	void invokeInRender(const std::function<void()>& func);
 	void invokeInLogic(const std::function<void()>& func);
+#if BX_PLATFORM_OSX || BX_PLATFORM_WINDOWS
+	void setCompilerWebView(const std::string& path, bool enabled);
+	void closeCompilerWebView();
+	void setIDEWebView(const std::string& action);
+	void closeIDEWebView();
+	bool isIDEWebViewVisible() const;
+	void setIDEWebViewVisible(bool visible);
+	void pumpIDEWebViewEvents();
+#endif
 #if BX_PLATFORM_EMSCRIPTEN
 	uint32_t setWebSuspended(bool value);
 #endif
@@ -123,10 +134,14 @@ protected:
 #endif
 
 private:
+	std::atomic<bool> _webIDEEnabled{false};
 	bool _idled;
 	bool _fpsLimited;
 	bool _renderRunning;
 	bool _logicRunning;
+#if BX_PLATFORM_OSX || BX_PLATFORM_WINDOWS
+	std::atomic<bool> _ideWebViewVisible{false};
+#endif
 #if BX_PLATFORM_EMSCRIPTEN
 	bool _webSuspended;
 	bool _webContextLost = false;
@@ -167,9 +182,9 @@ private:
 	std::mt19937 _randomEngine;
 	bgfx::PlatformData _platformData;
 	MainFunc _mainFunc;
-#if BX_PLATFORM_ANDROID
+#if BX_PLATFORM_ANDROID || BX_PLATFORM_OSX || BX_PLATFORM_WINDOWS
 	Ref<Listener> _appWebViewListener;
-#endif // BX_PLATFORM_ANDROID
+#endif
 	SINGLETON_REF(Application, Logger, AsyncLogThread);
 };
 

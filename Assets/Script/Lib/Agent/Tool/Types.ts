@@ -1,7 +1,7 @@
 // @preview-file off clear
 import type { VisionBinding } from 'Agent/Tool/VisionBinding';
 import type { AgentCompletionReport, StopToken } from 'Agent/Utils';
-import type { JsonSchema, JsonSchemaObject } from 'Agent/JsonSchema';
+import type { JsonSchema, JsonSchemaObject } from 'Agent/Tool/JsonSchema';
 
 export type AgentDecisionMode = "tool_calling" | "xml";
 export type AgentRole = "main" | "sub";
@@ -51,9 +51,18 @@ export interface AgentToolControl {
 	spawnedSubAgent?: boolean;
 }
 
+export interface AgentToolExecutionMetadata {
+	status: "DONE" | "FAILED" | "STOPPED";
+}
+
 export interface AgentToolHandlerResult {
 	output: Record<string, unknown>;
 	control?: AgentToolControl;
+}
+
+export interface AgentToolExecutionResult extends AgentToolHandlerResult {
+	/** Internal step lifecycle, never part of the model-facing output. */
+	execution: AgentToolExecutionMetadata;
 }
 
 export type AgentToolSemanticValidationResult =
@@ -73,6 +82,8 @@ export interface AgentToolDefinition {
 	parameters?: AgentToolParameterDefinition[];
 	rules?: (string | ((context: AgentToolSchemaContext) => string))[];
 	inputSchema: (context: AgentToolSchemaContext) => JsonSchemaObject;
+	/** Optional narrower contract advertised to the model; inputSchema still accepts legacy calls. */
+	modelInputSchema?: (context: AgentToolSchemaContext) => JsonSchemaObject;
 	outputSchema: JsonSchema;
 	validateInput?: AgentToolInputValidator;
 	preExecutable?: boolean;

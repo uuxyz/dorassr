@@ -18,6 +18,7 @@ import { setMonacoRuntime } from './MonacoRuntimeAccess';
 import { isPathWithin } from './PathUtils';
 import { createSnapshotProgram, doraCompilerOptions } from '@dora-studio/compiler';
 import { toFilePath } from './MonacoPath';
+import { promoteCompilerWarnings } from './TranspileDiagnostics';
 
 setMonacoRuntime({
 	monaco,
@@ -128,7 +129,8 @@ async function loadSourceMapWasm() {
 			if (!response.ok) {
 				throw new Error(`Failed to load source-map WASM: ${response.status}`);
 			}
-			SourceMapConsumer.initialize({
+			// source-map declares initialize on instances, but implements it statically.
+			(SourceMapConsumer as typeof SourceMapConsumer & Pick<SourceMapConsumer, "initialize">).initialize({
 				'lib/mappings.wasm': await response.arrayBuffer(),
 			});
 		});
@@ -592,7 +594,7 @@ export async function transpileTypescript(
 	await loadSourceMapWasm();
 	const tstlOptions = getTstlOptions(ts, tstl);
 	const { program, snapshotHost } = createTypescriptProgram(ts, tstlOptions, fileName, content, projectRoot, virtualFiles);
-	let diagnostics = ts.getPreEmitDiagnostics(program);
+	const preEmitDiagnostics = ts.getPreEmitDiagnostics(program);
 	const { createEmitOutputCollector } = await loadOutputCollector();
 	const collector = createEmitOutputCollector();
 	const res = new tstl.Transpiler({
@@ -619,7 +621,10 @@ export async function transpileTypescript(
 		program,
 		writeFile: collector.writeFile
 	});
-	diagnostics = [...diagnostics, ...res.diagnostics].filter(d => d.code !== 2497 && d.code !== 2666);
+	const diagnostics = promoteCompilerWarnings(
+		[...preEmitDiagnostics, ...res.diagnostics].filter(d => d.code !== 2497 && d.code !== 2666),
+		ts.DiagnosticCategory,
+	);
 
 	const otherFileDiagnostics = diagnostics.filter(d => {
 		try {
@@ -633,6 +638,9 @@ export async function transpileTypescript(
 	}
 
 	const success = diagnostics.length === 0;
+	if (!success) {
+		return { success, luaCode: undefined as string | undefined, diagnostics, extraError: otherFileDiagnostics.length > 0 };
+	}
 	const file = collector.files.find(({ sourceFiles }) => sourceFiles.some(f => {
 		return Info.path.relative(f.fileName, fileName) === "";
 	}));
@@ -659,10 +667,15 @@ export async function transpileTypescript(
 					return line + ` -- ${lineToUse}`;
 				}).filter(l => l !== "").join('\n');
 			});
-			return { success, luaCode: modifiedLuaCode, diagnostics, extraError: otherFileDiagnostics.length > 0 };
+			if (modifiedLuaCode !== undefined && modifiedLuaCode.trim() !== "") {
+				return { success, luaCode: modifiedLuaCode, diagnostics, extraError: otherFileDiagnostics.length > 0 };
+			}
 		}
 	}
-	return { success, luaCode: undefined as string | undefined, diagnostics, extraError: otherFileDiagnostics.length > 0 };
+	diagnostics.push({ category: ts.DiagnosticCategory.Error, code: 0,
+		file: program.getSourceFile(fileName), start: 0, length: 0,
+		messageText: "Compiler produced no Lua output for this source file." });
+	return { success: false, luaCode: undefined as string | undefined, diagnostics, extraError: otherFileDiagnostics.length > 0 };
 }
 
 export async function revalidateModel(model: monaco.editor.ITextModel) {
@@ -674,8 +687,8 @@ export async function revalidateModel(model: monaco.editor.ITextModel) {
 		worker.getSyntacticDiagnostics(model.uri.toString()),
 		worker.getSemanticDiagnostics(model.uri.toString())
 	]))
-		.reduce((a: Diagnostic[], it) => a.concat(it), [])
-		.filter((d: Diagnostic) => d.code !== 2497 && d.code !== 2666);
+		.flat()
+		.filter((d) => d.code !== 2497 && d.code !== 2666);
 	const markers = diagnostics.map(d => {
 		const { start = 0, length = 0 } = d;
 		const startPos = model.getPositionAt(start);

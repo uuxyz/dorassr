@@ -9,6 +9,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include "Const/Header.h"
 
 #include "Basic/Application.h"
+#include "Basic/IDEInput.h"
 
 #include "Basic/AutoreleasePool.h"
 #include "Basic/Content.h"
@@ -27,6 +28,11 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 #include "SDL.h"
 #include "SDL_syswm.h"
+#if (BX_PLATFORM_OSX || BX_PLATFORM_LINUX) && !defined(DORA_AS_LIB)
+#include <atomic>
+#include <csignal>
+#include <system_error>
+#endif
 #if BX_PLATFORM_ANDROID
 #include "SDL_system.h"
 #endif
@@ -53,10 +59,65 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <unistd.h>
 #endif // BX_PLATFORM_OSX || BX_PLATFORM_ANDROID
 
-#define DORA_VERSION "1.9.3"_slice
-#define DORA_REVISION "12"_slice
+#define DORA_VERSION "1.9.4"_slice
+#define DORA_REVISION "1"_slice
 
 namespace {
+#if (BX_PLATFORM_OSX || BX_PLATFORM_LINUX) && !defined(DORA_AS_LIB)
+// Standalone POSIX applications only. The watchdog deliberately lives until
+// process exit, including SDL shutdown and static destruction. Only database
+// work may delay forced exit; render/logic-thread acknowledgement is not needed.
+class ShutdownWatchdog {
+public:
+	static bool start(void (*beforeExit)()) {
+		static const bool started = [beforeExit] {
+			struct sigaction action{};
+			action.sa_handler = handleSignal;
+			sigemptyset(&action.sa_mask);
+			struct sigaction oldTerm{};
+			struct sigaction oldInt{};
+			if (sigaction(SIGTERM, &action, &oldTerm) != 0) return false;
+			if (sigaction(SIGINT, &action, &oldInt) != 0) {
+				sigaction(SIGTERM, &oldTerm, nullptr);
+				return false;
+			}
+			try {
+				std::thread([beforeExit] {
+					int signal;
+					do {
+						std::this_thread::sleep_for(std::chrono::milliseconds(20));
+						signal = requestedSignal.load(std::memory_order_relaxed);
+					} while (signal == 0);
+					// Drain SQLite first; the grace period starts only after it stops.
+					beforeExit();
+					std::this_thread::sleep_for(std::chrono::seconds(3));
+					std::_Exit(128 + signal);
+				}).detach();
+			} catch (const std::system_error&) {
+				sigaction(SIGINT, &oldInt, nullptr);
+				sigaction(SIGTERM, &oldTerm, nullptr);
+				return false;
+			}
+			return true;
+		}();
+		return started;
+	}
+
+	static bool isRequested() {
+		return requestedSignal.load(std::memory_order_relaxed) != 0;
+	}
+
+private:
+	static_assert(std::atomic<int>::is_always_lock_free,
+		"Signal handling requires lock-free atomics");
+	inline static std::atomic<int> requestedSignal{0};
+	static void handleSignal(int signal) {
+		int expected = 0;
+		requestedSignal.compare_exchange_strong(expected, signal, std::memory_order_relaxed);
+	}
+};
+#endif
+
 std::mutex receivedFileMutex;
 std::deque<std::string> receivedFiles;
 #if BX_PLATFORM_EMSCRIPTEN
@@ -87,6 +148,21 @@ JNIEXPORT void JNICALL Java_org_ippclub_dorassr_MainActivity_nativeSetPath(JNIEn
 }
 static float g_androidScreenDensity;
 extern "C" {
+JNIEXPORT void JNICALL Java_org_ippclub_dorassr_MainActivity_nativeIDEState(JNIEnv* env, jclass, jstring state, jstring message) {
+ const char* value = env->GetStringUTFChars(state, nullptr);
+ const char* reason = env->GetStringUTFChars(message, nullptr);
+ std::string stateText(value ? value : ""), messageText(reason ? reason : "");
+ if (value) env->ReleaseStringUTFChars(state, value);
+ if (reason) env->ReleaseStringUTFChars(message, reason);
+ Dora::Singleton<Dora::Application>::shared().invokeInLogic([stateText, messageText]() {
+  Dora::Event::send(std::string_view("AppIDEState"), stateText, messageText);
+ });
+}
+
+JNIEXPORT void JNICALL Java_org_ippclub_dorassr_MainActivity_nativeIDEInputFocus(JNIEnv*, jclass, jboolean ideFocused) {
+	Dora::notifyIDEInputFocus(ideFocused);
+}
+
 JNIEXPORT void JNICALL Java_org_ippclub_dorassr_MainActivity_nativeSetScreenDensity(JNIEnv* env, jclass cls, jfloat screenDensity) {
 	g_androidScreenDensity = s_cast<float>(screenDensity);
 }
@@ -169,6 +245,24 @@ static void setAndroidAppWebView(const std::string& path, bool visible) {
 #endif // BX_PLATFORM_WINDOWS || BX_PLATFORM_OSX || BX_PLATFORM_LINUX
 
 NS_DORA_BEGIN
+void notifyIDEInputFocus(bool ideFocused) {
+	SharedApplication.invokeInLogic([ideFocused]() {
+		SDL_Event event{};
+		event.type = SDL_WINDOWEVENT;
+		// Cancel consumers before clearStates emits synthetic key releases.
+		event.window.event = SDL_WINDOWEVENT_FOCUS_LOST;
+		SharedDirector.handleSDLEvent(event);
+		SharedApplication.eventHandler(event);
+		if (!ideFocused) {
+			event.window.event = SDL_WINDOWEVENT_FOCUS_GAINED;
+			SharedDirector.handleSDLEvent(event);
+			SharedApplication.eventHandler(event);
+		}
+	});
+	// Native browser children do not send their key-up events through SDL.
+	// Reset its raw modifier state too, on the thread that pumps SDL events.
+	SharedApplication.invokeInRender(SDL_ResetKeyboard);
+}
 
 namespace {
 
@@ -805,6 +899,33 @@ bool Application::isIdled() const noexcept {
 	return _idled;
 }
 
+bool Application::isWebIDEEnabled() const noexcept {
+	return _webIDEEnabled.load(std::memory_order_relaxed);
+}
+
+void Application::setWebIDEEnabled(bool enabled) {
+	if (_webIDEEnabled.exchange(enabled, std::memory_order_relaxed) == enabled) return;
+#if BX_PLATFORM_ANDROID || BX_PLATFORM_OSX || BX_PLATFORM_WINDOWS
+	invokeInRender([this]() {
+#if BX_PLATFORM_ANDROID
+		setAndroidAppWebView("/ide/enable", isWebIDEEnabled());
+#elif BX_PLATFORM_OSX || BX_PLATFORM_WINDOWS
+		setIDEWebView(isWebIDEEnabled() ? "attach" : "disable");
+#endif
+	});
+#endif
+}
+
+#if BX_PLATFORM_OSX || BX_PLATFORM_WINDOWS
+bool Application::isIDEWebViewVisible() const {
+	return _ideWebViewVisible.load(std::memory_order_relaxed);
+}
+
+void Application::setIDEWebViewVisible(bool visible) {
+	_ideWebViewVisible.store(visible, std::memory_order_relaxed);
+}
+#endif
+
 void Application::setFPSLimited(bool var) {
 	_fpsLimited = var;
 }
@@ -942,6 +1063,15 @@ int Application::run(MainFunc mainFunc) {
 		return 1;
 	}
 
+#if (BX_PLATFORM_OSX || BX_PLATFORM_LINUX) && !defined(DORA_AS_LIB)
+	// Replace SDL's cooperative signal handlers after SDL installs them.
+	if (!ShutdownWatchdog::start(Dora::DB::stopForShutdown)) {
+		Error("Failed to install shutdown signal handlers");
+		SDL_Quit();
+		return 1;
+	}
+#endif
+
 	SharedController.initInRender();
 
 	SDL_SetHint(SDL_HINT_MOUSE_TOUCH_EVENTS, "1");
@@ -1050,15 +1180,37 @@ int Application::run(MainFunc mainFunc) {
 	_logicThread.init(Application::mainLogic, this);
 
 	SDL_Event event;
+#if (BX_PLATFORM_OSX || BX_PLATFORM_LINUX) && !defined(DORA_AS_LIB)
+	bool signalQuitPosted = false;
+#endif
 	while (_renderRunning) {
+#if (BX_PLATFORM_OSX || BX_PLATFORM_LINUX) && !defined(DORA_AS_LIB)
+		if (!signalQuitPosted && ShutdownWatchdog::isRequested()) {
+			SDL_Event quitEvent{};
+			quitEvent.type = SDL_QUIT;
+			signalQuitPosted = SDL_PushEvent(&quitEvent) > 0;
+		}
+#endif
 		// do render staff and swap buffers
+		bool frameReady = true;
+#if BX_PLATFORM_OSX || BX_PLATFORM_WINDOWS
+		// Browser input must not wait for the logic thread to submit a frame.
+		frameReady = bgfx::renderFrame(isIDEWebViewVisible() ? 1 : -1) == bgfx::RenderFrame::Render;
+#else
 		bgfx::renderFrame();
-		if (_sdlGLContext) {
+#endif
+		if (_sdlGLContext && frameReady) {
 			SDL_GL_SwapWindow(_sdlWindow);
 		}
 
 		// handle SDL event in this main thread only
 		while (SDL_PollEvent(&event)) {
+#if BX_PLATFORM_OSX || BX_PLATFORM_WINDOWS
+			if (isIDEWebViewVisible() && (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP
+				|| event.type == SDL_TEXTINPUT || event.type == SDL_TEXTEDITING
+				|| event.type == SDL_MOUSEMOTION || event.type == SDL_MOUSEBUTTONDOWN
+				|| event.type == SDL_MOUSEBUTTONUP || event.type == SDL_MOUSEWHEEL)) continue;
+#endif
 			bool suppressKeyboardEvent = false;
 			switch (event.type) {
 				case SDL_DROPFILE:
@@ -1163,12 +1315,23 @@ int Application::run(MainFunc mainFunc) {
 					break;
 			}
 		}
+
+#if BX_PLATFORM_OSX
+		// WebKit still needs run-loop turns to finish disconnecting after Close.
+		pumpIDEWebViewEvents();
+#elif BX_PLATFORM_WINDOWS
+		if (isIDEWebViewVisible()) pumpIDEWebViewEvents();
+#endif
 	}
 
 	// wait for render process to stop
 	while (bgfx::RenderFrame::NoContext != bgfx::renderFrame());
 	_logicThread.shutdown();
 
+#if BX_PLATFORM_OSX || BX_PLATFORM_WINDOWS
+	closeIDEWebView();
+	closeCompilerWebView();
+#endif
 	if (_sdlGLContext) {
 		SDL_GL_DeleteContext(_sdlGLContext);
 		_sdlGLContext = nullptr;
@@ -1469,15 +1632,22 @@ int Application::mainLogic(Application* app) {
 	}
 
 	SharedPoolManager.push();
-#if BX_PLATFORM_ANDROID
-	app->_appWebViewListener = Listener::create("AppWebView"s, [](Event* event) {
+#if BX_PLATFORM_ANDROID || BX_PLATFORM_OSX || BX_PLATFORM_WINDOWS
+	app->_appWebViewListener = Listener::create("AppWebView"s, [app](Event* event) {
 		std::string path;
 		bool visible = false;
 		if (event->get(path, visible)) {
+#if BX_PLATFORM_ANDROID
 			setAndroidAppWebView(path, visible);
+#else
+			app->invokeInRender([app, path, visible]() {
+				if (path == "/compiler.html") app->setCompilerWebView(path, visible);
+				else if (path.starts_with("/ide/")) app->setIDEWebView(path.substr(5));
+			});
+#endif
 		}
 	});
-#endif // BX_PLATFORM_ANDROID
+#endif // BX_PLATFORM_ANDROID || BX_PLATFORM_OSX || BX_PLATFORM_WINDOWS
 	if (!SharedDirector.init()) {
 		Error("Director failed to initialize!");
 		return 1;
@@ -1559,7 +1729,12 @@ int Application::mainLogic(Application* app) {
 		app->_frame = bgfx::frame();
 
 		double targetDeltaTime = 1.0 / app->_targetFPS;
-		if (app->_idled) {
+		bool idleForIDE = false;
+#if BX_PLATFORM_OSX || BX_PLATFORM_WINDOWS
+		idleForIDE = app->isIDEWebViewVisible();
+#endif
+		// Visible native IDEs must also yield when foreground rendering is unlimited.
+		if (app->_idled || idleForIDE) {
 			app->updateDeltaTime();
 			double idleTime = targetDeltaTime - app->getDeltaTime();
 			if (idleTime > 0) {
@@ -1576,6 +1751,9 @@ int Application::mainLogic(Application* app) {
 		app->makeTimeNow();
 	}
 
+#if BX_PLATFORM_ANDROID || BX_PLATFORM_OSX || BX_PLATFORM_WINDOWS
+	app->_appWebViewListener = nullptr;
+#endif
 #ifdef DORA_AS_LIB
 	bgfx::shutdown();
 #else // DORA_AS_LIB

@@ -174,6 +174,7 @@ class Application
 	tolua_property__bool bool fullScreen;
 	tolua_property__bool bool alwaysOnTop;
 	tolua_property__bool bool devMode;
+	tolua_property__bool bool webIDEEnabled;
 	void openURL(String url);
 	void vibrate(double seconds);
 	void setClipboardText(String text);
@@ -918,7 +919,17 @@ class DrawNode : public Node
 	tolua_property__bool bool depthWrite;
 	tolua_property__common BlendFunc blendFunc;
 	void drawDot(Vec2 pos, float radius, Color color = Color::White);
+	void drawCircle(Vec2 center, float radius, Color color = Color::White);
+	void drawRect(Rect rect, Color fillColor = Color::White, float borderWidth = 0.0f, Color borderColor = Color::White);
+	void drawRoundedRect(Rect rect, float cornerRadius, Color fillColor = Color::White, float borderWidth = 0.0f, Color borderColor = Color::White);
+	void drawRing(Vec2 center, float innerRadius, float outerRadius, Color fillColor = Color::White, float borderWidth = 0.0f, Color borderColor = Color::White);
+	void drawSector(Vec2 center, float radius, float startAngle, float endAngle, Color fillColor = Color::White, float borderWidth = 0.0f, Color borderColor = Color::White);
+	void drawEllipse(Vec2 center, float radiusX, float radiusY, Color color = Color::White);
 	void drawSegment(Vec2 from, Vec2 to, float radius, Color color = Color::White);
+	void drawPolyline(Vec2 verts[tolua_len], float radius, Color color = Color::White, bool closed = false);
+	void drawArc(Vec2 center, float radius, float startAngle, float endAngle, float lineRadius, Color color = Color::White);
+	void drawQuadraticBezier(Vec2 from, Vec2 control, Vec2 to, float radius, Color color = Color::White);
+	void drawCubicBezier(Vec2 from, Vec2 control1, Vec2 control2, Vec2 to, float radius, Color color = Color::White);
 	void drawPolygon(Vec2 verts[tolua_len], Color fillColor = Color::White, float borderWidth = 0.0f, Color borderColor = Color::White);
 	void clear();
 	static DrawNode* create();
@@ -1532,7 +1543,6 @@ class DB
 class HttpServer
 {
 	tolua_property__common string authToken;
-	tolua_property__bool bool authRequired;
 	tolua_readonly tolua_property__common string localIP;
 	tolua_readonly tolua_property__common int wSConnectionCount @ wsConnectionCount;
 	tolua_property__common string wWWPath @ wwwPath;
@@ -1588,6 +1598,7 @@ struct WasmRuntime @ Wasm
 
 struct Git
 {
+	static tolua_outside bool Git::isRepoPathAllowed @ isRepoPathAllowed(String repoPath);
 	static tolua_outside int64_t Git::run @ run(String repoPath, String command, tolua_function_void callback, String optionsJSON = "");
 	static tolua_outside bool Git::cancel @ cancel(int64_t jobId);
 };

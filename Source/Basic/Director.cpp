@@ -466,6 +466,13 @@ void Director::bindGameCaptureView(bgfx::ViewId viewId) {
 }
 
 void Director::doRender() {
+#if BX_PLATFORM_OSX || BX_PLATFORM_WINDOWS
+	// The opaque native IDE covers the engine. Keep logic and GPU resource
+	// processing alive, but only draw on explicit capture requests.
+	const bool covered = SharedApplication.isIDEWebViewVisible();
+	SharedView.setPresentationVSyncSuppressed(covered);
+	if (covered && !_captureCallback) return;
+#endif
 	if (_paused || _stoped) return;
 
 	// Capture only the requested frame. All ordinary scene passes keep their
@@ -931,11 +938,22 @@ void Director::handleSDLEvent(const SDL_Event& event) {
 			break;
 		case SDL_WINDOWEVENT: {
 			switch (event.window.event) {
+				case SDL_WINDOWEVENT_FOCUS_LOST:
+					Event::send("AppEvent"_slice, "WindowFocusLost"s);
+					// Cancel consumers before generated key-up callbacks can release a shot.
+					SharedKeyboard.clearStates();
+					break;
+				case SDL_WINDOWEVENT_FOCUS_GAINED:
+					Event::send("AppEvent"_slice, "WindowFocusGained"s);
+					break;
 				case SDL_WINDOWEVENT_HIDDEN:
+					Event::send("AppEvent"_slice, "WindowHidden"s);
+					SharedKeyboard.clearStates();
 					_paused = true;
 					break;
 				case SDL_WINDOWEVENT_SHOWN:
 					_paused = false;
+					Event::send("AppEvent"_slice, "WindowShown"s);
 					break;
 				case SDL_WINDOWEVENT_RESIZED:
 				case SDL_WINDOWEVENT_SIZE_CHANGED:

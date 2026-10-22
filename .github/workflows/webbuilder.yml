@@ -1,0 +1,29 @@
+name: WebBuilder
+
+on:
+  push:
+    branches: [main]
+    paths: ['Tools/WebBuilder/**', '.github/workflows/webbuilder.yml']
+  pull_request:
+    branches: [main]
+    paths: ['Tools/WebBuilder/**', '.github/workflows/webbuilder.yml']
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+      - name: Resolve Dora-Example tests once
+        run: xmake dora-test-deps --env-file="$GITHUB_ENV"
+      - name: Test WebBuilder from Dora-Example
+        run: xmake dora-test --case=test_webbuild

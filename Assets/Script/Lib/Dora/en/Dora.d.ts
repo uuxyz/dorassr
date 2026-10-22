@@ -747,6 +747,14 @@ interface App {
 	devMode: boolean;
 
 	/**
+	 * Enables the embedded Web IDE, floating switcher and toggle shortcut on macOS, Windows and Android.
+	 * Defaults to false. The Dora development launcher enables it according to its settings.
+	 * Packaged games must opt in explicitly. Disabling releases the IDE UI and restores engine focus;
+	 * the on-demand background compiler is independent of this setting.
+	 */
+	webIDEEnabled: boolean;
+
+	/**
 	 * The application window size.
 	 * May differ from visual size due to the different DPIs of display devices.
 	 * It is not available to set this property on platform Android and iOS.
@@ -3005,7 +3013,7 @@ const enum GlobalEvent {
 
 export {GlobalEvent as GSlot};
 
-type AppEventType = "Quit" | "LowMemory" | "WillEnterBackground" | "DidEnterBackground" | "WillEnterForeground" | "DidEnterForeground" | "Shutdown" | "BackButton";
+type AppEventType = "Quit" | "LowMemory" | "WillEnterBackground" | "DidEnterBackground" | "WillEnterForeground" | "DidEnterForeground" | "Shutdown" | "BackButton" | "WindowFocusLost" | "WindowFocusGained" | "WindowHidden" | "WindowShown";
 type AppSettingName = "Locale" | "Theme" | "FullScreen" | "Position" | "Size";
 type AppWSEventType = "Open" | "Close" | "Send" | "Receive";
 type AppWSMessage = {
@@ -5376,6 +5384,15 @@ class DrawNode extends Node {
 	 */
 	drawDot(pos: Vec2, radius: number, color?: Color): void;
 
+	/** Draws a circle at the specified center. */
+	drawCircle(center: Vec2, radius: number, color?: Color): void;
+
+	/** Draws a rectangle with an optional border. */
+	drawRect(rect: Rect, fillColor?: Color, borderWidth?: number, borderColor?: Color): void;
+
+	/** Draws a filled ellipse at the specified center. */
+	drawEllipse(center: Vec2, radiusX: number, radiusY: number, color?: Color): void;
+
 	/**
 	 * Draws a line segment between two points with a specified radius and color.
 	 * @param from The starting point of the line.
@@ -5385,11 +5402,32 @@ class DrawNode extends Node {
 	 */
 	drawSegment(from: Vec2, to: Vec2, radius: number, color?: Color): void;
 
+	/** Draws a connected stroke with round caps and miter joins, beveling long miters. Radius is half the width; adjacent duplicates are ignored. */
+	drawPolyline(verts: Vec2[], radius: number, color?: Color, closed?: boolean): void;
+
+	/** Draws an arc in degrees: zero points along +X and increasing angles turn toward +Y. The signed sweep is limited to one revolution; full circles close without caps. Line radius is half the width. */
+	drawArc(center: Vec2, radius: number, startAngle: number, endAngle: number, lineRadius: number, color?: Color): void;
+
+	/** Draws a rounded rectangle. Corner radius is clamped to half the smaller dimension; zero draws a rectangle. Border width is half the centered border width. */
+	drawRoundedRect(rect: Rect, cornerRadius: number, fillColor?: Color, borderWidth?: number, borderColor?: Color): void;
+
+	/** Draws a ring with 0 <= innerRadius < outerRadius. Zero inner radius fills the center. Optional centered borders surround both contours; borderWidth is a half width. */
+	drawRing(center: Vec2, innerRadius: number, outerRadius: number, fillColor?: Color, borderWidth?: number, borderColor?: Color): void;
+
+	/** Draws a filled sector in degrees from +X toward +Y. Signed sweep is limited to one revolution; full circles omit radial edges and equal angles draw nothing. Border width is a half width. */
+	drawSector(center: Vec2, radius: number, startAngle: number, endAngle: number, fillColor?: Color, borderWidth?: number, borderColor?: Color): void;
+
+	/** Draws a quadratic Bezier stroke with round caps; coincident endpoints close the stroke. Radius is half the width. Adaptive subdivision targets the smaller of 0.25 local units and 1% of the control hull diagonal, with at most 1024 segments. */
+	drawQuadraticBezier(from: Vec2, control: Vec2, to: Vec2, radius: number, color?: Color): void;
+
+	/** Draws a cubic Bezier stroke with round caps; coincident endpoints close the stroke. Radius is half the width. Adaptive subdivision targets the smaller of 0.25 local units and 1% of the control hull diagonal, with at most 1024 segments. */
+	drawCubicBezier(from: Vec2, control1: Vec2, control2: Vec2, to: Vec2, radius: number, color?: Color): void;
+
 	/**
-	 * Draws a polygon defined by a list of vertices with a specified fill color and border.
+	 * Draws a simple convex or concave polygon in boundary order with either winding. Self-intersections and holes are unsupported; the border is centered on the outline.
 	 * @param verts The vertices of the polygon.
 	 * @param fillColor The fill color of the polygon (default is white).
-	 * @param borderWidth The width of the border (default is 0).
+	 * @param borderWidth Half of the border width, extending to both sides of the outline (default is 0).
 	 * @param borderColor The color of the border (default is white).
 	 */
 	drawPolygon(verts: Vec2[], fillColor?: Color, borderWidth?: number, borderColor?: Color): void;
@@ -9218,6 +9256,8 @@ type GitStatus = GitQueuedStatus | GitRunningStatus | GitErrorStatus | GitCancel
  * An interface that provides Git command functions.
  */
 interface Git {
+	/** Checks whether an absolute path without dot segments resolves inside the writable or asset root, including existing symlinks. Nonexistent descendants are allowed. */
+	isRepoPathAllowed(repoPath: string): boolean;
 	/**
 	 * Runs a supported Git command and polls status automatically.
 	 *

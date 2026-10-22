@@ -19,7 +19,10 @@ oldRequire = _G.require
 const require = (path) ->
 	loaded = package.loaded[path]
 	if loaded == nil
-		moduleCache[] = path
+		-- AgentHost owns these caches across scene run/stop and runtime reloads.
+		-- Do not accumulate their generations in the game module cleanup list.
+		unless path == "Script.Dev.AgentHost" or path == "Script.Dev.AgentStoragePanel" or path\match "^Agent[./]"
+			moduleCache[] = path
 		return oldRequire path
 	loaded
 _G.require = require
@@ -85,11 +88,16 @@ config = Config(
 	"showPreview"
 	"mobileFeed"
 	"mobileFeedCurrentCard"
+	"agentLLMConfigVersion"
 	"mobileRemixLLMConfigId"
 	"mobileLargeText"
-	"authRequired"
+	"webIDEEnabled"
 )
 config\load!
+
+unless config.webIDEEnabled?
+	config.webIDEEnabled = true
+App.webIDEEnabled = config.webIDEEnabled
 
 unless config.writablePath?
 	config.writablePath = Content.appPath
@@ -126,9 +134,6 @@ unless config.mobileFeed?
 unless config.webIDETourCompleted?
 	config.webIDETourCompleted = false
 
-unless config.authRequired?
-	config.authRequired = App.platform not in ["Android", "iOS"]
-HttpServer.authRequired = config.authRequired
 
 showEntry = true
 
@@ -974,6 +979,7 @@ Director.clearColor = Color 0xff1a1a1a
 descColor = Color 0xffa1a1a1
 
 extraOperations = do
+	renderAgentStorage = require "Script.Dev.AgentStoragePanel"
 	isOSSLicenseExist = Content\exist "LICENSES"
 	ossLicenses = nil
 	ossLicensePopup = "#{useChinese and '开源协议' or 'OSS Licenses'}##ossLicenses"
@@ -1018,7 +1024,6 @@ Enter → Start
 When enabled, regular key and text input events are suppressed; mapped keys are delivered only as virtual gamepad input.]]
 		{
 			:showPreview
-			:authRequired
 			:webIDETourCompleted
 		} = config
 		if changed, showPreview := Checkbox zh and "显示预览图" or "Show Preview", showPreview
@@ -1028,15 +1033,10 @@ When enabled, regular key and text input events are suppressed; mapped keys are 
 				thread ->
 					collectgarbage!
 					Cache\removeUnused "Texture"
-		if changed, authRequired := Checkbox zh and "访问验证" or "Auth Required", authRequired
-			config.authRequired = authRequired
-			HttpServer.authRequired = authRequired
-		SameLine!
-		TextColored descColor, "(?)"
-		if IsItemHovered!
-			<- BeginTooltip
-			<- PushTextWrapPos 280
-			Text zh and '请勿在不安全的网络中关闭该选项' or 'Do not turn off this option on an insecure network'
+		if App.platform == "Android" or App.platform == "macOS" or App.platform == "Windows"
+			if changed, webIDEEnabled := Checkbox zh and "内嵌 Web IDE" or "Embedded Web IDE", App.webIDEEnabled
+				config.webIDEEnabled = webIDEEnabled
+				App.webIDEEnabled = webIDEEnabled
 		do
 			:themeColor = App
 			:writablePath = config
@@ -1066,6 +1066,7 @@ When enabled, regular key and text input events are suppressed; mapped keys are 
 				setWorkspace Content.appPath
 			Separator!
 			::skipSetting::
+		renderAgentStorage zh
 		if isOSSLicenseExist
 			if Button zh and '开源协议' or 'OSS Licenses'
 				unless ossLicenses
@@ -1344,7 +1345,7 @@ footerWindow = threadLoop ->
 		showURL = true
 		webIDEWidth = do
 			base = if config.updateNotification then 460 else 360
-			extra = if config.authRequired then 35 else 0
+			extra = 35
 			base + extra
 		showURL = false if width < webIDEWidth
 		SetNextWindowBgAlpha 0.0
@@ -1385,28 +1386,17 @@ footerWindow = threadLoop ->
 							PushTextWrapPos 280, ->
 								Text zh and 'Web IDE 正在等待确认，请核对浏览器中的会话码并点击确认' or 'Web IDE is waiting for confirmation. Match the session code in the browser and click approve.'
 			else
-				if config.authRequired
-					PushStyleColor "Text", themeColor, ->
-						ImGui.ProgressBar authCodeTTL / $MaxAuthCodeTTL, Vec2(60, 30), authCode
-						hovered or= IsItemHovered!
-					if hovered
-						BeginTooltip ->
-							PushTextWrapPos 280, ->
-								if url := webStatus?.url
-									address = if showURL then "Web IDE" else url
-									Text zh and "在本机或是本地局域网连接的其他设备上，使用浏览器访问 #{address} 并输入后面的 PIN 码进行使用 （PIN 仅用于一次认证）" or "Open #{address} in a browser on this machine or another device on the local network and enter the PIN below to start (PIN is one-time)"
-								else
-									Text zh and 'Web IDE 不可用' or 'Web IDE not available'
-				else
-					if hovered
-						BeginTooltip ->
-							PushTextWrapPos 280, ->
-								if url := webStatus?.url
-									address = if showURL then "Web IDE" else url
-									Text zh and "在本机或是本地局域网连接的其他设备上，使用浏览器访问 #{address}" or "Open #{address} in a browser on this machine or another device on the local network"
-								else
-									Text zh and 'Web IDE 不可用' or 'Web IDE not available'
-
+				PushStyleColor "Text", themeColor, ->
+					ImGui.ProgressBar authCodeTTL / $MaxAuthCodeTTL, Vec2(60, 30), authCode
+					hovered or= IsItemHovered!
+				if hovered
+					BeginTooltip ->
+						PushTextWrapPos 280, ->
+							if url := webStatus?.url
+								address = if showURL then "Web IDE" else url
+								Text zh and "本机同源访问无需认证；其他设备或跨域访问 #{address} 时输入后面的 PIN 码（仅用于一次认证）" or "Local same-origin access needs no authentication. For another device or cross-origin access to #{address}, enter the one-time PIN below"
+							else
+								Text zh and 'Web IDE 不可用' or 'Web IDE not available'
 	unless isInEntry
 		SetNextWindowSize Vec2 50, 50
 		SetNextWindowPos Vec2 width - 50, height - 50

@@ -9,6 +9,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include "Const/Header.h"
 
 #include "Http/HttpServer.h"
+#include "Http/HttpOriginPolicy.h"
+#include "Http/HttpValidators.h"
+#include "Http/HttpStaticContent.h"
 
 #include "Http/XrtNetwork.h"
 
@@ -239,6 +242,67 @@ static Dictionary* makeAppWSMessage(String type, std::string&& msg = std::string
 	return payload;
 }
 
+// Build a DNS-independent set of names the server actually serves. Extra
+// hostnames are opt-in (e.g. a configured mDNS name), never learned from Host.
+static std::vector<std::string> web_ide_hosts() {
+	std::vector<std::string> hosts{"localhost", "127.0.0.1", "::1"};
+	auto add = [&](const char* address) {
+		if (address) if (auto host = HttpPolicy::normalizeHost(address)) hosts.push_back(*host);
+	};
+#if BX_PLATFORM_WINDOWS
+	char hostname[256]{};
+	if (gethostname(hostname, sizeof(hostname)) == 0) {
+		addrinfo hints{}, *addresses = nullptr;
+		hints.ai_family = AF_UNSPEC;
+		if (getaddrinfo(hostname, nullptr, &hints, &addresses) == 0) {
+			for (auto p = addresses; p; p = p->ai_next) {
+				char buffer[INET6_ADDRSTRLEN]{};
+				if (p->ai_family == AF_INET) add(inet_ntop(AF_INET, &r_cast<sockaddr_in*>(p->ai_addr)->sin_addr, buffer, sizeof(buffer)));
+				else if (p->ai_family == AF_INET6) add(inet_ntop(AF_INET6, &r_cast<sockaddr_in6*>(p->ai_addr)->sin6_addr, buffer, sizeof(buffer)));
+			}
+			freeaddrinfo(addresses);
+		}
+	}
+#else
+	ifaddrs* addresses = nullptr;
+	if (getifaddrs(&addresses) == 0) {
+		for (auto p = addresses; p; p = p->ifa_next) {
+			if (!p->ifa_addr) continue;
+			char buffer[INET6_ADDRSTRLEN]{};
+			if (p->ifa_addr->sa_family == AF_INET) add(inet_ntop(AF_INET, &r_cast<sockaddr_in*>(p->ifa_addr)->sin_addr, buffer, sizeof(buffer)));
+			else if (p->ifa_addr->sa_family == AF_INET6) add(inet_ntop(AF_INET6, &r_cast<sockaddr_in6*>(p->ifa_addr)->sin6_addr, buffer, sizeof(buffer)));
+		}
+		freeifaddrs(addresses);
+	}
+#endif
+	if (const char* configured = std::getenv("DORA_WEB_IDE_HOSTS")) {
+		std::string_view names(configured);
+		while (!names.empty()) {
+			auto comma = names.find(',');
+			if (auto host = HttpPolicy::normalizeHost(names.substr(0, comma))) hosts.push_back(*host);
+			if (comma == std::string_view::npos) break;
+			names.remove_prefix(comma + 1);
+		}
+	}
+	return hosts;
+}
+
+static HttpPolicy::Access web_request_access(const DoraXrtHttpHeaderView* headers, size_t count,
+	unsigned listenerPort, unsigned pagePort, const std::vector<std::string>& hosts, bool loopbackPeer = false) {
+	std::string_view host;
+	std::optional<std::string_view> origin;
+	std::string_view fetchSite;
+	unsigned hostCount = 0, originCount = 0, fetchSiteCount = 0;
+	for (size_t i = 0; i < count; ++i) {
+		auto name = HttpPolicy::lowerAscii(headers[i].name);
+		if (name == "host") { host = headers[i].value; ++hostCount; }
+		else if (name == "origin") { origin = headers[i].value; ++originCount; }
+		else if (name == "sec-fetch-site") { fetchSite = headers[i].value; ++fetchSiteCount; }
+	}
+	return hostCount == 1 && originCount <= 1 && fetchSiteCount <= 1
+		? HttpPolicy::access(host, origin, listenerPort, pagePort, hosts, loopbackPeer, fetchSite) : HttpPolicy::Access::Denied;
+}
+
 class WebSocketServer {
 	struct Connection {
 		explicit Connection(DoraXrtWebSocketConnection* ws)
@@ -292,10 +356,15 @@ public:
 	}
 
 	bool start(int port) {
+		_port = port;
 		DoraXrtWebSocketServerEvents events{};
-		events.onAuthorize = [](void* owner, DoraXrtWebSocketConnection*, const char* target) -> int {
+		events.onAuthorize = [](void* owner, DoraXrtWebSocketConnection* connection, const char* target, const DoraXrtHttpHeaderView* headers, size_t count) -> int {
 			auto self = r_cast<WebSocketServer*>(owner);
-			return !self->_owner || self->_owner->isWebSocketAuthorized(target ? target : "/"s);
+			if (!self->_owner) return 403;
+			auto access = web_request_access(headers, count, self->_port, self->_owner->_httpPort, self->_owner->_webAllowedHosts, DoraXrtWebSocketIsLoopback(connection));
+			if (access == HttpPolicy::Access::Denied) return 403;
+			if (access == HttpPolicy::Access::Local) return 0;
+			return self->_owner->isWebSocketAuthorized(target ? target : "/"s) ? 0 : 401;
 		};
 		events.onOpen = [](void* owner, DoraXrtWebSocketConnection* ws) {
 			auto self = r_cast<WebSocketServer*>(owner);
@@ -380,6 +449,7 @@ private:
 	}
 
 private:
+	int _port = 0;
 	HttpServer* _owner;
 	DoraXrtWebSocketServer* _server = nullptr;
 	ConnectionMap _connections;
@@ -428,26 +498,35 @@ static std::string auth_body_hash(const HttpServer::Request& req) {
 	return sha256_hex(req.body.toString());
 }
 
+static bool constant_time_equal(std::string_view left, std::string_view right) {
+	if (left.size() != right.size()) return false;
+	unsigned char diff = 0;
+	for (size_t i = 0; i < left.size(); i++) {
+		diff |= static_cast<unsigned char>(left[i]) ^ static_cast<unsigned char>(right[i]);
+	}
+	return diff == 0;
+}
+
 static bool has_valid_auth(const HttpServer::Request& req, const std::string& token) {
-	if (auto value = find_header(req, "X-Dora-Auth"_slice); value && *value == token) {
+	if (auto value = find_header(req, "X-Dora-Auth"_slice); value && constant_time_equal(value->toString(), token)) {
 		return true;
 	}
 	if (auto value = find_header(req, "Authorization"_slice)) {
 		const auto auth = value->toString();
-		if (auth == token) {
+		if (constant_time_equal(auth, token)) {
 			return true;
 		}
 		const std::string bearer = "Bearer "s;
-		if (auth.rfind(bearer, 0) == 0 && auth.substr(bearer.size()) == token) {
+		if (auth.rfind(bearer, 0) == 0 && constant_time_equal(std::string_view(auth).substr(bearer.size()), token)) {
 			return true;
 		}
 		const std::string dora = "Dora "s;
-		if (auth.rfind(dora, 0) == 0 && auth.substr(dora.size()) == token) {
+		if (auth.rfind(dora, 0) == 0 && constant_time_equal(std::string_view(auth).substr(dora.size()), token)) {
 			return true;
 		}
 	}
 	for (size_t i = 0; i + 1 < req.params.size(); i += 2) {
-		if (req.params[i] == "auth"_slice && req.params[i + 1] == token) {
+		if (req.params[i] == "auth"_slice && constant_time_equal(req.params[i + 1].toString(), token)) {
 			return true;
 		}
 	}
@@ -464,9 +543,26 @@ static void set_unauthorized(DoraXrtHttpServerResponse* response) {
 	set_response(response, 401, R"({"success":false,"message":"unauthorized"})"s, "application/json"s);
 }
 
+// A 304 has no body, but any Content-Length must describe the selected 200
+// representation. Set it explicitly so XRT does not infer zero from the body.
+static void set_not_modified(DoraXrtHttpServerResponse* response, size_t representationSize) {
+	auto length = std::to_string(representationSize);
+	DoraXrtHttpServerResponseSetHeader(response, "Content-Length", length.c_str());
+	set_response(response, 304, {}, {});
+}
+
 static void set_service_unavailable(DoraXrtHttpServerResponse* response) {
 	set_response(response, 503, R"({"success":false,"message":"server shutting down"})"s, "application/json"s);
 }
+
+static void set_logic_busy(DoraXrtHttpServerResponse* response) {
+	DoraXrtHttpServerResponseSetHeader(response, "Retry-After", "2");
+	set_response(response, 503, R"({"success":false,"message":"engine logic thread did not respond in time"})"s, "application/json"s);
+}
+
+// Bound time without a logic-thread heartbeat, not the total duration of a
+// scheduled operation (compilation and Git commands can legitimately take longer).
+constexpr double LogicDispatchTimeoutSeconds = 10.0;
 
 template <class T>
 class PendingLogicResult {
@@ -481,7 +577,13 @@ public:
 		_ready.post();
 	}
 
-	std::optional<T> wait(const std::atomic_bool& stopping, const std::atomic_uint64_t& generation, uint64_t requestGeneration) {
+	std::optional<T> wait(const std::atomic_bool& stopping, const std::atomic_uint64_t& generation, uint64_t requestGeneration, double timeoutSeconds = LogicDispatchTimeoutSeconds) {
+		auto deadline = std::chrono::steady_clock::now() + std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(timeoutSeconds));
+		struct Heartbeat {
+			std::atomic_bool queued{false};
+			std::atomic_bool responded{false};
+		};
+		auto heartbeat = std::make_shared<Heartbeat>();
 		while (!_ready.wait(50)) {
 			if (stopping.load(std::memory_order_acquire)
 				|| generation.load(std::memory_order_acquire) != requestGeneration
@@ -489,19 +591,38 @@ public:
 				_cancelled.store(true, std::memory_order_release);
 				return std::nullopt;
 			}
+			if (heartbeat->responded.exchange(false, std::memory_order_acq_rel)) {
+				deadline = std::chrono::steady_clock::now() + std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(timeoutSeconds));
+			}
+			// At most one outstanding probe per request, even if the logic loop is stuck.
+			if (!heartbeat->queued.exchange(true, std::memory_order_acq_rel)) {
+				SharedApplication.invokeInLogic([heartbeat]() {
+					heartbeat->responded.store(true, std::memory_order_release);
+					heartbeat->queued.store(false, std::memory_order_release);
+				});
+			}
+			if (timeoutSeconds > 0.0 && std::chrono::steady_clock::now() >= deadline) {
+				_timedOut.store(true, std::memory_order_release);
+				_cancelled.store(true, std::memory_order_release);
+				return std::nullopt;
+			}
 		}
 		return std::move(_result);
 	}
 
+	bool timedOut() const noexcept {
+		return _timedOut.load(std::memory_order_acquire);
+	}
+
 private:
 	std::atomic_bool _cancelled{false};
+	std::atomic_bool _timedOut{false};
 	bx::Semaphore _ready;
 	std::optional<T> _result;
 };
 
 HttpServer::HttpServer()
-	: _authRequired(false)
-	, _authTokenHasExpiry(false)
+	: _authTokenHasExpiry(false)
 	, _staticCacheControl("no-cache") { }
 
 HttpServer::~HttpServer() {
@@ -597,24 +718,7 @@ const std::string& HttpServer::getAuthToken() const noexcept {
 	return _authToken;
 }
 
-void HttpServer::setAuthRequired(bool var) {
-	_authRequired = var;
-	if (!_authRequired) {
-		_authTokenHasExpiry = false;
-	} else if (!_authToken.empty()) {
-		_authTokenHasExpiry = true;
-		_authTokenExpiry = std::chrono::steady_clock::now() + std::chrono::seconds(AuthTokenTTLSeconds);
-	}
-}
-
-bool HttpServer::isAuthRequired() const noexcept {
-	return _authRequired;
-}
-
 bool HttpServer::isAuthorized(const Request& req) {
-	if (!_authRequired) {
-		return true;
-	}
 	if (_authToken.empty()) {
 		return false;
 	}
@@ -655,7 +759,7 @@ bool HttpServer::isAuthorized(const Request& req) {
 		auto bodyHash = auth_body_hash(req);
 		auto payload = fmt::format("{}\n{}\n{}\n{}\n{}\n{}", sessionId, req.method.toString(), path, timestampHeader->toString(), nonce, bodyHash);
 		auto expected = hmac_sha256_hex(_authSessionSecret, payload);
-		if (expected != signatureHeader->toString()) {
+		if (!constant_time_equal(expected, signatureHeader->toString())) {
 			return false;
 		}
 		{
@@ -683,9 +787,6 @@ bool HttpServer::isAuthorized(const Request& req) {
 }
 
 bool HttpServer::isTokenValid(const std::string& token) {
-	if (!_authRequired) {
-		return true;
-	}
 	if (_authToken.empty()) {
 		return false;
 	}
@@ -698,7 +799,7 @@ bool HttpServer::isTokenValid(const std::string& token) {
 	}
 	if (!_authSessionId.empty()) {
 		return false;
-	} else if (token != _authToken) {
+	} else if (!constant_time_equal(token, _authToken)) {
 		return false;
 	}
 	if (_authTokenHasExpiry) {
@@ -708,9 +809,6 @@ bool HttpServer::isTokenValid(const std::string& token) {
 }
 
 bool HttpServer::isWebSocketAuthorized(const std::string& resource) {
-	if (!_authRequired) {
-		return true;
-	}
 	if (_authToken.empty()) {
 		return false;
 	}
@@ -775,7 +873,7 @@ bool HttpServer::isWebSocketAuthorized(const std::string& resource) {
 	}
 	auto payload = fmt::format("{}\nGET\n{}\n{}\n{}\n{}", sessionId, canonicalPath, timestamp, nonce, ""s);
 	auto expected = hmac_sha256_hex(_authSessionSecret, payload);
-	if (expected != signature) {
+	if (!constant_time_equal(expected, signature)) {
 		return false;
 	}
 	{
@@ -823,30 +921,40 @@ static bool route_matches(const std::string& pattern, const std::string& path) {
 	}
 }
 
-static HttpServer::Request make_request(const DoraXrtHttpServerRequest* nativeRequest, std::vector<std::string>& paramStorage) {
+static HttpServer::Request make_request(const DoraXrtHttpServerRequest* nativeRequest) {
 	HttpServer::Request request;
-	request.method = nativeRequest->methodText;
-	request.path = nativeRequest->path;
+	// A timeout may return while a handler is still executing. Every Slice must
+	// therefore own backing data through copies of Request, including query data.
+	auto params = parse_query_pairs(nativeRequest->target);
+	auto storage = std::make_shared<std::vector<std::string>>();
+	storage->reserve(4u + nativeRequest->headerCount * 2u + params.size() * 2u);
+	request.storage = storage;
+	auto copy = [&](const char* text) -> Slice {
+		storage->emplace_back(text ? text : "");
+		return storage->back();
+	};
+	request.method = copy(nativeRequest->methodText);
+	request.path = copy(nativeRequest->path);
 	request.headers.reserve(nativeRequest->headerCount * 2u);
 	for (size_t i = 0; i < nativeRequest->headerCount; ++i) {
-		request.headers.emplace_back(nativeRequest->headers[i].name);
-		request.headers.emplace_back(nativeRequest->headers[i].value);
+		request.headers.emplace_back(copy(nativeRequest->headers[i].name));
+		request.headers.emplace_back(copy(nativeRequest->headers[i].value));
 	}
-	auto params = parse_query_pairs(nativeRequest->target);
-	paramStorage.reserve(params.size() * 2u);
+	request.params.reserve(params.size() * 2u);
 	for (auto& [name, value] : params) {
-		paramStorage.push_back(std::move(name));
-		paramStorage.push_back(std::move(value));
+		storage->push_back(std::move(name));
+		request.params.emplace_back(storage->back());
+		storage->push_back(std::move(value));
+		request.params.emplace_back(storage->back());
 	}
-	request.params.reserve(paramStorage.size());
-	for (const auto& value : paramStorage) request.params.emplace_back(value);
-	if (auto contentType = DoraXrtHttpServerRequestHeader(nativeRequest, "Content-Type")) request.contentType = contentType;
-	if (nativeRequest->body && nativeRequest->bodyLen > 0u) request.body = Slice(r_cast<const char*>(nativeRequest->body), nativeRequest->bodyLen);
+	request.contentType = copy(DoraXrtHttpServerRequestHeader(nativeRequest, "Content-Type"));
+	storage->emplace_back(nativeRequest->body ? r_cast<const char*>(nativeRequest->body) : "", nativeRequest->body ? nativeRequest->bodyLen : 0u);
+	request.body = storage->back();
 	return request;
 }
 
 static bool valid_static_path(const std::string& path) {
-	if (path.empty() || path.front() != '/' || path.find('\0') != std::string::npos) return false;
+	if (path.empty() || path.front() != '/' || path.find('\0') != std::string::npos || path.find('\\') != std::string::npos) return false;
 	size_t start = 1;
 	while (start <= path.size()) {
 		auto end = path.find('/', start);
@@ -891,7 +999,8 @@ static bool is_compressible_content_type(std::string_view contentType) {
 		|| mimeType == "application/rss+xml"sv
 		|| mimeType == "application/atom+xml"sv
 		|| mimeType == "application/xslt+xml"sv
-		|| mimeType == "application/protobuf"sv;
+		|| mimeType == "application/protobuf"sv
+		|| mimeType == "application/wasm"sv;
 }
 
 static std::string_view trim_http_token(std::string_view value) {
@@ -977,10 +1086,32 @@ static std::optional<std::string> gzip_compress(std::string_view content) {
 	return compressed;
 }
 
-struct StaticContent {
-	std::string data;
-	bool gzipEncoded = false;
-};
+using StaticContent = HttpPolicy::StaticContent;
+
+// Resolve the original once so a companion cannot come from another Content
+// search path. Content handles disk files, ZIP mounts and Android APK assets.
+static StaticContent loadStaticContent(const std::string& path, bool useGzip) {
+	if (!SharedContent.exist(path)) {
+		auto companion = SharedContent.getFullPath(path + ".gz");
+		auto packed = SharedContent.loadUnsafe(companion);
+		if (useGzip && HttpPolicy::isPrecompressedGzip(packed)) return {std::move(packed), true};
+		if (auto data = HttpPolicy::decodePrecompressedGzip(packed)) return {std::move(*data), false};
+		return {};
+	}
+	auto file = SharedContent.getFullPath(path);
+	auto data = SharedContent.loadUnsafe(file);
+	if (!useGzip || data.empty()) return {std::move(data), false};
+	auto companion = file + ".gz";
+	if (SharedContent.exist(companion)) {
+		auto packed = SharedContent.loadUnsafe(companion);
+		if (HttpPolicy::matchesPrecompressedGzip(data, packed)) return {std::move(packed), true};
+	}
+	// Custom/development assets need no build step. Retain the existing gzip
+	// fallback, without keeping either representation alive between requests.
+	if (auto packed = gzip_compress(data); packed && packed->size() < data.size())
+		return {std::move(*packed), true};
+	return {std::move(data), false};
+}
 
 constexpr size_t DynamicResponseCompressionThreshold = 1024;
 
@@ -1055,19 +1186,88 @@ static RangeParseResult parse_byte_range(const HttpServer::Request& request, siz
 
 bool HttpServer::start(int port) {
 	if (_server) return false;
+	_httpPort = port;
+	_webAllowedHosts = web_ide_hosts();
 	DoraXrtHttpServerEvents events{};
+	// Scheduled routes may wait for further HTTP requests (compiler startup,
+	// polling and results). Keep that wait off XRT's network worker.
+	events.shouldDefer = [](void* owner, const char* path) -> int {
+		auto self = r_cast<HttpServer*>(owner);
+		for (const auto& route : self->_postScheduled) {
+			if (route_matches(route.pattern, path)) return 1;
+		}
+		// Disk upload parsing/copying also runs off the shared network worker.
+		for (const auto& route : self->_files) {
+			if (route_matches(route.pattern, path)) return 1;
+		}
+		return 0;
+	};
+	events.temporaryDirectory = SharedContent.getWritablePath().c_str();
+	events.onUploadHead = [](void* owner, const DoraXrtHttpServerRequest* nativeRequest) -> int {
+		auto self = r_cast<HttpServer*>(owner);
+		if (nativeRequest->method != DORA_XRT_HTTP_METHOD_POST) return 0;
+		const auto path = std::string(nativeRequest->path);
+		if (std::none_of(self->_files.begin(), self->_files.end(), [&](const auto& route) { return route_matches(route.pattern, path); })) return 0;
+		auto contentType = DoraXrtHttpServerRequestHeader(nativeRequest, "Content-Type");
+		if (!contentType || !starts_with_ignore_ascii_case(contentType, "multipart/form-data"sv)) return 400;
+		auto access = web_request_access(nativeRequest->headers, nativeRequest->headerCount, self->_httpPort, self->_httpPort, self->_webAllowedHosts, nativeRequest->loopbackPeer);
+		if (access == HttpPolicy::Access::Denied) return 403;
+		auto request = make_request(nativeRequest);
+		auto origin = find_header(request, "Origin"_slice);
+		auto fetchSite = find_header(request, "Sec-Fetch-Site"_slice);
+		if (HttpPolicy::needsAuthentication(access, false, origin.has_value(), fetchSite ? fetchSite->toString() : ""s, false)
+			&& !self->isAuthorized(request)) return 401;
+		return 1;
+	};
 	events.onRequest = [](void* owner, const DoraXrtHttpServerRequest* nativeRequest, DoraXrtHttpServerResponse* nativeResponse) -> int {
 		auto self = r_cast<HttpServer*>(owner);
 		const auto requestGeneration = self->_generation.load(std::memory_order_acquire);
-		DoraXrtHttpServerResponseSetHeader(nativeResponse, "Access-Control-Allow-Origin", "*");
-		DoraXrtHttpServerResponseSetHeader(nativeResponse, "Access-Control-Allow-Headers", "*");
-		std::vector<std::string> paramStorage;
-		auto request = make_request(nativeRequest, paramStorage);
+		auto access = web_request_access(nativeRequest->headers, nativeRequest->headerCount, self->_httpPort, self->_httpPort, self->_webAllowedHosts, nativeRequest->loopbackPeer);
+		if (access == HttpPolicy::Access::Denied) {
+			set_response(nativeResponse, 403, R"({"success":false,"message":"request host or origin is not allowed"})"s, "application/json"s);
+			return true;
+		}
+		auto request = make_request(nativeRequest);
 		auto path = request.path.toString();
+		// Echo only the validated concrete Origin. Preflights contain no session;
+		// the actual request must still authenticate before reaching a handler.
+		auto origin = find_header(request, "Origin"_slice);
+		auto fetchSite = find_header(request, "Sec-Fetch-Site"_slice);
+		// GET APIs (notably synchronous compiler reads) are protected too.
+		// Only static navigation/bootstrap reads may be public without Origin.
+		const bool publicRead = (nativeRequest->method == DORA_XRT_HTTP_METHOD_GET || nativeRequest->method == DORA_XRT_HTTP_METHOD_HEAD)
+			&& std::none_of(self->_gets.begin(), self->_gets.end(), [&](const auto& route) { return route_matches(route.pattern, path); });
+		auto fetchMode = find_header(request, "Sec-Fetch-Mode"_slice);
+		auto fetchDest = find_header(request, "Sec-Fetch-Dest"_slice);
+		const bool documentNavigation = fetchMode && fetchDest && *fetchMode == "navigate"_slice && *fetchDest == "document"_slice;
+		// Module scripts use CORS mode even on the same LAN origin. They must
+		// bootstrap the login UI before a session exists. This never exempts an
+		// API route or a cross-origin static read from authentication.
+		auto host = find_header(request, "Host"_slice);
+		const bool sameOriginBootstrap = publicRead && origin && host && (!fetchSite || *fetchSite == "same-origin"_slice)
+			&& HttpPolicy::sameHttpOrigin(host->toString(), origin->toString(), self->_httpPort);
+		const bool authenticationRequired = HttpPolicy::needsAuthentication(access, publicRead,
+			origin.has_value() && !sameOriginBootstrap, fetchSite ? fetchSite->toString() : ""s, documentNavigation);
+		DoraXrtHttpServerResponseSetHeader(nativeResponse, "Vary", "Origin, Sec-Fetch-Site, Sec-Fetch-Mode, Sec-Fetch-Dest");
+		if (authenticationRequired) DoraXrtHttpServerResponseSetHeader(nativeResponse, "Cache-Control", "no-store");
+		if (origin) {
+			auto value = origin->toString();
+			DoraXrtHttpServerResponseSetHeader(nativeResponse, "Access-Control-Allow-Origin", value.c_str());
+			DoraXrtHttpServerResponseSetHeader(nativeResponse, "Access-Control-Allow-Methods", "GET, HEAD, POST, OPTIONS");
+			DoraXrtHttpServerResponseSetHeader(nativeResponse, "Access-Control-Allow-Headers", "Content-Type, Authorization, X-Dora-Auth, If-None-Match, Range, X-Dora-Session, X-Dora-Timestamp, X-Dora-Nonce, X-Dora-Signature");
+			DoraXrtHttpServerResponseSetHeader(nativeResponse, "Access-Control-Expose-Headers", "ETag, Content-Range, Retry-After");
+		}
+		if (nativeRequest->method != DORA_XRT_HTTP_METHOD_OPTIONS
+			&& path != "/auth"sv && path != "/auth/confirm"sv
+			&& authenticationRequired
+			&& !nativeRequest->uploadAuthorized && !self->isAuthorized(request)) {
+			set_unauthorized(nativeResponse);
+			return true;
+		}
 		const bool gzipAccepted = accepts_gzip(request);
 		auto respond = [&](HttpServer::Response&& response) {
 			auto prepared = prepare_dynamic_response(std::move(response), gzipAccepted);
-			if (prepared.varyAcceptEncoding) DoraXrtHttpServerResponseSetHeader(nativeResponse, "Vary", "Accept-Encoding");
+			if (prepared.varyAcceptEncoding) DoraXrtHttpServerResponseSetHeader(nativeResponse, "Vary", "Origin, Sec-Fetch-Site, Sec-Fetch-Mode, Sec-Fetch-Dest, Accept-Encoding");
 			if (prepared.gzipEncoded) DoraXrtHttpServerResponseSetHeader(nativeResponse, "Content-Encoding", "gzip");
 			set_response(nativeResponse, prepared.response.status > 0 ? prepared.response.status : 200, prepared.response.content, prepared.response.contentType);
 		};
@@ -1084,7 +1284,9 @@ bool HttpServer::start(int port) {
 						if (!pending->isCancelled()) pending->complete(route->handler(request));
 					});
 					auto response = pending->wait(self->_stopping, self->_generation, requestGeneration);
-					if (!response) set_service_unavailable(nativeResponse); else respond(std::move(*response));
+					if (!response) {
+						if (pending->timedOut()) set_logic_busy(nativeResponse); else set_service_unavailable(nativeResponse);
+					} else respond(std::move(*response));
 					return true;
 				}
 			}
@@ -1096,45 +1298,52 @@ bool HttpServer::start(int port) {
 			if (decodedPath.back() == '/') decodedPath += "index.html";
 			auto requestPath = decodedPath;
 			decodedPath.erase(decodedPath.begin());
-			if (!SharedContent.exist(decodedPath)) {
+			auto exists = [](const std::string& file) { return SharedContent.exist(file) || SharedContent.exist(file + ".gz"); };
+			if (!exists(decodedPath)) {
 				bool found = false;
 				if (!self->_wwwPath.empty()) {
 					auto checkPath = Path::concat({self->_wwwPath, decodedPath});
-					if (SharedContent.exist(checkPath)) { decodedPath = checkPath; found = true; }
+					if (exists(checkPath)) { decodedPath = checkPath; found = true; }
 				}
 				if (!found) {
 					auto checkPath = Path::concat({SharedContent.getWritablePath(), decodedPath});
-					if (SharedContent.exist(checkPath)) { decodedPath = checkPath; found = true; }
+					if (exists(checkPath)) { decodedPath = checkPath; found = true; }
 				}
 				if (!found) return false;
 			}
 			const auto* contentType = content_type_for_path(decodedPath);
-			const bool compressible = is_compressible_content_type(contentType);
+			const bool compressible = is_compressible_content_type(contentType)
+				|| !SharedContent.exist(decodedPath);
 			const bool useGzip = compressible && !find_header(request, "Range"_slice) && accepts_gzip(request);
 			auto pending = std::make_shared<PendingLogicResult<StaticContent>>();
 			SharedContent.getThread()->run([pending, file = decodedPath, useGzip]() {
 				if (pending->isCancelled()) return;
-				StaticContent result{SharedContent.loadUnsafe(file)};
-				if (useGzip && !result.data.empty()) {
-					if (auto compressed = gzip_compress(result.data); compressed && compressed->size() < result.data.size()) {
-						result.data = std::move(*compressed);
-						result.gzipEncoded = true;
-					}
-				}
+				StaticContent result = loadStaticContent(file, useGzip);
 				if (!pending->isCancelled()) pending->complete(std::move(result));
 			});
 			auto content = pending->wait(self->_stopping, self->_generation, requestGeneration);
 			if (!content) {
-				set_service_unavailable(nativeResponse);
+				if (pending->timedOut()) set_logic_busy(nativeResponse); else set_service_unavailable(nativeResponse);
 				return true;
 			}
 			if (content->data.empty()) return false;
+			const auto etag = fmt::format("\"{:08x}-{}{}\"",
+				crc32(0, r_cast<const Bytef*>(content->data.data()), s_cast<uInt>(content->data.size())),
+				content->data.size(), content->gzipEncoded ? "-g"sv : ""sv);
+			auto cacheControl = authenticationRequired ? "no-store"s : self->getStaticCacheControl(requestPath);
 			DoraXrtHttpServerResponseSetHeader(nativeResponse, "Content-Type", contentType);
-			if (compressible) DoraXrtHttpServerResponseSetHeader(nativeResponse, "Vary", "Accept-Encoding");
+			if (compressible) DoraXrtHttpServerResponseSetHeader(nativeResponse, "Vary", "Origin, Sec-Fetch-Site, Sec-Fetch-Mode, Sec-Fetch-Dest, Accept-Encoding");
 			if (content->gzipEncoded) DoraXrtHttpServerResponseSetHeader(nativeResponse, "Content-Encoding", "gzip");
-			auto cacheControl = self->getStaticCacheControl(requestPath);
 			if (!cacheControl.empty()) DoraXrtHttpServerResponseSetHeader(nativeResponse, "Cache-Control", cacheControl.c_str());
 			DoraXrtHttpServerResponseSetHeader(nativeResponse, "Accept-Ranges", "bytes");
+			DoraXrtHttpServerResponseSetHeader(nativeResponse, "ETag", etag.c_str());
+			if (auto ifNoneMatch = find_header(request, "If-None-Match"_slice)) {
+				const auto matchValue = ifNoneMatch->toString();
+				if (HttpPolicy::ifNoneMatch(matchValue, etag)) {
+					set_not_modified(nativeResponse, content->data.size());
+					return true;
+				}
+			}
 			ByteRange range;
 			auto rangeResult = parse_byte_range(request, content->data.size(), range);
 			if (rangeResult == RangeParseResult::Unsatisfiable) {
@@ -1160,10 +1369,6 @@ bool HttpServer::start(int port) {
 			return true;
 		}
 		if (nativeRequest->method != DORA_XRT_HTTP_METHOD_POST) return false;
-		if (path != "/auth"sv && path != "/auth/confirm"sv && !self->isAuthorized(request)) {
-			set_unauthorized(nativeResponse);
-			return true;
-		}
 		for (const auto& route : self->_posts) {
 			if (!route_matches(route.pattern, path)) continue;
 			auto pending = std::make_shared<PendingLogicResult<HttpServer::Response>>();
@@ -1171,7 +1376,9 @@ bool HttpServer::start(int port) {
 				if (!pending->isCancelled()) pending->complete(route->handler(request));
 			});
 			auto response = pending->wait(self->_stopping, self->_generation, requestGeneration);
-			if (!response) set_service_unavailable(nativeResponse); else respond(std::move(*response));
+			if (!response) {
+				if (pending->timedOut()) set_logic_busy(nativeResponse); else set_service_unavailable(nativeResponse);
+			} else respond(std::move(*response));
 			return true;
 		}
 		for (const auto& route : self->_postScheduled) {
@@ -1189,13 +1396,15 @@ bool HttpServer::start(int port) {
 				});
 			});
 			auto response = pending->wait(self->_stopping, self->_generation, requestGeneration);
-			if (!response) set_service_unavailable(nativeResponse); else respond(std::move(*response));
+			if (!response) {
+				if (pending->timedOut()) set_logic_busy(nativeResponse); else set_service_unavailable(nativeResponse);
+			} else respond(std::move(*response));
 			return true;
 		}
 		for (const auto& route : self->_files) {
 			if (!route_matches(route.pattern, path)) continue;
 			auto contentType = DoraXrtHttpServerRequestHeader(nativeRequest, "Content-Type");
-			if (!contentType || !nativeRequest->body) {
+			if (!contentType || (!nativeRequest->body && !nativeRequest->bodyFile)) {
 				set_response(nativeResponse, 403, {}, {});
 				return true;
 			}
@@ -1209,37 +1418,49 @@ bool HttpServer::start(int port) {
 				uint64_t requestGeneration;
 			};
 			MultipartContext context{self, &route, &request, nativeResponse, &acceptedFiles, requestGeneration};
-			auto multipartResult = DoraXrtMultipartForEachFile(
-				contentType,
-				nativeRequest->body,
-				nativeRequest->bodyLen,
-				512u * 1024u * 1024u,
-				[](void* userData, const DoraXrtMultipartFileView* part) {
-					auto context = r_cast<MultipartContext*>(userData);
-					std::string filename(part->fileName, part->fileNameLen);
-					auto accepted = std::make_shared<PendingLogicResult<std::optional<std::string>>>();
-					SharedApplication.invokeInLogic([accepted, route = context->route, request = *context->request, filename = std::move(filename)]() {
-						if (!accepted->isCancelled()) accepted->complete(route->acceptHandler(request, filename));
-					});
-					auto acceptedPath = accepted->wait(context->server->_stopping, context->server->_generation, context->requestGeneration);
-					if (!acceptedPath) {
-						set_service_unavailable(context->response);
-						return 0;
+			auto writePart = [](void* userData, const DoraXrtMultipartFileView* part) {
+				auto context = r_cast<MultipartContext*>(userData);
+				std::string filename(part->fileName, part->fileNameLen);
+				auto accepted = std::make_shared<PendingLogicResult<std::optional<std::string>>>();
+				SharedApplication.invokeInLogic([accepted, route = context->route, request = *context->request, filename = std::move(filename)]() {
+					if (!accepted->isCancelled()) accepted->complete(route->acceptHandler(request, filename));
+				});
+				auto acceptedPath = accepted->wait(context->server->_stopping, context->server->_generation, context->requestGeneration);
+				if (!acceptedPath) {
+					if (accepted->timedOut()) set_logic_busy(context->response); else set_service_unavailable(context->response);
+					return 0;
+				}
+				if (!acceptedPath->has_value()) {
+					set_response(context->response, 403, {}, {});
+					return 0;
+				}
+				auto file = std::move(acceptedPath->value());
+				auto stream = std::unique_ptr<SDL_RWops, decltype(&SDL_RWclose)>(SDL_RWFromFile(file.c_str(), "wb+"), SDL_RWclose);
+				bool written = stream != nullptr;
+				if (written && part->bodyFile) {
+					written = fseek(part->bodyFile, s_cast<long>(part->bodyOffset), SEEK_SET) == 0;
+					char buffer[65536];
+					for (size_t remaining = part->bodyLen; written && remaining;) {
+						auto bytes = std::min(remaining, sizeof(buffer));
+						written = fread(buffer, 1, bytes, part->bodyFile) == bytes && SDL_RWwrite(stream.get(), buffer, 1, bytes) == bytes;
+						remaining -= bytes;
 					}
-					if (!acceptedPath->has_value()) {
-						set_response(context->response, 403, {}, {});
-						return 0;
-					}
-					auto file = std::move(acceptedPath->value());
-					auto stream = std::unique_ptr<SDL_RWops, decltype(&SDL_RWclose)>(SDL_RWFromFile(file.c_str(), "wb+"), SDL_RWclose);
-					if (!stream || SDL_RWwrite(stream.get(), part->body, 1, part->bodyLen) != part->bodyLen) {
-						set_response(context->response, 500, {}, {});
-						return 0;
-					}
-					context->acceptedFiles->emplace_back(std::move(file));
-					return 1;
-				},
-				&context);
+				} else if (written) written = SDL_RWwrite(stream.get(), part->body, 1, part->bodyLen) == part->bodyLen;
+				if (!written) {
+					stream.reset();
+					SharedContent.remove(file);
+					set_response(context->response, 500, {}, {});
+					return 0;
+				}
+				context->acceptedFiles->emplace_back(std::move(file));
+				return 1;
+			};
+			auto multipartResult = nativeRequest->bodyFile
+				? DoraXrtMultipartFileForEachFile(contentType, nativeRequest->bodyFile, nativeRequest->bodyLen, 512u * 1024u * 1024u, writePart, &context)
+				: DoraXrtMultipartForEachFile(contentType, nativeRequest->body, nativeRequest->bodyLen, 512u * 1024u * 1024u, writePart, &context);
+			if (multipartResult <= 0) {
+				for (const auto& file : acceptedFiles) SharedContent.remove(file);
+			}
 			if (multipartResult == 0) {
 				set_response(nativeResponse, 400, {}, {});
 				return true;
@@ -1255,7 +1476,9 @@ bool HttpServer::start(int port) {
 				done->complete(success);
 			});
 			auto success = done->wait(self->_stopping, self->_generation, requestGeneration);
-			if (!success) set_service_unavailable(nativeResponse); else set_response(nativeResponse, *success ? 200 : 500, {}, {});
+			if (!success) {
+				if (done->timedOut()) set_logic_busy(nativeResponse); else set_service_unavailable(nativeResponse);
+			} else set_response(nativeResponse, *success ? 200 : 500, {}, {});
 			return true;
 		}
 		return false;

@@ -1,15 +1,16 @@
 // @preview-file off clear
-import { App, Content, DB, Path, HttpServer, emit } from 'Dora';
+import { App, Content, DB, Director, Path, HttpServer, emit } from 'Dora';
+import { StreamUpdates } from 'Agent/Runtime/StreamUpdates';
 import { publishSessionPatch } from 'Agent/Runtime/SessionEvents';
 import { holdProjectTaskAdmission, isProjectTaskAdmissionClosed } from 'Agent/Runtime/TaskAdmission';
 import type { SQL } from 'Dora';
 import { runCodingAgent, CodingAgentEvent, CodingAgentRunResult, truncateAgentUserPrompt } from 'Agent/DoraAgent';
 import type { AgentCompletionReport, AgentTokenUsageMetric } from 'Agent/DoraAgent';
 import type { VisionTaskUsage } from 'Agent/Tool/VisionAnalysis';
-import * as AgentConfig from 'Agent/Config';
+import * as AgentConfig from 'Agent/Config/Defaults';
 import * as AgentToolRegistry from 'Agent/Tool/Registry';
 import * as AgentRuntimePolicy from 'Agent/Runtime/Policy';
-import * as LocalAgent from 'Agent/LocalAgent';
+import * as LocalAgent from 'Agent/Runtime/LocalAgent';
 import * as Tools from 'Agent/Tools';
 import {
 	TABLE_SESSION,
@@ -22,13 +23,13 @@ import {
 	getSessionOperableTaskIds,
 	requireAgentStorage,
 } from 'Agent/Storage/Database';
-import { DualLayerStorage } from 'Agent/Memory';
+import { DualLayerStorage } from 'Agent/Runtime/Memory';
 import { Log, getLLMConfig, normalizeAgentCompletionReport, safeJsonDecode, safeJsonEncode, sanitizeUTF8, validateAgentLLMConfig } from 'Agent/Utils';
 import type { LLMConfig, StopToken } from 'Agent/Utils';
 import type { AgentToolName } from 'Agent/Tool/Registry';
 import type { AgentWorkMode } from 'Agent/Tool/Registry';
-import { validateQuestionnaireAnswers } from 'Agent/Questionnaire';
-import type { AgentQuestionnaireAnswers, AgentQuestionnaireSchema } from 'Agent/Questionnaire';
+import { validateQuestionnaireAnswers } from 'Agent/Runtime/Questionnaire';
+import type { AgentQuestionnaireAnswers, AgentQuestionnaireSchema } from 'Agent/Runtime/Questionnaire';
 import { getLastInsertRowId, queryOne, queryRows, toStr } from 'Agent/Storage/Support';
 
 export type AgentSessionStatus = "IDLE" | "RUNNING" | "WAITING_USER" | "DONE" | "FAILED" | "STOPPED";
@@ -333,6 +334,34 @@ interface PendingSubAgentHandoffItem {
 const activeStopTokens: Record<number, StopToken> = {};
 const activeLocalAgentControls: Record<number, LocalAgent.LocalAgentRunControl> = {};
 const finalizingSubSessionTaskIds: Record<number, boolean> = {};
+let activePromptRuns = 0;
+
+const streamUpdates = new StreamUpdates((sessionId, taskId, step, value) => {
+	if (getSessionItem(sessionId)?.currentTaskId !== taskId) return;
+	upsertStep(sessionId, taskId, step, "message", {
+		status: "RUNNING", reason: value.content, reasoningContent: value.reasoningContent,
+	});
+	emitAgentSessionPatch(sessionId, {step: getStepItem(sessionId, taskId, step)});
+});
+let streamFlushScheduled = false;
+function scheduleStreamFlush() {
+	if (streamFlushScheduled || !streamUpdates.hasPending()) return;
+	streamFlushScheduled = true;
+	Director.systemScheduler.schedule(() => {
+		streamUpdates.flushDue(App.runningTime);
+		if (streamUpdates.hasPending()) return false;
+		streamFlushScheduled = false;
+		return true;
+	});
+}
+
+/** Runtime ownership, including asynchronous completion after task status changes. */
+export function isRuntimeIdle(): boolean {
+	return activePromptRuns === 0
+		&& Object.keys(activeStopTokens).length === 0
+		&& Object.keys(activeLocalAgentControls).length === 0
+		&& Object.keys(finalizingSubSessionTaskIds).length === 0;
+}
 const SESSION_SELECT_COLUMNS = "id, project_root, title, kind, root_session_id, parent_session_id, memory_scope, status, current_task_id, current_task_status, created_at, updated_at, metrics_json, work_mode";
 const now = () => os.time();
 
@@ -876,6 +905,7 @@ function countRunningSubSessions(rootSessionId: number): number {
 }
 
 function deleteSessionRecords(sessionId: number, preserveArtifacts = false) {
+	streamUpdates.clear(sessionId);
 	const session = getSessionItem(sessionId);
 	const taskRows = queryRows(
 		`SELECT current_task_id FROM ${TABLE_SESSION} WHERE id = ? AND current_task_id > 0
@@ -1924,6 +1954,7 @@ type AgentRuntimeEvent = CodingAgentEvent | {
 
 function applyEvent(sessionId: number, event: AgentRuntimeEvent) {
 	if (!getSessionItem(sessionId)) {
+		streamUpdates.clear(sessionId);
 		if ((event.type === "task_finished" || event.type === "task_waiting_for_user") && event.taskId !== undefined) {
 			delete activeStopTokens[event.taskId];
 			delete finalizingSubSessionTaskIds[event.taskId];
@@ -1932,6 +1963,7 @@ function applyEvent(sessionId: number, event: AgentRuntimeEvent) {
 	}
 	switch (event.type) {
 		case "task_started":
+			streamUpdates.clear(sessionId);
 			setSessionStateForTaskEvent(sessionId, event.taskId, "RUNNING", "RUNNING");
 			const metrics = event.resumed
 				? getSessionItem(sessionId)?.metrics
@@ -1967,13 +1999,11 @@ function applyEvent(sessionId: number, event: AgentRuntimeEvent) {
 			});
 			break;
 		case "tool_finished": {
-			const stopped = event.result.success !== true
-				&& activeStopTokens[event.taskId]?.stopped === true;
 			upsertStep(sessionId, event.taskId, event.step, event.tool, {
 				// A tool returning success=false is still a completed observation for the
 				// agent (for example, a compiler diagnostic it can act on). Reserve the
 				// step status for lifecycle state; keep the outcome in result.success.
-				status: stopped ? "STOPPED" : "DONE",
+				status: event.execution.status,
 				reason: event.reason,
 				result: event.result,
 			});
@@ -2036,17 +2066,19 @@ function applyEvent(sessionId: number, event: AgentRuntimeEvent) {
 			break;
 		}
 		case "assistant_message_updated": {
-			upsertStep(sessionId, event.taskId, event.step, "message", {
-				status: "RUNNING",
-				reason: event.content,
-				reasoningContent: event.reasoningContent,
-			});
-			emitAgentSessionPatch(sessionId, {
-				step: getStepItem(sessionId, event.taskId, event.step),
-			});
+			const session = getSessionItem(sessionId);
+			if (session?.currentTaskId !== event.taskId) {
+				streamUpdates.clear(sessionId, event.taskId); break;
+			}
+			streamUpdates.update(sessionId, event.taskId, event.step, event, App.runningTime);
+			scheduleStreamFlush();
 			break;
 		}
 		case "assistant_message_finished": {
+			if (getSessionItem(sessionId)?.currentTaskId !== event.taskId) {
+				streamUpdates.clear(sessionId, event.taskId); break;
+			}
+			streamUpdates.finish(sessionId, event.taskId, event.step);
 			upsertStep(sessionId, event.taskId, event.step, "message", {
 				status: "DONE",
 				reason: event.content,
@@ -2059,6 +2091,10 @@ function applyEvent(sessionId: number, event: AgentRuntimeEvent) {
 			break;
 		}
 		case "task_waiting_for_user": {
+			if (getSessionItem(sessionId)?.currentTaskId !== event.taskId) {
+				streamUpdates.clear(sessionId, event.taskId); break;
+			}
+			streamUpdates.clear(sessionId, event.taskId, App.runningTime);
 			setSessionStateForTaskEvent(sessionId, event.taskId, "WAITING_USER", "WAITING_USER");
 			delete activeStopTokens[event.taskId];
 			emitAgentSessionPatch(sessionId, {
@@ -2071,9 +2107,11 @@ function applyEvent(sessionId: number, event: AgentRuntimeEvent) {
 			const session = getSessionItem(sessionId);
 			if (session && event.taskId !== undefined && session.currentTaskId !== event.taskId) {
 				delete activeStopTokens[event.taskId];
+				streamUpdates.clear(sessionId, event.taskId);
 				Log("Info", `[AgentSession] ignore stale task finish session=${sessionId} eventTask=${event.taskId} currentTask=${tostring(session.currentTaskId)}`);
 				break;
 			}
+			streamUpdates.clear(sessionId, event.taskId, App.runningTime);
 			const stopped = activeStopTokens[event.taskId ?? -1]?.stopped === true
 				|| (session !== undefined && session.currentTaskId === event.taskId && session.currentTaskStatus === "STOPPED");
 			const finalStatus: AgentSessionStatus = event.success
@@ -2755,6 +2793,7 @@ function startPromptTask(
 	if (previousTaskId && previousTaskId !== taskId) {
 		cleanupTaskHeavyData(previousTaskId);
 	}
+	activePromptRuns++;
 	runCodingAgent({
 		prompt: normalizedPrompt,
 		resumeConversation: options?.resumeConversation,
@@ -2782,62 +2821,66 @@ function startPromptTask(
 		stopToken,
 		onEvent: event => applyEvent(session.id, event),
 	}, async (result: CodingAgentRunResult) => {
-		const nextSession = getSessionItem(session.id);
-		if (nextSession && nextSession.kind === "sub") {
-			if (normalizedPrompt.trim() === "/clear") {
-				const stopped = stopClearedSubSession(nextSession, taskId);
-				if (!stopped.success) {
-					Log("Warn", `[AgentSession] sub session clear stop failed session=${nextSession.id} error=${stopped.message}`);
+		try {
+			const nextSession = getSessionItem(session.id);
+			if (nextSession && nextSession.kind === "sub") {
+				if (normalizedPrompt.trim() === "/clear") {
+					const stopped = stopClearedSubSession(nextSession, taskId);
+					if (!stopped.success) {
+						Log("Warn", `[AgentSession] sub session clear stop failed session=${nextSession.id} error=${stopped.message}`);
+						emitAgentSessionPatch(session.id, {
+							session: getSessionItem(session.id),
+						});
+					}
+					delete activeStopTokens[taskId];
+					return;
+				}
+				setSessionState(session.id, "RUNNING", taskId, "RUNNING");
+				emitAgentSessionPatch(session.id, {
+					session: getSessionItem(session.id),
+				});
+				const finalized = await finalizeSubSession(
+					nextSession,
+					taskId,
+					result.success,
+					result.message,
+					result.completion,
+					options?.forceSubAgentHandoff === true
+				);
+				if (!finalized.success) {
+					Log("Warn", `[AgentSession] sub session finalize failed session=${nextSession.id} error=${finalized.message}`);
+				}
+				const finalizedSession = getSessionItem(session.id);
+				if (finalizedSession) {
+					const stopped = stopToken.stopped === true;
+					const finalStatus: AgentSessionStatus = result.success
+						? "DONE"
+						: (stopped ? "STOPPED" : "FAILED");
+					setSessionState(session.id, finalStatus, taskId, finalStatus);
 					emitAgentSessionPatch(session.id, {
 						session: getSessionItem(session.id),
 					});
 				}
 				delete activeStopTokens[taskId];
-				return;
+				delete finalizingSubSessionTaskIds[taskId];
 			}
-			setSessionState(session.id, "RUNNING", taskId, "RUNNING");
-			emitAgentSessionPatch(session.id, {
-				session: getSessionItem(session.id),
-			});
-			const finalized = await finalizeSubSession(
-				nextSession,
-				taskId,
-				result.success,
-				result.message,
-				result.completion,
-				options?.forceSubAgentHandoff === true
-			);
-			if (!finalized.success) {
-				Log("Warn", `[AgentSession] sub session finalize failed session=${nextSession.id} error=${finalized.message}`);
-			}
-			const finalizedSession = getSessionItem(session.id);
-			if (finalizedSession) {
-				const stopped = stopToken.stopped === true;
-				const finalStatus: AgentSessionStatus = result.success
-					? "DONE"
-					: (stopped ? "STOPPED" : "FAILED");
-				setSessionState(session.id, finalStatus, taskId, finalStatus);
-				emitAgentSessionPatch(session.id, {
-					session: getSessionItem(session.id),
+			const fallbackSession = getSessionItem(session.id);
+			if (!result.success
+				&& (!nextSession || nextSession.kind !== "sub")
+				&& fallbackSession !== undefined
+				&& fallbackSession.currentTaskId === result.taskId
+				&& fallbackSession.currentTaskStatus === "RUNNING") {
+				applyEvent(session.id, {
+					type: "task_finished",
+					sessionId: session.id,
+					taskId: result.taskId,
+					success: false,
+					message: result.message,
+					steps: result.steps,
 				});
 			}
-			delete activeStopTokens[taskId];
-			delete finalizingSubSessionTaskIds[taskId];
-		}
-		const fallbackSession = getSessionItem(session.id);
-		if (!result.success
-			&& (!nextSession || nextSession.kind !== "sub")
-			&& fallbackSession !== undefined
-			&& fallbackSession.currentTaskId === result.taskId
-			&& fallbackSession.currentTaskStatus === "RUNNING") {
-			applyEvent(session.id, {
-				type: "task_finished",
-				sessionId: session.id,
-				taskId: result.taskId,
-				success: false,
-				message: result.message,
-				steps: result.steps,
-			});
+		} finally {
+			activePromptRuns--;
 		}
 	});
 	return { success: true, sessionId: session.id, taskId };
@@ -3192,6 +3235,7 @@ export function stopSessionTask(sessionId: number) {
 	if (session.currentTaskFinalizing === true || finalizingSubSessionTaskIds[session.currentTaskId] === true) {
 		return { success: false as const, message: "session task is finalizing" };
 	}
+	streamUpdates.clear(sessionId, session.currentTaskId, App.runningTime);
 	const normalizedSession = normalizeSessionRuntimeState(session);
 	const localControl = activeLocalAgentControls[session.currentTaskId];
 	if (localControl !== undefined) {

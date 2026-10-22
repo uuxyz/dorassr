@@ -17,7 +17,14 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 #include "Http/XrtNetwork.h"
+#if defined(_WIN32) || defined(_WIN64)
+#include <fcntl.h>
+#include <io.h>
+#endif
 
 #if defined(__APPLE__)
 #include <TargetConditionals.h>
@@ -233,6 +240,8 @@ static void DoraXrtNetworkEngineDestroy(void* engine) {
 }
 
 struct DoraXrtHttpServer {
+	volatile long activeRequests;
+	char* temporaryDirectory;
 	xhttpdserver* native;
 	DoraXrtHttpServerEvents events;
 	void* userData;
@@ -265,12 +274,18 @@ static int DoraXrtStringEqualNoCase(const char* left, const char* right) {
 	return *left == '\0' && *right == '\0';
 }
 
-static bool DoraXrtHttpServerOnRequest(
+static int DoraXrtStreamIsLoopback(xnetstream* stream) {
+	const xnetaddr* addr = xrtNetStreamRemoteAddr(stream);
+	return addr && ((addr->iFamily == AF_INET && addr->aAddr[0] == 127)
+		|| (addr->iFamily == AF_INET6 && memcmp(addr->aAddr, "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\1", 16) == 0));
+}
+
+static bool DoraXrtHttpServerHandleRequest(
 	ptr owner,
 	xhttpdserver* nativeServer,
 	xhttpdconn* connection,
 	const xhttpdrequest* nativeRequest,
-	xhttpdresponse* nativeResponse) {
+	xhttpdresponse* nativeResponse, int loopbackPeer) {
 	DoraXrtHttpServer* server = (DoraXrtHttpServer*)owner;
 	DoraXrtHttpHeaderView headers[XHTTPD_MAX_HEADERS];
 	DoraXrtHttpServerRequest request;
@@ -286,6 +301,7 @@ static bool DoraXrtHttpServerOnRequest(
 		headers[index].value = nativeRequest->arrHeaders[index].sValue;
 	}
 	memset(&request, 0, sizeof(request));
+	request.loopbackPeer = loopbackPeer;
 	request.method = (DoraXrtHttpMethod)nativeRequest->iMethod;
 	request.methodText = nativeRequest->sMethod;
 	request.target = nativeRequest->sTarget;
@@ -294,8 +310,154 @@ static bool DoraXrtHttpServerOnRequest(
 	request.headerCount = index;
 	request.body = nativeRequest->pBody;
 	request.bodyLen = nativeRequest->iBodyLen;
+	request.bodyFile = nativeRequest->pBodyFile;
+	request.uploadAuthorized = (nativeRequest->iFlags & XHTTPD_REQ_F_AUTHORIZED) != 0;
 	response.native = nativeResponse;
 	return server->events.onRequest(server->userData, &request, &response) != 0;
+}
+
+static uint32 DoraXrtHttpServerOnHead(ptr owner, xhttpdserver* native, xhttpdconn* connection, xhttpdrequest* request) {
+	DoraXrtHttpServer* server = (DoraXrtHttpServer*)owner;
+	DoraXrtHttpHeaderView headers[XHTTPD_MAX_HEADERS];
+	DoraXrtHttpServerRequest view = {0};
+	(void)native;
+	if (!server->events.onUploadHead) return 0;
+	for (uint32 i = 0; i < request->iHeaderCount; ++i) {
+		headers[i].name = request->arrHeaders[i].sName;
+		headers[i].value = request->arrHeaders[i].sValue;
+	}
+	view.loopbackPeer = DoraXrtStreamIsLoopback(connection->pStream);
+	view.method = (DoraXrtHttpMethod)request->iMethod;
+	view.methodText = request->sMethod; view.target = request->sTarget; view.path = request->sPath;
+	view.headers = headers; view.headerCount = request->iHeaderCount;
+	int result = server->events.onUploadHead(server->userData, &view);
+	if (result == 1) request->iFlags |= XHTTPD_REQ_F_SPOOL | XHTTPD_REQ_F_AUTHORIZED;
+	return result >= 400 ? (uint32)result : 0;
+}
+
+/* Anonymous, automatically removed spool files in the app's writable directory.
+ * tmpfile() alone is not portable to sandboxed Android/iOS installations. */
+static FILE* DoraXrtOpenUploadFile(ptr owner) {
+	DoraXrtHttpServer* server = (DoraXrtHttpServer*)owner;
+	const char* directory = server->temporaryDirectory;
+	if (!directory || !*directory) return tmpfile();
+#if defined(_WIN32) || defined(_WIN64)
+	wchar_t folder[MAX_PATH], path[MAX_PATH];
+	if (!MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, directory, -1, folder, MAX_PATH) ||
+		!GetTempFileNameW(folder, L"dor", 0, path)) return NULL;
+	HANDLE handle = CreateFileW(path, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING,
+		FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE, NULL);
+	if (handle == INVALID_HANDLE_VALUE) { DeleteFileW(path); return NULL; }
+	int fd = _open_osfhandle((intptr_t)handle, _O_BINARY | _O_RDWR);
+	if (fd < 0) { CloseHandle(handle); return NULL; }
+	FILE* file = _fdopen(fd, "w+b");
+	if (!file) _close(fd);
+	return file;
+#else
+	size_t size = strlen(directory) + 32;
+	char* path = (char*)malloc(size);
+	if (!path) return NULL;
+	snprintf(path, size, "%s/.dora-upload-XXXXXX", directory);
+	int fd = mkstemp(path);
+	if (fd >= 0) unlink(path);
+	free(path);
+	if (fd < 0) return NULL;
+	FILE* file = fdopen(fd, "w+b");
+	if (!file) close(fd);
+	return file;
+#endif
+}
+
+static bool DoraXrtHttpServerOnRequest(ptr owner, xhttpdserver* server, xhttpdconn* connection,
+	const xhttpdrequest* request, xhttpdresponse* response) {
+	return DoraXrtHttpServerHandleRequest(owner, server, connection, request, response,
+		connection && DoraXrtStreamIsLoopback(connection->pStream));
+}
+
+/* Scheduled Lua handlers cannot block the shared network worker: a TS build
+ * needs that worker to serve its own compiler assets and result requests. */
+typedef struct DoraXrtDeferredRequest {
+	DoraXrtHttpServer* server;
+	xhttpdrequest request;
+	int loopbackPeer;
+} DoraXrtDeferredRequest;
+
+static void DoraXrtDeferredRequestFree(DoraXrtDeferredRequest* task) {
+	uint32 index;
+	if (!task) return;
+	if (task->request.pBodyFile) fclose(task->request.pBodyFile);
+	for (index = 0; index < task->request.iHeaderCount; ++index) {
+		free(task->request.arrHeaders[index].sName);
+		free(task->request.arrHeaders[index].sValue);
+	}
+	free(task->request.pBody);
+	free(task);
+}
+
+static char* DoraXrtDeferredString(const char* text) {
+	size_t size = strlen(text) + 1;
+	char* result = (char*)malloc(size);
+	if (result) memcpy(result, text, size);
+	return result;
+}
+
+static int32 DoraXrtDeferredRequestRun(ptr arg, xfuture_result* result) {
+	DoraXrtDeferredRequest* task = (DoraXrtDeferredRequest*)arg;
+	DoraXrtHttpServer* server = task->server;
+	xhttpdresponse* response = xrtHttpdResponseCreate();
+	if (response && !DoraXrtHttpServerHandleRequest(server, NULL, NULL, &task->request, response, task->loopbackPeer)) {
+		xrtHttpdResponseSetStatus(response, 404u, NULL);
+	}
+	result->pValue = response;
+	DoraXrtDeferredRequestFree(task);
+	__xnetAtomicAddFetch32(&server->activeRequests, -1);
+	return response ? XRT_NET_OK : XRT_NET_ERROR;
+}
+
+static xfuture* DoraXrtHttpServerOnRequestAsync(ptr owner, xhttpdserver* nativeServer, xhttpdconn* connection, const xhttpdrequest* request) {
+	DoraXrtHttpServer* server = (DoraXrtHttpServer*)owner;
+	DoraXrtDeferredRequest* task;
+	xfuture* future;
+	uint32 index;
+	(void)nativeServer;
+	(void)connection;
+	if (request->iMethod != XHTTPD_METHOD_POST || !server->events.shouldDefer || !server->events.shouldDefer(server->userData, request->sPath)) return NULL;
+	if (__xnetAtomicAddFetch32(&server->activeRequests, 1) > 32) {
+		__xnetAtomicAddFetch32(&server->activeRequests, -1);
+		__xhttpdSendSimpleStatus(connection, 503, "Service Unavailable"); return NULL;
+	}
+	task = (DoraXrtDeferredRequest*)calloc(1, sizeof(*task));
+	if (!task) goto rejected;
+	task->loopbackPeer = connection && DoraXrtStreamIsLoopback(connection->pStream);
+	task->server = server;
+	task->request = *request;
+	for (index = 0; index < request->iHeaderCount; ++index) {
+		task->request.arrHeaders[index].sName = NULL;
+		task->request.arrHeaders[index].sValue = NULL;
+	}
+	task->request.pBody = NULL;
+	task->request.pBodyFile = NULL;
+	for (index = 0; index < request->iHeaderCount; ++index) {
+		task->request.arrHeaders[index].sName = DoraXrtDeferredString(request->arrHeaders[index].sName);
+		task->request.arrHeaders[index].sValue = DoraXrtDeferredString(request->arrHeaders[index].sValue);
+		if (!task->request.arrHeaders[index].sName || !task->request.arrHeaders[index].sValue) goto rejected;
+	}
+	if (request->pBody && request->iBodyLen) {
+		task->request.pBody = (char*)malloc(request->iBodyLen);
+		if (!task->request.pBody) goto rejected;
+		memcpy(task->request.pBody, request->pBody, request->iBodyLen);
+	}
+	/* Transfer the anonymous upload file, not its contents. The original
+	 * request retains its budget lease until response/async cleanup finishes. */
+	task->request.pBodyFile = request->pBodyFile;
+	((xhttpdrequest*)request)->pBodyFile = NULL;
+	future = xTaskRunThread(DoraXrtDeferredRequestRun, task, 0);
+	if (future) return future;
+ rejected:
+	DoraXrtDeferredRequestFree(task);
+	__xnetAtomicAddFetch32(&server->activeRequests, -1);
+	__xhttpdSendSimpleStatus(connection, 503, "Service Unavailable");
+	return NULL;
 }
 
 static void DoraXrtHttpServerOnError(ptr owner, xhttpdserver* nativeServer, xhttpdconn* connection, int error) {
@@ -324,19 +486,36 @@ DoraXrtHttpServer* DoraXrtHttpServerCreate(unsigned int port, size_t receiveLimi
 		return NULL;
 	}
 	server->events = *events;
+	if (events->temporaryDirectory) {
+		server->temporaryDirectory = DoraXrtDeferredString(events->temporaryDirectory);
+		if (!server->temporaryDirectory) { free(server); return NULL; }
+	}
 	server->userData = userData;
 	xrtHttpdConfigInit(&config);
 	xrtNetAddrInitAny(&config.tBindAddr, AF_INET, (uint16)port);
-	config.iRecvLimit = (uint32)receiveLimit;
-	config.iBodyLimit = (uint32)receiveLimit;
+	/* Reserve at most 32 MiB of body buffers across requests. Known lengths
+	 * use their actual size; chunked bodies reserve the full per-body cap.
+	 * Higher-layer copies remain bounded by the same request leases. */
+	config.iRecvLimit = 256u * 1024u;
+	config.iBodyLimit = (uint32)(receiveLimit && receiveLimit < 8u * 1024u * 1024u ? receiveLimit : 8u * 1024u * 1024u);
+	config.iSpoolBodyLimit = (uint32)receiveLimit;
+	config.iBufferedBodyBudget = 32u * 1024u * 1024u;
+	config.iSpoolBodySlots = 2;
+	config.iMaxConns = 64;
+	config.iIdleTimeoutMs = 15000;
+	config.OpenSpoolFile = DoraXrtOpenUploadFile;
+	config.pSpoolContext = server;
 	memset(&nativeEvents, 0, sizeof(nativeEvents));
+	nativeEvents.OnRequestHead = DoraXrtHttpServerOnHead;
 	nativeEvents.OnRequest = DoraXrtHttpServerOnRequest;
+	nativeEvents.OnRequestAsync = DoraXrtHttpServerOnRequestAsync;
 	nativeEvents.OnError = DoraXrtHttpServerOnError;
 	server->native = xrtHttpdCreate(engine, &config, &nativeEvents, server);
 	if (!server->native || xrtHttpdStart(server->native) != XRT_NET_OK) {
 		if (server->native) {
 			xrtHttpdDestroy(server->native);
 		}
+		free(server->temporaryDirectory);
 		free(server);
 		return NULL;
 	}
@@ -351,6 +530,8 @@ void DoraXrtHttpServerDestroy(DoraXrtHttpServer* server) {
 		xrtHttpdDestroy(server->native);
 		server->native = NULL;
 	}
+	while (__xnetAtomicLoad32(&server->activeRequests) != 0) xrtSleep(1u);
+	free(server->temporaryDirectory);
 	free(server);
 }
 
@@ -420,6 +601,7 @@ int DoraXrtMultipartForEachFile(const char* contentType, const void* body, size_
 			return 0;
 		}
 		fileName[fileNameLen] = '\0';
+		memset(&file, 0, sizeof(file));
 		file.fileName = fileName;
 		file.fileNameLen = fileNameLen;
 		file.body = part.tBody.sPtr;
@@ -433,10 +615,93 @@ int DoraXrtMultipartForEachFile(const char* contentType, const void* body, size_
 	return 1;
 }
 
-static bool DoraXrtWebSocketOnAuthorize(ptr owner, xwsserver* nativeServer, xwsconn* connection, const char* target) {
+/* Reuse xrt's streaming multipart parser over the anonymous upload file.
+ * Collect only bounded part metadata, validate the complete envelope first,
+ * then expose file slices to the existing upload handlers. */
+int DoraXrtMultipartFileForEachFile(const char* contentType, FILE* body, size_t bodyLen,
+	size_t maxBytes, DoraXrtMultipartFileHandler handler, void* userData) {
+	xrtstrview boundary;
+	xrthttputillimits limits;
+	xrtmultipartstream stream;
+	struct Part { char* name; size_t nameLen, offset, size; } parts[64] = {{0}};
+	char buffer[65536];
+	size_t count = 0, fed = 0;
+	int result = 0;
+	if (!body || !handler || bodyLen > maxBytes ||
+		!xrtMultipartBoundaryFromContentType(contentType, &boundary) ||
+		!xrtMultipartStreamInit(&stream, boundary.sPtr, boundary.iLen, NULL)) return 0;
+	xrtHttpUtilLimitsInit(&limits);
+	limits.iMaxMultipartBytes = maxBytes;
+	if (fseek(body, 0, SEEK_SET)) goto done;
+	for (;;) {
+		xrtmultipartstreamevent event;
+		xrtmultipartstreamresult next = xrtMultipartStreamNext(&stream, &event);
+		if (next == XRT_MULTIPART_STREAM_RESULT_ERROR) goto done;
+		if (next == XRT_MULTIPART_STREAM_RESULT_END) break;
+		if (next == XRT_MULTIPART_STREAM_RESULT_NEED_MORE) {
+			if (fed == bodyLen) goto done;
+			size_t bytes = bodyLen - fed;
+			if (bytes > sizeof(buffer)) bytes = sizeof(buffer);
+			if (fread(buffer, 1, bytes, body) != bytes || !xrtMultipartStreamFeed(&stream, buffer, bytes)) goto done;
+			fed += bytes;
+			if (fed == bodyLen) xrtMultipartStreamFinish(&stream);
+		} else if (next == XRT_MULTIPART_STREAM_RESULT_PART_BEGIN) {
+			if (count >= 64) goto done;
+			/* Preserve the existing per-header/name/value checks on a tiny
+			 * complete part, without copying any file data. */
+			size_t cap = event.tPart.tHeaders.iLen + 2 * boundary.iLen + 32;
+			char* check = (char*)malloc(cap);
+			if (!check) goto done;
+			int prefix = snprintf(check, cap, "--%.*s\r\n", (int)boundary.iLen, boundary.sPtr);
+			memcpy(check + prefix, event.tPart.tHeaders.sPtr, event.tPart.tHeaders.iLen);
+			size_t used = (size_t)prefix + event.tPart.tHeaders.iLen;
+			int tail = snprintf(check + used, cap - used, "\r\n\r\n\r\n--%.*s--\r\n", (int)boundary.iLen, boundary.sPtr);
+			bool valid = tail >= 0 && (size_t)tail < cap - used &&
+				xrtMultipartValidateN(check, used + (size_t)tail, boundary.sPtr, boundary.iLen, &limits);
+			free(check);
+			if (!valid) goto done;
+			parts[count].offset = fed - stream.iBufferLen + stream.iCursor;
+			if (event.tPart.iFlags & XRT_MULTIPART_F_HAS_FILENAME) {
+				size_t nameCap = limits.iMaxValueBytes * 3 + 1;
+				parts[count].name = (char*)malloc(nameCap);
+				if (!parts[count].name || !xrtMultipartDecodeFileNameTo(&event.tPart, parts[count].name, nameCap, &parts[count].nameLen)) goto done;
+			}
+		} else if (next == XRT_MULTIPART_STREAM_RESULT_DATA) {
+			if (count >= 64 || event.tData.iLen > maxBytes - parts[count].size) goto done;
+			parts[count].size += event.tData.iLen;
+		} else if (next == XRT_MULTIPART_STREAM_RESULT_PART_END) {
+			++count;
+		}
+	}
+	result = 1;
+	for (size_t i = 0; i < count; ++i) {
+		if (!parts[i].name) continue;
+		DoraXrtMultipartFileView view = {0};
+		view.fileName = parts[i].name; view.fileNameLen = parts[i].nameLen;
+		view.bodyFile = body; view.bodyOffset = parts[i].offset; view.bodyLen = parts[i].size;
+		if (!handler(userData, &view)) { result = -1; break; }
+	}
+ done:
+	xrtMultipartStreamUnit(&stream);
+	for (size_t i = 0; i < 64; ++i) free(parts[i].name);
+	return result;
+}
+
+int DoraXrtWebSocketIsLoopback(DoraXrtWebSocketConnection* connection) {
+	xwsconn* native = (xwsconn*)connection;
+	return native && DoraXrtStreamIsLoopback(native->pStream);
+}
+
+static uint32 DoraXrtWebSocketOnAuthorize(ptr owner, xwsserver* nativeServer, xwsconn* connection, const xcodechttp1msg* request) {
 	DoraXrtWebSocketServer* server = (DoraXrtWebSocketServer*)owner;
+	DoraXrtHttpHeaderView headers[XCODEC_HTTP1_MAX_HEADERS];
 	(void)nativeServer;
-	return !server || !server->events.onAuthorize || server->events.onAuthorize(server->userData, (DoraXrtWebSocketConnection*)connection, target) != 0;
+	if (!server || !server->events.onAuthorize) return 0;
+	for (size_t i = 0; i < request->iHeaderCount; ++i) {
+		headers[i].name = request->arrHeaders[i].sName;
+		headers[i].value = request->arrHeaders[i].sValue;
+	}
+	return (uint32)server->events.onAuthorize(server->userData, (DoraXrtWebSocketConnection*)connection, request->sTarget, headers, request->iHeaderCount);
 }
 
 static void DoraXrtWebSocketOnOpen(ptr owner, xwsserver* nativeServer, xwsconn* connection) {
@@ -501,8 +766,10 @@ DoraXrtWebSocketServer* DoraXrtWebSocketServerCreate(unsigned int port, size_t r
 	xrtWsServerConfigInit(&config);
 	xrtNetAddrInitAny(&config.tBindAddr, AF_INET, (uint16)port);
 	config.iRecvLimit = (uint32)receiveLimit;
+	config.iMaxConns = 16;
+	config.iHandshakeTimeoutMs = 15000;
 	memset(&nativeEvents, 0, sizeof(nativeEvents));
-	nativeEvents.OnAuthorize = DoraXrtWebSocketOnAuthorize;
+	nativeEvents.OnAuthorizeRequest = DoraXrtWebSocketOnAuthorize;
 	nativeEvents.OnOpen = DoraXrtWebSocketOnOpen;
 	nativeEvents.OnText = DoraXrtWebSocketOnText;
 	nativeEvents.OnBinary = DoraXrtWebSocketOnBinary;
@@ -653,10 +920,144 @@ typedef struct DoraXrtHttpStreamContext {
 	char redirectLocation[XHTTP_URL_CAP];
 	int streamError;
 	int streamSysErr;
+	int serverClose;
+	int headRequest;
+	int interimResponses;
+	struct DoraXrtHttpPooledConnection* owner;
 	volatile long closeRequested;
 	volatile long resolved;
-	xnet_result finalStatus;
+	volatile long finalStatus;
 } DoraXrtHttpStreamContext;
+
+#define DORA_XRT_HTTP_POOL_SIZE 4
+#define DORA_XRT_HTTP_POOL_IDLE_SECONDS 30.0
+
+typedef struct DoraXrtHttpPooledConnection {
+	xnetstream* stream;
+	DoraXrtHttpStreamContext* active;
+	char host[XHTTP_URL_CAP];
+	unsigned short port;
+	int https;
+	int verifyPeer;
+	int dead;
+	int busy;
+	int pooled;
+	volatile long callbacks;
+	double parkedAt;
+} DoraXrtHttpPooledConnection;
+
+static DoraXrtHttpPooledConnection g_httpPool[DORA_XRT_HTTP_POOL_SIZE];
+static xmutex g_httpPoolLock = NULL;
+static volatile long g_httpPoolLockOnce = 0;
+static volatile long g_httpPoolFallbackLock = 0;
+static __XNET_THREAD_LOCAL unsigned int g_httpPoolLockDepth = 0;
+
+// Protect pool metadata and callback pins. Retiring a stream can re-enter
+// OnClose synchronously, requiring same-thread reentrancy.
+static void DoraXrtHttpPoolLockAcquire(void) {
+	if (g_httpPoolLockDepth++ != 0) return;
+	if (__xnetAtomicCompareExchange32(&g_httpPoolLockOnce, 1, 0) == 0) {
+		g_httpPoolLock = xrtMutexCreate();
+		__xnetAtomicExchange32(&g_httpPoolLockOnce, 2);
+	}
+	while (__xnetAtomicLoad32(&g_httpPoolLockOnce) != 2) xrtThreadYield();
+	if (g_httpPoolLock) xrtMutexLock(g_httpPoolLock);
+	else while (__xnetAtomicCompareExchange32(&g_httpPoolFallbackLock, 1, 0) != 0) xrtThreadYield();
+}
+
+static void DoraXrtHttpPoolLockRelease(void) {
+	if (--g_httpPoolLockDepth != 0) return;
+	if (g_httpPoolLock) xrtMutexUnlock(g_httpPoolLock);
+	else __xnetAtomicExchange32(&g_httpPoolFallbackLock, 0);
+}
+
+static void DoraXrtHttpPoolDestroyStream(DoraXrtHttpPooledConnection* pc) {
+	xnetstream* stream = pc->stream;
+	pc->stream = NULL;
+	if (stream) {
+		// Destroy alone defers freeing a stream with an outstanding receive hold.
+		// Abort first so idle sockets and their I/O holds are actually released.
+		xrtNetStreamClose(stream, XNET_CLOSE_F_ABORT);
+		xrtNetStreamDestroy(stream);
+	}
+}
+
+/* Returns a pool slot for this request. If a matching idle connection exists,
+ * pc->stream is set to it and pc->active is already bound; otherwise pc->stream
+ * is NULL and the caller should connect a fresh stream into the slot. Returns
+ * NULL when all slots are active; the caller then uses an unpooled owner. */
+static DoraXrtHttpPooledConnection* DoraXrtHttpPoolAcquire(const xhttprequest* request, int verifyPeer, DoraXrtHttpStreamContext* ctx) {
+	DoraXrtHttpPooledConnection* freeSlot = NULL;
+	DoraXrtHttpPooledConnection* oldest = NULL;
+	int i;
+	DoraXrtHttpPoolLockAcquire();
+	for (i = 0; i < DORA_XRT_HTTP_POOL_SIZE; ++i) {
+		DoraXrtHttpPooledConnection* pc = &g_httpPool[i];
+		// Reserved/connecting slots are active even before stream creation.
+		if (pc->busy) continue;
+		if (!pc->stream) {
+			if (!freeSlot) freeSlot = pc;
+			continue;
+		}
+		if (pc->dead || (xrtTimer() - pc->parkedAt) >= DORA_XRT_HTTP_POOL_IDLE_SECONDS) {
+			DoraXrtHttpPoolDestroyStream(pc);
+			pc->active = NULL;
+			if (!freeSlot) freeSlot = pc;
+			continue;
+		}
+		if (!oldest || pc->parkedAt < oldest->parkedAt) {
+			oldest = pc;
+		}
+		if (!pc->active
+			&& pc->https == (request->tURL.bHttps ? 1 : 0)
+			&& pc->port == (unsigned short)request->tURL.iPort
+			&& pc->verifyPeer == verifyPeer
+			&& strcmp(pc->host, request->tURL.sHost) == 0) {
+			pc->active = ctx;
+			pc->busy = 1;
+			DoraXrtHttpPoolLockRelease();
+			return pc;
+		}
+	}
+	if (!freeSlot) {
+		if (!oldest) {
+			DoraXrtHttpPoolLockRelease();
+			return NULL;
+		}
+		DoraXrtHttpPoolDestroyStream(oldest);
+		oldest->active = NULL;
+		freeSlot = oldest;
+	}
+	freeSlot->active = ctx;
+	freeSlot->busy = 1;
+	freeSlot->pooled = 1;
+	freeSlot->dead = 0;
+	DoraXrtHttpPoolLockRelease();
+	return freeSlot;
+}
+
+// Detach before waiting, so no new callback can obtain the stack context.
+// Wait only for this connection's callbacks; never hold the pool lock while
+// parsing/delivering response data or while waiting for a network worker.
+static void DoraXrtHttpPoolParkOrRelease(DoraXrtHttpPooledConnection* pc, int parkable) {
+	if (!pc) return;
+	DoraXrtHttpPoolLockAcquire();
+	DoraXrtHttpStreamContext* ctx = pc->active;
+	pc->active = NULL;
+	DoraXrtHttpPoolLockRelease();
+	while (__xnetAtomicLoad32(&pc->callbacks) != 0) xrtThreadYield();
+	DoraXrtHttpPoolLockAcquire();
+	parkable = parkable && pc->pooled && ctx
+		&& __xnetAtomicLoad32(&ctx->finalStatus) == XRT_NET_OK
+		&& !ctx->streamError && ctx->headerParsed
+		&& ctx->bodyMode != DORA_XRT_HTTP_BODY_CLOSE_DELIMITED
+		&& !ctx->serverClose && __xnetAtomicLoad32(&ctx->closeRequested) == 0
+		&& ctx->pendingLen == 0u && ctx->chunkRemaining == 0u;
+	if (!parkable || pc->dead) DoraXrtHttpPoolDestroyStream(pc);
+	else pc->parkedAt = xrtTimer();
+	pc->busy = 0;
+	DoraXrtHttpPoolLockRelease();
+}
 
 static void DoraXrtHttpStreamResolve(DoraXrtHttpStreamContext* ctx, xnet_result status) {
 	if (!ctx || !ctx->future) {
@@ -671,9 +1072,7 @@ static void DoraXrtHttpStreamCloseWith(DoraXrtHttpStreamContext* ctx, xnet_resul
 	if (!ctx) {
 		return;
 	}
-	if (ctx->finalStatus == XRT_NET_AGAIN) {
-		ctx->finalStatus = status;
-	}
+	__xnetAtomicCompareExchange32(&ctx->finalStatus, status, XRT_NET_AGAIN);
 	if (__xnetAtomicCompareExchange32(&ctx->closeRequested, 1, 0) == 0) {
 		if (ctx->stream) {
 			xrtNetStreamClose(ctx->stream, XNET_CLOSE_F_ABORT);
@@ -682,11 +1081,22 @@ static void DoraXrtHttpStreamCloseWith(DoraXrtHttpStreamContext* ctx, xnet_resul
 			 * worker used to leave the request future unresolved and block engine
 			 * shutdown forever. Resolving here is idempotent with OnClose, and a
 			 * later deferred stream destroy clears its callbacks and user data. */
-			DoraXrtHttpStreamResolve(ctx, ctx->finalStatus);
+			DoraXrtHttpStreamResolve(ctx, (xnet_result)__xnetAtomicLoad32(&ctx->finalStatus));
 		} else {
-			DoraXrtHttpStreamResolve(ctx, ctx->finalStatus);
+			DoraXrtHttpStreamResolve(ctx, (xnet_result)__xnetAtomicLoad32(&ctx->finalStatus));
 		}
 	}
+}
+
+/* Completes a request whose response ended cleanly (body framing satisfied and
+ * no close requested): resolves the future but keeps the stream connected, so
+ * the connection can be parked for reuse instead of being aborted. */
+static void DoraXrtHttpStreamFinish(DoraXrtHttpStreamContext* ctx) {
+	if (!ctx) {
+		return;
+	}
+	__xnetAtomicCompareExchange32(&ctx->finalStatus, XRT_NET_OK, XRT_NET_AGAIN);
+	DoraXrtHttpStreamResolve(ctx, (xnet_result)__xnetAtomicLoad32(&ctx->finalStatus));
 }
 
 int DoraXrtHttpAbortCloseFallbackTest(void) {
@@ -948,7 +1358,8 @@ static int DoraXrtHttpParseHeaders(DoraXrtHttpStreamContext* ctx) {
 		free(headerBlock);
 		return 0;
 	}
-	ctx->noBody = (ctx->statusCode >= 100 && ctx->statusCode < 200) || ctx->statusCode == 204 || ctx->statusCode == 304;
+	ctx->serverClose |= strncmp(line, "HTTP/1.1 ", 9u) != 0 || ctx->statusCode == 101;
+	ctx->noBody = ctx->headRequest || (ctx->statusCode >= 100 && ctx->statusCode < 200) || ctx->statusCode == 204 || ctx->statusCode == 304;
 	ctx->suppressBody = DoraXrtHttpIsRedirect((unsigned int)ctx->statusCode);
 	line = next;
 	while (line && *line) {
@@ -1006,6 +1417,11 @@ static int DoraXrtHttpParseHeaders(DoraXrtHttpStreamContext* ctx) {
 			}
 		} else if (__xhttpStrEqNoCase(line, "Transfer-Encoding")) {
 			ctx->chunked = xrtHttpHeaderContainsToken(value, "chunked") ? 1 : 0;
+			if (!__xhttpStrEqNoCase(value, "chunked")) ctx->serverClose = 1;
+		} else if (__xhttpStrEqNoCase(line, "Connection")) {
+			if (xrtHttpHeaderContainsToken(value, "close")) {
+				ctx->serverClose = 1;
+			}
 		} else if (__xhttpStrEqNoCase(line, "Location")) {
 			size_t len = strlen(value);
 			if (len >= sizeof(ctx->redirectLocation)) {
@@ -1019,16 +1435,24 @@ static int DoraXrtHttpParseHeaders(DoraXrtHttpStreamContext* ctx) {
 	free(contentLengthValue);
 	free(headerBlock);
 	DoraXrtHttpStreamConsume(ctx, headerEnd + 4u);
+	if (ctx->statusCode >= 100 && ctx->statusCode < 200 && ctx->statusCode != 101) {
+		if (++ctx->interimResponses > 8) return 0;
+		ctx->statusCode = 0; ctx->noBody = 0; ctx->chunked = 0;
+		ctx->hasContentLength = 0; ctx->contentLength = 0; ctx->suppressBody = 0;
+		ctx->redirectLocation[0] = '\0';
+		return DoraXrtHttpParseHeaders(ctx);
+	}
+	if (ctx->chunked && ctx->hasContentLength) ctx->serverClose = 1;
 	ctx->headerParsed = 1;
 	if (ctx->noBody) {
 		ctx->bodyMode = DORA_XRT_HTTP_BODY_NONE;
-		DoraXrtHttpStreamCloseWith(ctx, XRT_NET_OK);
+		DoraXrtHttpStreamFinish(ctx);
 	} else if (ctx->chunked) {
 		ctx->bodyMode = DORA_XRT_HTTP_BODY_CHUNKED;
 	} else if (ctx->hasContentLength) {
 		ctx->bodyMode = DORA_XRT_HTTP_BODY_CONTENT_LENGTH;
 		if (ctx->contentLength == 0u) {
-			DoraXrtHttpStreamCloseWith(ctx, XRT_NET_OK);
+			DoraXrtHttpStreamFinish(ctx);
 		}
 	} else {
 		ctx->bodyMode = DORA_XRT_HTTP_BODY_CLOSE_DELIMITED;
@@ -1037,7 +1461,7 @@ static int DoraXrtHttpParseHeaders(DoraXrtHttpStreamContext* ctx) {
 }
 
 static int DoraXrtHttpDeliverChunk(DoraXrtHttpStreamContext* ctx, const char* data, size_t len, size_t total) {
-	if (!ctx || len == 0u || ctx->suppressBody) {
+	if (!ctx || len == 0u || ctx->suppressBody || __xnetAtomicLoad32(&ctx->closeRequested) != 0) {
 		return 1;
 	}
 	if (ctx->onChunk && ctx->onChunk(data, len, ctx->received, total, ctx->streamUserData)) {
@@ -1058,7 +1482,7 @@ static int DoraXrtHttpProcessFixedBody(DoraXrtHttpStreamContext* ctx) {
 		DoraXrtHttpStreamConsume(ctx, take);
 	}
 	if (ctx->received >= ctx->contentLength) {
-		DoraXrtHttpStreamCloseWith(ctx, XRT_NET_OK);
+		DoraXrtHttpStreamFinish(ctx);
 	}
 	return 1;
 }
@@ -1101,7 +1525,7 @@ static int DoraXrtHttpProcessChunkedTrailers(DoraXrtHttpStreamContext* ctx) {
 	size_t trailerEnd;
 	if (ctx->pendingLen >= 2u && ctx->pending[0] == '\r' && ctx->pending[1] == '\n') {
 		DoraXrtHttpStreamConsume(ctx, 2u);
-		DoraXrtHttpStreamCloseWith(ctx, XRT_NET_OK);
+		DoraXrtHttpStreamFinish(ctx);
 		return 1;
 	}
 	trailerEnd = DoraXrtHttpFindBytes(ctx->pending, ctx->pendingLen, "\r\n\r\n", 4u);
@@ -1111,7 +1535,7 @@ static int DoraXrtHttpProcessChunkedTrailers(DoraXrtHttpStreamContext* ctx) {
 			return 0;
 		}
 		DoraXrtHttpStreamConsume(ctx, trailerEnd + 4u);
-		DoraXrtHttpStreamCloseWith(ctx, XRT_NET_OK);
+		DoraXrtHttpStreamFinish(ctx);
 		return 1;
 	}
 	if (ctx->pendingLen > DORA_XRT_HTTP_MAX_HEADER_BYTES) {
@@ -1203,9 +1627,9 @@ static int DoraXrtHttpStreamProcess(DoraXrtHttpStreamContext* ctx) {
 	return 1;
 }
 
-static void DoraXrtHttpStreamOnOpen(ptr owner, xnetstream* stream) {
+static void DoraXrtHttpStreamHandleOpen(ptr owner, xnetstream* stream) {
 	DoraXrtHttpStreamContext* ctx = (DoraXrtHttpStreamContext*)owner;
-	if (!ctx || !stream) {
+	if (!ctx || !stream || __xnetAtomicLoad32(&ctx->closeRequested) != 0) {
 		return;
 	}
 	if (xrtNetStreamSend(stream, ctx->requestBytes, ctx->requestLen) != XRT_NET_OK) {
@@ -1213,7 +1637,7 @@ static void DoraXrtHttpStreamOnOpen(ptr owner, xnetstream* stream) {
 	}
 }
 
-static void DoraXrtHttpStreamOnRecv(ptr owner, xnetstream* stream, xnetchain* chain) {
+static void DoraXrtHttpStreamHandleRecv(ptr owner, xnetstream* stream, xnetchain* chain) {
 	DoraXrtHttpStreamContext* ctx = (DoraXrtHttpStreamContext*)owner;
 	size_t len;
 	char* data;
@@ -1245,17 +1669,21 @@ static void DoraXrtHttpStreamOnRecv(ptr owner, xnetstream* stream, xnetchain* ch
 	(void)DoraXrtHttpStreamProcess(ctx);
 }
 
-static void DoraXrtHttpStreamOnClose(ptr owner, xnetstream* stream, xnet_result reason) {
+static void DoraXrtHttpStreamHandleClose(ptr owner, xnetstream* stream, xnet_result reason) {
 	DoraXrtHttpStreamContext* ctx = (DoraXrtHttpStreamContext*)owner;
 	xnet_result status;
 	(void)stream;
 	if (!ctx) {
 		return;
 	}
-	if (ctx->finalStatus == XRT_NET_AGAIN) {
+	if (__xnetAtomicLoad32(&ctx->closeRequested) != 0) {
+		DoraXrtHttpStreamResolve(ctx, (xnet_result)__xnetAtomicLoad32(&ctx->finalStatus));
+		return;
+	}
+	if (__xnetAtomicLoad32(&ctx->finalStatus) == XRT_NET_AGAIN) {
 		(void)DoraXrtHttpStreamProcess(ctx);
 	}
-	if (ctx->finalStatus == XRT_NET_AGAIN) {
+	if (__xnetAtomicLoad32(&ctx->finalStatus) == XRT_NET_AGAIN) {
 		if (ctx->streamError) {
 			status = XRT_NET_ERROR;
 		} else if (!ctx->headerParsed) {
@@ -1267,12 +1695,12 @@ static void DoraXrtHttpStreamOnClose(ptr owner, xnetstream* stream, xnet_result 
 		} else {
 			status = XRT_NET_OK;
 		}
-		ctx->finalStatus = status;
+		__xnetAtomicCompareExchange32(&ctx->finalStatus, status, XRT_NET_AGAIN);
 	}
-	DoraXrtHttpStreamResolve(ctx, ctx->finalStatus);
+	DoraXrtHttpStreamResolve(ctx, (xnet_result)__xnetAtomicLoad32(&ctx->finalStatus));
 }
 
-static void DoraXrtHttpStreamOnError(ptr owner, xnetstream* stream, int sysErr) {
+static void DoraXrtHttpStreamHandleError(ptr owner, xnetstream* stream, int sysErr) {
 	(void)stream;
 	DoraXrtHttpStreamContext* ctx = (DoraXrtHttpStreamContext*)owner;
 	if (!ctx) {
@@ -1282,13 +1710,49 @@ static void DoraXrtHttpStreamOnError(ptr owner, xnetstream* stream, int sysErr) 
 	ctx->streamSysErr = sysErr;
 }
 
-static const xnetstreamevents* DoraXrtHttpStreamEvents(void) {
+static DoraXrtHttpStreamContext* DoraXrtPooledContext(ptr owner, xnetstream* stream, int terminal) {
+	DoraXrtHttpPooledConnection* pc = (DoraXrtHttpPooledConnection*)owner;
+	DoraXrtHttpStreamContext* ctx = NULL;
+	DoraXrtHttpPoolLockAcquire();
+	// Destroy clears stream callbacks/userdata before a stack owner can expire.
+	// Test stream identity before dereferencing even an already captured owner.
+	if (stream && stream->pEvents && stream->pUserData == owner && pc && pc->stream == stream) {
+		if (terminal || !pc->active) pc->dead = 1;
+		ctx = pc->active;
+		if (ctx) __xnetAtomicAddFetch32(&pc->callbacks, 1);
+	}
+	DoraXrtHttpPoolLockRelease();
+	return ctx;
+}
+static void DoraXrtPooledOnOpen(ptr owner, xnetstream* stream) {
+	DoraXrtHttpStreamContext* ctx = DoraXrtPooledContext(owner, stream, 0);
+	if (ctx) { DoraXrtHttpStreamHandleOpen(ctx, stream); __xnetAtomicAddFetch32(&ctx->owner->callbacks, -1); }
+}
+static void DoraXrtPooledOnRecv(ptr owner, xnetstream* stream, xnetchain* chain) {
+	DoraXrtHttpStreamContext* ctx = DoraXrtPooledContext(owner, stream, 0);
+	if (ctx) { DoraXrtHttpStreamHandleRecv(ctx, stream, chain); __xnetAtomicAddFetch32(&ctx->owner->callbacks, -1); }
+	else {
+		DoraXrtHttpPoolLockAcquire();
+		if (stream && stream->pEvents && stream->pUserData == owner) xrtNetStreamClose(stream, XNET_CLOSE_F_ABORT);
+		DoraXrtHttpPoolLockRelease();
+	}
+}
+static void DoraXrtPooledOnClose(ptr owner, xnetstream* stream, xnet_result reason) {
+	DoraXrtHttpStreamContext* ctx = DoraXrtPooledContext(owner, stream, 1);
+	if (ctx) { DoraXrtHttpStreamHandleClose(ctx, stream, reason); __xnetAtomicAddFetch32(&ctx->owner->callbacks, -1); }
+}
+static void DoraXrtPooledOnError(ptr owner, xnetstream* stream, int sysErr) {
+	DoraXrtHttpStreamContext* ctx = DoraXrtPooledContext(owner, stream, 1);
+	if (ctx) { DoraXrtHttpStreamHandleError(ctx, stream, sysErr); __xnetAtomicAddFetch32(&ctx->owner->callbacks, -1); }
+}
+
+static const xnetstreamevents* DoraXrtPooledStreamEvents(void) {
 	static const xnetstreamevents events = {
-		DoraXrtHttpStreamOnOpen,
-		DoraXrtHttpStreamOnRecv,
+		DoraXrtPooledOnOpen,
+		DoraXrtPooledOnRecv,
 		NULL,
-		DoraXrtHttpStreamOnClose,
-		DoraXrtHttpStreamOnError,
+		DoraXrtPooledOnClose,
+		DoraXrtPooledOnError,
 		NULL,
 		NULL
 	};
@@ -1317,7 +1781,9 @@ static xnet_result DoraXrtHttpExecuteStreamOnce(
 	xnetconnectconfig connectConfig;
 	xtlsconfig tlsConfig;
 	DoraXrtHttpStreamContext ctx;
+	DoraXrtHttpPooledConnection standaloneOwner = {0};
 	xnet_result status = XRT_NET_ERROR;
+	int reused;
 	double startTime = xrtTimer();
 
 	if (statusCode) {
@@ -1332,6 +1798,7 @@ static xnet_result DoraXrtHttpExecuteStreamOnce(
 
 	memset(&ctx, 0, sizeof(ctx));
 	ctx.finalStatus = XRT_NET_AGAIN;
+	ctx.headRequest = __xhttpStrEqNoCase(method, "HEAD");
 	ctx.onChunk = onChunk;
 	ctx.streamUserData = streamUserData;
 	ctx.future = xrtNetFutureCreate();
@@ -1349,6 +1816,7 @@ static xnet_result DoraXrtHttpExecuteStreamOnce(
 	for (size_t i = 0; i < headerCount; ++i) {
 		if (headerNames && headerValues && headerNames[i] && headerValues[i]) {
 			(void)xrtHttpRequestSetHeader(&request, headerNames[i], headerValues[i]);
+			if (__xhttpStrEqNoCase(headerNames[i], "Connection") && xrtHttpHeaderContainsToken(headerValues[i], "close")) ctx.serverClose = 1;
 		}
 	}
 	if (!DoraXrtHttpHasHeader(headerNames, headerCount, "User-Agent")) {
@@ -1370,25 +1838,59 @@ static xnet_result DoraXrtHttpExecuteStreamOnce(
 		status = XRT_NET_ERROR;
 		goto cleanup;
 	}
-	ctx.stream = xrtNetStreamCreate(engine, DoraXrtHttpStreamEvents(), &ctx);
+	DoraXrtHttpPoolLockAcquire();
+	reused = 0;
+	for (int attempt = 0; attempt <= DORA_XRT_HTTP_POOL_SIZE; ++attempt) {
+		ctx.owner = DoraXrtHttpPoolAcquire(&request, verifyPeer, &ctx);
+		ctx.stream = ctx.owner ? ctx.owner->stream : NULL;
+		if (!ctx.stream) break;
+		if (xrtNetStreamSend(ctx.stream, ctx.requestBytes, ctx.requestLen) == XRT_NET_OK) {
+			reused = 1; break;
+		}
+		// Only retry a rejected send. Never replay a POST after an accepted send.
+		DoraXrtHttpPoolParkOrRelease(ctx.owner, 0);
+		ctx.owner = NULL; ctx.stream = NULL;
+	}
+	DoraXrtHttpPoolLockRelease();
+	if (!reused && ctx.owner && !ctx.owner->stream) {
+		DoraXrtHttpPoolLockAcquire();
+		ctx.owner->https = request.tURL.bHttps ? 1 : 0;
+		ctx.owner->port = (unsigned short)request.tURL.iPort;
+		ctx.owner->verifyPeer = verifyPeer;
+		snprintf(ctx.owner->host, sizeof(ctx.owner->host), "%s", request.tURL.sHost);
+		ctx.stream = xrtNetStreamCreate(engine, DoraXrtPooledStreamEvents(), ctx.owner);
+		if (ctx.stream) {
+			ctx.owner->stream = ctx.stream;
+		}
+		DoraXrtHttpPoolLockRelease();
+	}
+	if (!reused && !ctx.stream) {
+		if (ctx.owner) { DoraXrtHttpPoolParkOrRelease(ctx.owner, 0); ctx.owner = NULL; }
+		ctx.owner = &standaloneOwner;
+		ctx.owner->active = &ctx; ctx.owner->busy = 1;
+		ctx.stream = xrtNetStreamCreate(engine, DoraXrtPooledStreamEvents(), ctx.owner);
+		ctx.owner->stream = ctx.stream;
+	}
 	if (!ctx.stream) {
 		status = XRT_NET_ERROR;
 		goto cleanup;
 	}
-	xrtNetConnectConfigInit(&connectConfig);
-	connectConfig.sHost = request.tURL.sHost;
-	connectConfig.iPort = request.tURL.iPort;
-	connectConfig.iConnectTimeoutMs = timeoutMs;
-	connectConfig.iRecvLimit = 8u * 1024u * 1024u;
-	if (request.tURL.bHttps) {
-		memset(&tlsConfig, 0, sizeof(tlsConfig));
-		tlsConfig.sHostName = request.tURL.sHost;
-		tlsConfig.bVerifyPeer = verifyPeer != 0;
-		connectConfig.pTlsConfig = &tlsConfig;
-	}
-	if (xrtNetStreamConnect(ctx.stream, &connectConfig) != XRT_NET_OK) {
-		status = XRT_NET_ERROR;
-		goto cleanup;
+	if (!reused) {
+		xrtNetConnectConfigInit(&connectConfig);
+		connectConfig.sHost = request.tURL.sHost;
+		connectConfig.iPort = request.tURL.iPort;
+		connectConfig.iConnectTimeoutMs = timeoutMs;
+		connectConfig.iRecvLimit = 8u * 1024u * 1024u;
+		if (request.tURL.bHttps) {
+			memset(&tlsConfig, 0, sizeof(tlsConfig));
+			tlsConfig.sHostName = request.tURL.sHost;
+			tlsConfig.bVerifyPeer = verifyPeer != 0;
+			connectConfig.pTlsConfig = &tlsConfig;
+		}
+		if (xrtNetStreamConnect(ctx.stream, &connectConfig) != XRT_NET_OK) {
+			status = XRT_NET_ERROR;
+			goto cleanup;
+		}
 	}
 
 	for (;;) {
@@ -1401,7 +1903,12 @@ static xnet_result DoraXrtHttpExecuteStreamOnce(
 		if (status != XRT_NET_TIMEOUT) {
 			break;
 		}
+		// A resolved timeout is a result, not another poll timeout.
+		if (__xnetAtomicLoad32(&ctx.resolved) != 0) { status = (xnet_result)__xnetAtomicLoad32(&ctx.finalStatus); break; }
 	}
+cleanup:
+	if (ctx.owner) DoraXrtHttpPoolParkOrRelease(ctx.owner, status == XRT_NET_OK);
+	ctx.stream = NULL;
 	if (status == XRT_NET_OK && ctx.statusCode == 0) {
 		status = XRT_NET_ERROR;
 	}
@@ -1417,11 +1924,6 @@ static xnet_result DoraXrtHttpExecuteStreamOnce(
 		redirectLocation[len] = '\0';
 	}
 
-cleanup:
-	if (ctx.stream) {
-		xrtNetStreamDestroy(ctx.stream);
-		ctx.stream = NULL;
-	}
 	if (ctx.requestBytes) {
 		XNET_FREE(ctx.requestBytes);
 	}

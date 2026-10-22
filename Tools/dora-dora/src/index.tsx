@@ -16,48 +16,64 @@ import i18n from './i18n';
 import Info from './Info';
 import Path from './3rdParty/Path';
 import AuthDialog, { AuthDialogProps, AuthSession } from './AuthDialog';
-import { canonicalizeAuthPath } from './AuthSignature';
+import { createAuthHeaders } from './AuthSignature';
 
 const origFetch = window.fetch.bind(window);
 
 const checkAuthRequired = async () => {
-	let authRequired = false;
 	try {
 		const probe = await origFetch(Service.addr('/info'), {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: '{}',
+			cache: 'no-store',
 		});
-		authRequired = probe.status === 401;
+		if (probe.status === 401 || probe.ok) {
+			const required = probe.status === 401;
+			Service.setAuthRequired(required);
+			return required;
+		}
 	} catch (err) {
 		void err;
 	}
-	Service.setAuthRequired(authRequired);
-	return authRequired;
+	return null; // An offline engine or server error does not establish its mode.
 };
 
-const showAuthDialog = ({ origFetch, onToken }: AuthDialogProps) => {
+const showAuthDialog = ({ origFetch, onToken }: AuthDialogProps, refreshAuthRequired: () => Promise<boolean | null>) => {
 	const container = document.createElement('div');
 	document.body.appendChild(container);
 	const modalRoot = ReactDOM.createRoot(container);
-	return new Promise<AuthSession>((resolve) => {
-		const cleanup = (nextToken: AuthSession) => {
+	return new Promise<AuthSession | null>((resolve) => {
+		let disposed = false;
+		let timer: ReturnType<typeof setTimeout>;
+		const cleanup = (nextToken: AuthSession | null) => {
+			if (disposed) return;
+			disposed = true;
+			clearTimeout(timer);
 			modalRoot.unmount();
 			container.remove();
 			resolve(nextToken);
 		};
 
 		const handleToken = (session: AuthSession) => {
+			if (disposed) return;
 			onToken(session);
 			cleanup(session);
 		};
 
 		modalRoot.render(<AuthDialog origFetch={origFetch} onToken={handleToken} />);
+		const refresh = async () => {
+			const required = await refreshAuthRequired();
+			if (disposed) return;
+			if (required === false) cleanup(null);
+			else timer = setTimeout(() => { void refresh(); }, 1000);
+		};
+		void refresh();
 	});
 };
 
 const setupAuth = async (): Promise<void> => {
-	let authRequired = await checkAuthRequired();
+	let authRequired = (await checkAuthRequired()) === true;
 	const isAuthBypassUrl = (input: RequestInfo | URL) => {
 		const url = input instanceof Request ? input.url : String(input);
 		return url.includes('/auth');
@@ -77,7 +93,6 @@ const setupAuth = async (): Promise<void> => {
 	};
 	let session = parseSession(localStorage.getItem(storageKey));
 	let authInFlight: Promise<AuthSession | null> | null = null;
-	let signingKeyPromise: Promise<CryptoKey> | null = null;
 
 	const normalizeSession = (nextSession: AuthSession | null) => {
 		if (nextSession && nextSession.sessionId && nextSession.sessionSecret) {
@@ -88,7 +103,6 @@ const setupAuth = async (): Promise<void> => {
 
 	const setSession = (nextSession: AuthSession | null) => {
 		session = normalizeSession(nextSession);
-		signingKeyPromise = null;
 		if (session) {
 			localStorage.setItem(storageKey, JSON.stringify(session));
 		} else {
@@ -104,7 +118,17 @@ const setupAuth = async (): Promise<void> => {
 		}
 	};
 
-	let modalInFlight: Promise<AuthSession> | null = null;
+	const refreshAuthRequired = async () => {
+		const required = await checkAuthRequired();
+		if (required !== null) {
+			authRequired = required;
+			if (!required) setSession(null);
+		}
+		return required;
+	};
+	// A persisted WebView can retain a session from the previous engine run.
+	if (!authRequired) setSession(null);
+	let modalInFlight: Promise<AuthSession | null> | null = null;
 
 	const showAuthModal = () => {
 		Service.getWebSocket()?.close();
@@ -113,7 +137,7 @@ const setupAuth = async (): Promise<void> => {
 			onToken: (nextSession) => {
 				setSession(nextSession);
 			},
-		});
+		}, refreshAuthRequired);
 	};
 
 	const requestAuthToken = () => {
@@ -128,56 +152,26 @@ const setupAuth = async (): Promise<void> => {
 		if (!authRequired) return Promise.resolve(session);
 		if (session && !force) return Promise.resolve(session);
 		if (!authInFlight) {
-			authInFlight = (() => {
+			authInFlight = (async () => {
+				const required = await refreshAuthRequired();
+				if (required !== true) {
+					if (required === null) await new Promise(resolve => setTimeout(resolve, 1000));
+					return null;
+				}
 				let attempts = 0;
 				const tryAuth = (): Promise<AuthSession | null> => {
 					attempts += 1;
 					return requestAuthToken().then((nextSession) => {
-						if ((nextSession && nextSession.sessionSecret) || attempts >= 3) return nextSession;
+						if (!authRequired || (nextSession && nextSession.sessionSecret) || attempts >= 3) return nextSession;
 						return tryAuth();
 					});
 				};
-				return tryAuth().finally(() => {
-					authInFlight = null;
-				});
-			})();
+				return tryAuth();
+			})().finally(() => {
+				authInFlight = null;
+			});
 		}
 		return authInFlight;
-	};
-
-	const encoder = new TextEncoder();
-
-	const bufferToHex = (buffer: ArrayBuffer) =>
-		Array.from(new Uint8Array(buffer))
-			.map((byte) => byte.toString(16).padStart(2, '0'))
-			.join('');
-
-	const sha256Hex = async (data: Uint8Array) => {
-		if (!data.length) return '';
-		const hash = await crypto.subtle.digest('SHA-256', data as BufferSource);
-		return bufferToHex(hash);
-	};
-
-	const getSigningKey = async () => {
-		if (!session) return null;
-		if (!signingKeyPromise) {
-			signingKeyPromise = crypto.subtle.importKey(
-				'raw',
-				encoder.encode(session.sessionSecret),
-				{ name: 'HMAC', hash: 'SHA-256' },
-				false,
-				['sign'],
-			);
-		}
-		return signingKeyPromise;
-	};
-
-	const hmacHex = async (payload: string) => {
-		if (!session) return '';
-		const key = await getSigningKey();
-		if (!key) return '';
-		const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(payload));
-		return bufferToHex(signature);
 	};
 
 	const getBodyBytes = async (request: Request) => {
@@ -204,28 +198,17 @@ const setupAuth = async (): Promise<void> => {
 	};
 
 	const buildAuthHeaders = async (request: Request) => {
-		if (!session) return null;
-		const url = new URL(request.url, window.location.href);
-		const path = canonicalizeAuthPath(url);
-		const timestamp = Math.floor(Date.now() / 1000).toString();
-		const nonce = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(16).slice(2);
-		const bodyBytes = await getBodyBytes(request);
-		const bodyHash = await sha256Hex(bodyBytes);
-		const payload = [session.sessionId, request.method.toUpperCase(), path, timestamp, nonce, bodyHash].join('\n');
-		const signature = await hmacHex(payload);
-		return {
-			'X-Dora-Session': session.sessionId,
-			'X-Dora-Timestamp': timestamp,
-			'X-Dora-Nonce': nonce,
-			'X-Dora-Signature': signature,
-		};
+		const signingSession = session;
+		if (!signingSession) return null;
+		return createAuthHeaders(signingSession, request.method, new URL(request.url, window.location.href),
+			await getBodyBytes(request), !process.env.NODE_ENV || process.env.NODE_ENV === 'development');
 	};
 
 	window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
 		const doFetch = async () => {
 			const request = input instanceof Request ? new Request(input, init) : new Request(input, init);
 			const headers = new Headers(request.headers);
-			if (session) {
+			if (authRequired && session && !isAuthBypassUrl(input)) {
 				const authHeaders = await buildAuthHeaders(request);
 				if (authHeaders) {
 					Object.entries(authHeaders).forEach(([key, value]) => headers.set(key, value));
@@ -259,8 +242,7 @@ const setupAuth = async (): Promise<void> => {
 		const socket = protocols ? new OrigWebSocket(url, protocols) : new OrigWebSocket(url);
 		socket.addEventListener('close', () => {
 			void (async () => {
-				authRequired = await checkAuthRequired();
-				if (authRequired) {
+				if ((await refreshAuthRequired()) === true) {
 					setSession(null);
 					await ensureAuth(true);
 				}
